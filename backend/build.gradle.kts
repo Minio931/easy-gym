@@ -19,17 +19,25 @@ repositories {
 }
 
 val testcontainersVersion = "1.20.4"
+val jjwtVersion = "0.12.6"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("io.jsonwebtoken:jjwt-api:$jjwtVersion")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:$jjwtVersion")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:$jjwtVersion")
     runtimeOnly("org.postgresql:postgresql")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:postgresql:$testcontainersVersion")
     testImplementation("org.testcontainers:junit-jupiter:$testcontainersVersion")
@@ -40,4 +48,18 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.register<JavaExec>("generatePasswordHash") {
+    group = "easy-gym"
+    description = "Generuje bcrypt hash hasła do ręcznego seeda kont (migracja V5). " +
+        "Użycie: ./gradlew generatePasswordHash -Ppassword=<haslo>. Hash trafia na stdout, " +
+        "hasło w czystej postaci nigdzie poza Twój terminal nie wychodzi."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.example.easygymbackend.util.PasswordHashCli")
+    doFirst {
+        val password = project.findProperty("password") as String?
+            ?: throw GradleException("Podaj hasło: ./gradlew generatePasswordHash -Ppassword=<haslo>")
+        args = listOf(password)
+    }
 }

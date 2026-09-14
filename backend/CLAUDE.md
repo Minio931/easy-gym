@@ -6,8 +6,15 @@ Spring Boot API dla aplikacji do śledzenia treningu. Jedyny serwer aplikacji �
 
 - Java 26 (toolchain), Spring Boot 4.1.1, Gradle (Kotlin DSL)
 - Postgres jako jedyna baza danych, Flyway do migracji (`src/main/resources/db/migration/`)
-- Docelowo (kolejne etapy): Spring Security + JWT (access + refresh), Spring Data JPA, Apache POI do eksportu XLSX
+- Spring Security + JWT (access + refresh, `jjwt` 0.12.x), Spring Data JPA (`ddl-auto: validate` — Flyway jest jedynym źródłem prawdy o schemacie, Hibernate tylko sprawdza zgodność encji)
+- Docelowo (kolejne etapy): Apache POI do eksportu XLSX
 - Testy: JUnit 5 + Testcontainers (`postgres:16-alpine`) — testy integracyjne odpalają prawdziwego Postgresa w kontenerze, nie H2. Wymaga działającego Dockera lokalnie i w CI.
+
+**Uwaga na Spring Boot 4 / Jackson 3 w tym projekcie — inne pakiety niż w tutorialach dla Boot 3:**
+- Jackson: `tools.jackson.databind.ObjectMapper`, nie `com.fasterxml.jackson.databind.ObjectMapper`.
+- `@AutoConfigureMockMvc`: `org.springframework.boot.webmvc.test.autoconfigure`, nie `org.springframework.boot.test.autoconfigure.web.servlet`.
+- `MockMvc`/`MockMvcRequestBuilders`/`MockMvcResultMatchers` (z `spring-test`) zostały bez zmian w starych pakietach `org.springframework.test.web.servlet.*`.
+- Zweryfikowane przeglądem zawartości jarów w `~/.gradle/caches`, bo standardowe przykłady z dokumentacji/internetu (Boot 3) się tu nie kompilują.
 
 ## Decyzje architektoniczne (etap 1)
 
@@ -22,6 +29,13 @@ Pełne założenia z promptu projektowego — potwierdzone, z jednym zastrzeżen
 4. **Endpoint synchronizacji Dexie** — zaprojektowany od razu jako część API (etap 5), nie dolepiany później. Konsekwencja widoczna już w schemacie: każda tabela synchronizowana z klienta ma `id UUID` (bez `DEFAULT`, bo generuje go klient), `updated_at` (last-write-wins) i `deleted_at` (soft delete / tombstone — zwykłe `DELETE FROM` nie zsynchronizowałoby kasowania na inne urządzenie).
 
 5. **Eksport XLSX przez Apache POI** — potwierdzone, realizacja w etapie 9.
+
+### Decyzje architektoniczne (etap 2 — Auth)
+
+- **Tworzenie kont: seed Flyway, nie endpoint admina.** Zero publicznego endpointu do tworzenia kont — najmniejsza powierzchnia ataku dla dwóch znanych użytkowników. Hasła haszowane lokalnie przez `./gradlew generatePasswordHash -Ppassword=<haslo>` (patrz niżej), hash wklejany ręcznie do migracji `V5`. Hasło w czystej postaci nie trafia nigdy do repo ani do żadnej konwersacji/logu.
+- **Access token: JWT (15 min), refresh token: opaque random string (30 dni), nie JWT.** Refresh token to 256 bitów z `SecureRandom`, w bazie trzymany jako SHA-256 hash (`refresh_tokens.token_hash`) — analogicznie do `password_hash`. Wyciek bazy nie daje od razu działających tokenów.
+- **Rotacja refresh tokenu przy każdym `/api/auth/refresh`.** Stary rekord dostaje `revoked_at`, powstaje nowy. Ponowne użycie starego refresh tokenu (replay) jest wykrywane i odrzucane — pokryte testem (`AuthControllerTest#refreshRotujeTokenINiePozwalaGoUzycPonownie`).
+- **`CurrentUser.id()`** (`auth/CurrentUser.java`) to jedyny sposób, w jaki przyszłe kontrolery mają poznawać `user_id` wywołującego — nigdy z body/query requestu. To jest mechanizm egzekwujący decyzję 2 (izolacja w warstwie serwisowej) w praktyce.
 
 ### Rozszerzenia względem literalnej specyfikacji z promptu (sekcja 2)
 
@@ -43,15 +57,36 @@ backend/
       V3__create_training_schema.sql  # exercises, routines, routine_items, workouts,
                                        # workout_exercises, sets, body_weights + indeksy
       V4__seed_global_exercises.sql   # 60 ćwiczeń PL, user_id NULL, UUID-y stałe (idempotentny seed)
+      V5__seed_users.sql              # TODO -- czeka na loginy + hashe haseł, patrz "Postęp etapów"
   src/main/java/com/example/easygymbackend/
     EasyGymBackendApplication.java
+    config/
+      SecurityConfig.java        # filter chain, CORS, PasswordEncoder (BCrypt)
+      GlobalExceptionHandler.java # BadCredentialsException -> 401, walidacja -> 400, JSON
+      JwtProperties.java         # app.jwt.* (secret/issuer/ttl), @ConfigurationProperties
+      CorsProperties.java        # app.cors.allowed-origins
+    user/
+      User.java, UserRepository.java
+    auth/
+      AuthController.java        # POST /api/auth/{login,refresh,logout}
+      AuthService.java           # logowanie, rotacja refresh tokenu, logout
+      JwtService.java            # generowanie/parsowanie access tokenu (JWT, jjwt)
+      JwtAuthenticationFilter.java
+      AuthenticatedUser.java     # principal w SecurityContext (userId + login)
+      CurrentUser.java           # CurrentUser.id() -- jedyne źródło user_id dla kontrolerów
+      TokenHasher.java           # SHA-256 hex, do hashowania refresh tokenów
+      RefreshToken.java, RefreshTokenRepository.java
+      MeController.java          # GET /api/me -- chroniony smoke-test endpoint
+      dto/LoginRequest.java, RefreshRequest.java, TokenPairResponse.java
+    util/
+      PasswordHashCli.java       # main() do generowania bcrypt hashy pod V5, NIE komponent Springa
   src/test/java/com/example/easygymbackend/
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
                                            # body_weights per dzień po soft-delete
+    auth/AuthControllerTest.java          # login/refresh/logout end-to-end, w tym replay
+                                           # starego refresh tokenu i dostęp bez/z tokenem do /api/me
 ```
-
-Pakiety domenowe (`auth`, `exercises`, `workouts`, `sync`, ...) dojdą w etapie 2 wraz ze szkieletem Springa — na razie jest tylko schemat bazy.
 
 ## Model danych — skrót
 
@@ -88,13 +123,20 @@ Zmienne środowiskowe do produkcji/staging (nie ustawiaj lokalnie, jeśli używa
 | `DB_URL` | JDBC URL do Postgresa managed (np. Neon) |
 | `DB_USERNAME` / `DB_PASSWORD` | dane logowania do bazy |
 | `SERVER_PORT` | port HTTP (default `8080`) |
+| `JWT_SECRET` | sekret HMAC do podpisywania access tokenów — **wymagany w produkcji** (min. 32 losowe bajty); developerski default w `application.yaml` jest świadomie słaby i tylko do lokalnej pracy |
+| `CORS_ALLOWED_ORIGINS` | dozwolone originy dla frontendu (comma-separated), default `http://localhost:3000` |
+
+### Zakładanie konta (bez publicznego endpointu)
+
+1. `./gradlew generatePasswordHash -Ppassword='haslo-uzytkownika'` — hasło zostaje w Twoim terminalu, na stdout wraca tylko bcrypt hash.
+2. Hash wklejany do kolejnej migracji Flyway (`V5__seed_users.sql`, jeszcze nie istnieje — czeka na loginy dwóch kont).
 
 ## Postęp etapów
 
 Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 
 - [x] **Etap 1 — schemat bazy.** Flyway V1–V4, seed 60 ćwiczeń, testy integracyjne na Testcontainers.
-- [ ] Etap 2 — szkielet Springa (pakiety, konfiguracja) + Auth (JWT) + szkielet Next.js (poza zakresem `backend/`).
+- [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, `AuthControllerTest`. **Otwarte:** migracja `V5__seed_users.sql` czeka na loginy dwóch kont (hasła generowane lokalnie, nigdy nie trafiają do konwersacji). Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
 - [ ] Etap 3 — `lib/metrics.ts` (front) + lustrzana logika w Javie + testy Vitest/JUnit.
 - [ ] Etap 4 — ekran aktywnego treningu (front).
 - [ ] Etap 5 — offline sync (Dexie) + endpoint synchronizacji w Springu + plan testowania konfliktów.
