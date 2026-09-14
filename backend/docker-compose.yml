@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: easy-gym-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: easy_gym
+      POSTGRES_USER: easy_gym
+      POSTGRES_PASSWORD: easy_gym
+    ports:
+      - "5432:5432"
+    volumes:
+      - easy-gym-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  easy-gym-postgres-data:

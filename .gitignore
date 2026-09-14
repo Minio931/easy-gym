@@ -1,0 +1,6 @@
+# Stan IDE, per-developer — dwie osoby, dwa różne projekty (backend/frontend) w jednym repo,
+# śledzenie .idea/ rodzi tylko konflikty i stare ścieżki (patrz gradle.xml po zmianie struktury backend/).
+.idea/
+
+.DS_Store
+*.log
