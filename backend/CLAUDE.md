@@ -10,11 +10,12 @@ Spring Boot API dla aplikacji do śledzenia treningu. Jedyny serwer aplikacji �
 - Docelowo (kolejne etapy): Apache POI do eksportu XLSX
 - Testy: JUnit 5 + Testcontainers (`postgres:16-alpine`) — testy integracyjne odpalają prawdziwego Postgresa w kontenerze, nie H2. Wymaga działającego Dockera lokalnie i w CI.
 
-**Uwaga na Spring Boot 4 / Jackson 3 w tym projekcie — inne pakiety niż w tutorialach dla Boot 3:**
+**Uwaga na Spring Boot 4 / Jackson 3 w tym projekcie — inne pakiety i moduły niż w tutorialach dla Boot 3:**
 - Jackson: `tools.jackson.databind.ObjectMapper`, nie `com.fasterxml.jackson.databind.ObjectMapper`.
 - `@AutoConfigureMockMvc`: `org.springframework.boot.webmvc.test.autoconfigure`, nie `org.springframework.boot.test.autoconfigure.web.servlet`.
 - `MockMvc`/`MockMvcRequestBuilders`/`MockMvcResultMatchers` (z `spring-test`) zostały bez zmian w starych pakietach `org.springframework.test.web.servlet.*`.
-- Zweryfikowane przeglądem zawartości jarów w `~/.gradle/caches`, bo standardowe przykłady z dokumentacji/internetu (Boot 3) się tu nie kompilują.
+- **Flyway wymaga `org.springframework.boot:spring-boot-starter-flyway`, samo `org.flywaydb:flyway-core` NIC nie odpala.** Boot 3 miał jeden monolityczny `spring-boot-autoconfigure.jar` z `FlywayAutoConfiguration` warunkowanym tylko `@ConditionalOnClass(Flyway.class)` — wystarczyło dodać `flyway-core` i działało. Boot 4 rozbił to na osobne moduły per-technologia (widać to też po pakiecie `org.springframework.boot.hibernate.autoconfigure.HibernateJpaConfiguration` w stack trace'ach) — `FlywayAutoConfiguration` żyje teraz w osobnym artefakcie `org.springframework.boot:spring-boot-flyway`, ciągniętym tylko przez `spring-boot-starter-flyway`. Bez tego: Flyway się nie odpala, zero błędu przy starcie, JPA/Hibernate po prostu waliduje pustą bazę i wywala `SchemaManagementException: missing table [...]` — mylący objaw, bo wygląda jak problem z migracją, a to brakująca zależność. Namierzone przez `find ~/.gradle/caches -iname "*.jar" | xargs grep -l FlywayAutoConfiguration.class` (nic nie znalazło) + przegląd BOM-u `spring-boot-dependencies-4.1.1.pom`.
+- Ogólna zasada dla tego projektu: przy dziwnym, cichym błędzie w Spring Boot 4 podejrzewaj najpierw rozbicie autokonfiguracji na moduł, którego nie ma na classpath — sprawdź zawartość jarów w `~/.gradle/caches`, nie ufaj przykładom z internetu pisanym pod Boot 3.
 
 ## Decyzje architektoniczne (etap 1)
 
