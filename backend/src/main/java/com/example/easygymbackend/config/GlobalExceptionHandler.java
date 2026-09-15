@@ -1,5 +1,8 @@
 package com.example.easygymbackend.config;
 
+import com.example.easygymbackend.admin.InvalidBootstrapSecretException;
+import com.example.easygymbackend.admin.UserAlreadyExistsException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -16,6 +19,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidBootstrapSecretException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidBootstrapSecret(InvalidBootstrapSecretException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<Map<String, String>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
+    // Siatka bezpieczeństwa pod wyścig: dwa równoczesne POST /api/admin/users
+    // z tym samym loginem mogłyby ominąć sprawdzenie findByLogin w serwisie
+    // i oba dojść do zapisu -- baza (UNIQUE na login) i tak to zablokuje.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Konflikt danych"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

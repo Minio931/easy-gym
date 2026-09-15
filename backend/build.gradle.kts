@@ -49,17 +49,3 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
-
-tasks.register<JavaExec>("generatePasswordHash") {
-    group = "easy-gym"
-    description = "Generuje bcrypt hash hasła do ręcznego seeda kont (migracja V5). " +
-        "Użycie: ./gradlew generatePasswordHash -Ppassword=<haslo>. Hash trafia na stdout, " +
-        "hasło w czystej postaci nigdzie poza Twój terminal nie wychodzi."
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("com.example.easygymbackend.util.PasswordHashCli")
-    doFirst {
-        val password = project.findProperty("password") as String?
-            ?: throw GradleException("Podaj hasło: ./gradlew generatePasswordHash -Ppassword=<haslo>")
-        args = listOf(password)
-    }
-}

@@ -34,3 +34,8 @@ app:
 
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+  admin:
+    # Sekret do POST /api/admin/users (patrz AdminUserService) -- w produkcji
+    # WYMAGANY realny, losowy sekret; dev default poniżej jest celowo słaby.
+    bootstrap-secret: ${ADMIN_BOOTSTRAP_SECRET:dev-only-bootstrap-secret-change-me}

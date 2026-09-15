@@ -32,7 +32,7 @@ Pełne założenia z promptu projektowego — potwierdzone, z jednym zastrzeżen
 
 ### Decyzje architektoniczne (etap 2 — Auth)
 
-- **Tworzenie kont: seed Flyway, nie endpoint admina.** Zero publicznego endpointu do tworzenia kont — najmniejsza powierzchnia ataku dla dwóch znanych użytkowników. Hasła haszowane lokalnie przez `./gradlew generatePasswordHash -Ppassword=<haslo>` (patrz niżej), hash wklejany ręcznie do migracji `V5`. Hasło w czystej postaci nie trafia nigdy do repo ani do żadnej konwersacji/logu.
+- **Tworzenie kont: `POST /api/admin/users`, chroniony osobnym sekretem (`X-Bootstrap-Secret`), nie JWT.** Pierwotnie planowany seed Flyway + ręczne generowanie bcrypt hasha lokalnie — zmienione na endpoint, bo wygodniejsze (zakładanie/zmiana konta bez nowej migracji Flyway za każdym razem) i tak samo bezpieczne przy dwóch znanych użytkownikach: sekret w `ADMIN_BOOTSTRAP_SECRET`, porównywany stałoczasowo (`MessageDigest.isEqual`), nie przez Spring Security/JWT — bo w momencie zakładania pierwszego konta nie ma jeszcze czym się zalogować. Endpoint jest `permitAll` na poziomie filter chain, autoryzację robi sam `AdminUserService`. Hasło w request body trafia tylko przez HTTPS bezpośrednio do `PasswordEncoder.encode()`, nigdy nie jest logowane ani zapisywane w czystej postaci.
 - **Access token: JWT (15 min), refresh token: opaque random string (30 dni), nie JWT.** Refresh token to 256 bitów z `SecureRandom`, w bazie trzymany jako SHA-256 hash (`refresh_tokens.token_hash`) — analogicznie do `password_hash`. Wyciek bazy nie daje od razu działających tokenów.
 - **Rotacja refresh tokenu przy każdym `/api/auth/refresh`.** Stary rekord dostaje `revoked_at`, powstaje nowy. Ponowne użycie starego refresh tokenu (replay) jest wykrywane i odrzucane — pokryte testem (`AuthControllerTest#refreshRotujeTokenINiePozwalaGoUzycPonownie`).
 - **`CurrentUser.id()`** (`auth/CurrentUser.java`) to jedyny sposób, w jaki przyszłe kontrolery mają poznawać `user_id` wywołującego — nigdy z body/query requestu. To jest mechanizm egzekwujący decyzję 2 (izolacja w warstwie serwisowej) w praktyce.
@@ -57,14 +57,14 @@ backend/
       V3__create_training_schema.sql  # exercises, routines, routine_items, workouts,
                                        # workout_exercises, sets, body_weights + indeksy
       V4__seed_global_exercises.sql   # 60 ćwiczeń PL, user_id NULL, UUID-y stałe (idempotentny seed)
-      V5__seed_users.sql              # TODO -- czeka na loginy + hashe haseł, patrz "Postęp etapów"
   src/main/java/com/example/easygymbackend/
     EasyGymBackendApplication.java
     config/
       SecurityConfig.java        # filter chain, CORS, PasswordEncoder (BCrypt)
-      GlobalExceptionHandler.java # BadCredentialsException -> 401, walidacja -> 400, JSON
+      GlobalExceptionHandler.java # BadCredentialsException -> 401, admin/walidacja -> 403/409/400, JSON
       JwtProperties.java         # app.jwt.* (secret/issuer/ttl), @ConfigurationProperties
       CorsProperties.java        # app.cors.allowed-origins
+      AdminProperties.java       # app.admin.bootstrap-secret
     user/
       User.java, UserRepository.java
     auth/
@@ -78,14 +78,19 @@ backend/
       RefreshToken.java, RefreshTokenRepository.java
       MeController.java          # GET /api/me -- chroniony smoke-test endpoint
       dto/LoginRequest.java, RefreshRequest.java, TokenPairResponse.java
-    util/
-      PasswordHashCli.java       # main() do generowania bcrypt hashy pod V5, NIE komponent Springa
+    admin/
+      AdminController.java       # POST /api/admin/users
+      AdminUserService.java      # weryfikacja X-Bootstrap-Secret (stałoczasowo) + tworzenie konta
+      InvalidBootstrapSecretException.java, UserAlreadyExistsException.java
+      dto/CreateUserRequest.java, CreateUserResponse.java
   src/test/java/com/example/easygymbackend/
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
                                            # body_weights per dzień po soft-delete
     auth/AuthControllerTest.java          # login/refresh/logout end-to-end, w tym replay
                                            # starego refresh tokenu i dostęp bez/z tokenem do /api/me
+    admin/AdminControllerTest.java        # tworzenie konta, zły/brak sekretu, duplikat loginu,
+                                           # walidacja hasła, i że konto realnie działa w /api/auth/login
 ```
 
 ## Model danych — skrót
@@ -125,18 +130,25 @@ Zmienne środowiskowe do produkcji/staging (nie ustawiaj lokalnie, jeśli używa
 | `SERVER_PORT` | port HTTP (default `8080`) |
 | `JWT_SECRET` | sekret HMAC do podpisywania access tokenów — **wymagany w produkcji** (min. 32 losowe bajty); developerski default w `application.yaml` jest świadomie słaby i tylko do lokalnej pracy |
 | `CORS_ALLOWED_ORIGINS` | dozwolone originy dla frontendu (comma-separated), default `http://localhost:3000` |
+| `ADMIN_BOOTSTRAP_SECRET` | sekret do `POST /api/admin/users` — **wymagany w produkcji**, nikomu poza Tobą nieznany; developerski default jest celowo słaby |
 
-### Zakładanie konta (bez publicznego endpointu)
+### Zakładanie konta
 
-1. `./gradlew generatePasswordHash -Ppassword='haslo-uzytkownika'` — hasło zostaje w Twoim terminalu, na stdout wraca tylko bcrypt hash.
-2. Hash wklejany do kolejnej migracji Flyway (`V5__seed_users.sql`, jeszcze nie istnieje — czeka na loginy dwóch kont).
+```
+curl -X POST localhost:8080/api/admin/users \
+  -H "X-Bootstrap-Secret: <ADMIN_BOOTSTRAP_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"login":"Minio","password":"haslo-minio"}'
+```
+
+201 z `{id, login, createdAt}` przy sukcesie; 403 przy złym/brakującym sekrecie, 409 przy zajętym loginie, 400 przy haśle krótszym niż 8 znaków. Zero endpointu do listowania/usuwania kont na razie — dwóch userów, ręczne operacje w bazie wystarczą, jeśli kiedyś potrzebne.
 
 ## Postęp etapów
 
 Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 
 - [x] **Etap 1 — schemat bazy.** Flyway V1–V4, seed 60 ćwiczeń, testy integracyjne na Testcontainers.
-- [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, `AuthControllerTest`. **Otwarte:** migracja `V5__seed_users.sql` czeka na loginy dwóch kont (hasła generowane lokalnie, nigdy nie trafiają do konwersacji). Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
+- [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`/`admin`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, zakładanie kont przez `POST /api/admin/users` (sekret, nie JWT). `AuthControllerTest` + `AdminControllerTest`. Konta dla loginów `Minio`/`Wojtur` jeszcze nie założone w żadnej bazie — patrz "Zakładanie konta" wyżej. Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
 - [ ] Etap 3 — `lib/metrics.ts` (front) + lustrzana logika w Javie + testy Vitest/JUnit.
 - [ ] Etap 4 — ekran aktywnego treningu (front).
 - [ ] Etap 5 — offline sync (Dexie) + endpoint synchronizacji w Springu + plan testowania konfliktów.
