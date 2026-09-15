@@ -28,7 +28,7 @@ public class SetService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ćwiczenie w treningu nie istnieje"));
 
         WorkoutSet set = new WorkoutSet();
-        set.setId(UUID.randomUUID());
+        set.setId(request.id());
         set.setWorkoutExercise(workoutExercise);
         set.setSetIndex(request.setIndex());
         set.setWeightKg(request.weightKg());

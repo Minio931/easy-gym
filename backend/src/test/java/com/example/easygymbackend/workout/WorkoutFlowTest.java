@@ -100,7 +100,7 @@ class WorkoutFlowTest {
         String response = mockMvc.perform(post("/api/workouts")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(new StartWorkoutRequest(null, "trening", false))))
+                        .content(objectMapper.writeValueAsString(new StartWorkoutRequest(UUID.randomUUID(), null, "trening", false))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(objectMapper.readTree(response).get("id").asString());
@@ -111,14 +111,14 @@ class WorkoutFlowTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new AddExerciseRequest(GLOBAL_EXERCISE_ID, 1, null))))
+                                new AddExerciseRequest(UUID.randomUUID(), GLOBAL_EXERCISE_ID, 1, null))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(objectMapper.readTree(response).get("id").asString());
     }
 
     private UUID addSet(String token, UUID workoutExerciseId, BigDecimal weightKg, int reps) throws Exception {
-        var request = new AddSetRequest(1, weightKg, reps, null, false, false, false, Instant.now());
+        var request = new AddSetRequest(UUID.randomUUID(), 1, weightKg, reps, null, false, false, false, Instant.now());
         String response = mockMvc.perform(post("/api/workout-exercises/" + workoutExerciseId + "/sets")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
@@ -134,7 +134,7 @@ class WorkoutFlowTest {
                         .header("Authorization", "Bearer " + userAToken)
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new CreateExerciseRequest("Mój wyciskacz", "klatka piersiowa", Equipment.OTHER))))
+                                new CreateExerciseRequest(UUID.randomUUID(), "Mój wyciskacz", "klatka piersiowa", Equipment.OTHER))))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/exercises").header("Authorization", "Bearer " + userAToken))
@@ -201,7 +201,7 @@ class WorkoutFlowTest {
         mockMvc.perform(post("/api/workouts/" + workoutId + "/exercises")
                         .header("Authorization", "Bearer " + userBToken)
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(new AddExerciseRequest(GLOBAL_EXERCISE_ID, 1, null))))
+                        .content(objectMapper.writeValueAsString(new AddExerciseRequest(UUID.randomUUID(), GLOBAL_EXERCISE_ID, 1, null))))
                 .andExpect(status().isNotFound());
     }
 
@@ -211,7 +211,7 @@ class WorkoutFlowTest {
                         .header("Authorization", "Bearer " + userBToken)
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(
-                                new CreateExerciseRequest("Cwiczenie B", "nogi", Equipment.MACHINE))))
+                                new CreateExerciseRequest(UUID.randomUUID(), "Cwiczenie B", "nogi", Equipment.MACHINE))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         UUID exerciseBId = UUID.fromString(objectMapper.readTree(customExerciseResponse).get("id").asString());
@@ -221,7 +221,7 @@ class WorkoutFlowTest {
         mockMvc.perform(post("/api/workouts/" + workoutId + "/exercises")
                         .header("Authorization", "Bearer " + userAToken)
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(new AddExerciseRequest(exerciseBId, 1, null))))
+                        .content(objectMapper.writeValueAsString(new AddExerciseRequest(UUID.randomUUID(), exerciseBId, 1, null))))
                 .andExpect(status().isNotFound());
     }
 
@@ -230,7 +230,8 @@ class WorkoutFlowTest {
         UUID workoutId = startWorkout(userAToken);
         UUID workoutExerciseId = addGlobalExerciseToWorkout(userAToken, workoutId);
 
-        var request = new AddSetRequest(1, new BigDecimal("100.00"), 5, null, false, false, false, Instant.now());
+        var request = new AddSetRequest(
+                UUID.randomUUID(), 1, new BigDecimal("100.00"), 5, null, false, false, false, Instant.now());
         mockMvc.perform(post("/api/workout-exercises/" + workoutExerciseId + "/sets")
                         .header("Authorization", "Bearer " + userBToken)
                         .contentType("application/json")
@@ -291,14 +292,16 @@ class WorkoutFlowTest {
         UUID workoutId = startWorkout(userAToken);
         UUID workoutExerciseId = addGlobalExerciseToWorkout(userAToken, workoutId);
 
-        var tooHeavy = new AddSetRequest(1, new BigDecimal("600.00"), 5, null, false, false, false, Instant.now());
+        var tooHeavy = new AddSetRequest(
+                UUID.randomUUID(), 1, new BigDecimal("600.00"), 5, null, false, false, false, Instant.now());
         mockMvc.perform(post("/api/workout-exercises/" + workoutExerciseId + "/sets")
                         .header("Authorization", "Bearer " + userAToken)
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(tooHeavy)))
                 .andExpect(status().isBadRequest());
 
-        var zeroReps = new AddSetRequest(1, new BigDecimal("100.00"), 0, null, false, false, false, Instant.now());
+        var zeroReps = new AddSetRequest(
+                UUID.randomUUID(), 1, new BigDecimal("100.00"), 0, null, false, false, false, Instant.now());
         mockMvc.perform(post("/api/workout-exercises/" + workoutExerciseId + "/sets")
                         .header("Authorization", "Bearer " + userAToken)
                         .contentType("application/json")

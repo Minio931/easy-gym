@@ -8,8 +8,11 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
+/** id generowany po stronie klienta (offline-first, sekcja 1.4 promptu) -- nie serwer. */
 public record AddSetRequest(
+        @NotNull UUID id,
         @NotNull @Min(1) Integer setIndex,
         @NotNull @DecimalMin("0") @DecimalMax("500") BigDecimal weightKg,
         @NotNull @Min(1) @Max(100) Integer reps,

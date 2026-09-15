@@ -32,7 +32,7 @@ public class ExerciseService {
         UUID userId = CurrentUser.id();
 
         Exercise exercise = new Exercise();
-        exercise.setId(UUID.randomUUID());
+        exercise.setId(request.id());
         exercise.setUserId(userId);
         exercise.setName(request.name());
         exercise.setMuscleGroup(request.muscleGroup());

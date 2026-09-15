@@ -37,7 +37,7 @@ public class WorkoutService {
     @Transactional
     public WorkoutSummaryResponse start(StartWorkoutRequest request) {
         Workout workout = new Workout();
-        workout.setId(UUID.randomUUID());
+        workout.setId(request.id());
         workout.setUserId(CurrentUser.id());
         workout.setStartedAt(Instant.now());
         workout.setRoutineId(request.routineId());
@@ -98,7 +98,7 @@ public class WorkoutService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ćwiczenie nie istnieje"));
 
         WorkoutExercise workoutExercise = new WorkoutExercise();
-        workoutExercise.setId(UUID.randomUUID());
+        workoutExercise.setId(request.id());
         workoutExercise.setWorkout(workout);
         workoutExercise.setExercise(exercise);
         workoutExercise.setOrderIndex(request.orderIndex());
