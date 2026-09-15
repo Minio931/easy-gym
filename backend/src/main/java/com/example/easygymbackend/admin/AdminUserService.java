@@ -48,7 +48,11 @@ public class AdminUserService {
         user.setId(UUID.randomUUID());
         user.setLogin(login);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
-        user = userRepository.save(user);
+        // saveAndFlush, nie save -- @CreationTimestamp na createdAt jest liczony przez
+        // Hibernate dopiero przy budowaniu INSERT-a (flush), a nie przy wywołaniu save().
+        // Bez wymuszonego flusha ta metoda zwracała createdAt=null, mimo że w bazie
+        // kolumna (NOT NULL) i tak dostawała poprawną wartość dopiero przy commicie.
+        user = userRepository.saveAndFlush(user);
 
         return new CreateUserResponse(user.getId(), user.getLogin(), user.getCreatedAt());
     }

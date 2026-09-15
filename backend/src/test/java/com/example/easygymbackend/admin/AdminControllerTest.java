@@ -69,7 +69,10 @@ class AdminControllerTest {
                         .content(objectMapper.writeValueAsString(new CreateUserRequest("Minio", "haslo-minio-123"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.login").value("Minio"))
-                .andExpect(jsonPath("$.id").isNotEmpty());
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                // Regresja: @CreationTimestamp liczy się dopiero przy flushu, save() bez
+                // saveAndFlush zwracał tu createdAt=null mimo poprawnej wartości w bazie.
+                .andExpect(jsonPath("$.createdAt").isNotEmpty());
     }
 
     @Test
