@@ -53,4 +53,23 @@ public interface WorkoutSetRepository extends JpaRepository<WorkoutSet, UUID> {
             """)
     List<WorkoutSet> findAllForExercise(@Param("exerciseId") UUID exerciseId, @Param("userId") UUID userId);
 
+    /**
+     * Pod "ostatnie PR" na dashboardzie (etap 8) -- wszystkie serie usera,
+     * WSZYSTKICH ćwiczeń, posortowane najpierw po ćwiczeniu (żeby grupowanie
+     * per-exercise w serwisie było jednym przejściem), potem chronologicznie.
+     * PR-y liczy się per ćwiczenie (pakiet metrics), więc to nadal "dane
+     * jednego usera", nie SUM/GROUP BY w bazie -- w odróżnieniu od objętości
+     * tygodniowej/kalendarza (DashboardRepository), gdzie sekcja 9 promptu
+     * wprost każe agregować w zapytaniu.
+     */
+    @Query("""
+            SELECT s FROM WorkoutSet s
+            WHERE s.workoutExercise.workout.userId = :userId
+              AND s.deletedAt IS NULL
+              AND s.workoutExercise.deletedAt IS NULL
+              AND s.workoutExercise.workout.deletedAt IS NULL
+            ORDER BY s.workoutExercise.exercise.id, s.workoutExercise.workout.startedAt, s.setIndex
+            """)
+    List<WorkoutSet> findAllForUser(@Param("userId") UUID userId);
+
 }

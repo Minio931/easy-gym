@@ -17,10 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,7 +52,7 @@ public class ExerciseProgressService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ćwiczenie nie istnieje"));
 
         List<WorkoutSet> rawSets = workoutSetRepository.findAllForExercise(exerciseId, userId);
-        List<SessionGroup> sessions = groupIntoSessions(rawSets);
+        List<WorkoutSessionGroup> sessions = WorkoutSessionGrouper.groupByWorkout(rawSets);
 
         List<ExerciseProgressPoint> points = sessions.stream()
                 .map(session -> toProgressPoint(session, formula))
@@ -63,15 +60,16 @@ public class ExerciseProgressService {
                 .toList();
 
         List<PersonalRecordCalculator.Session> prSessions = sessions.stream()
-                .map(session -> new PersonalRecordCalculator.Session(session.workoutId(), toMetricsSets(session.rawSets())))
+                .map(session -> new PersonalRecordCalculator.Session(
+                        session.workoutId(), MetricsConversion.toMetricsSets(session.rawSets())))
                 .toList();
         PersonalRecords records = PersonalRecordCalculator.compute(prSessions, formula);
 
         return new ExerciseProgressResponse(exercise.getId(), exercise.getName(), points, toResponse(records));
     }
 
-    private Optional<ExerciseProgressPoint> toProgressPoint(SessionGroup session, OneRepMaxFormula formula) {
-        List<ExerciseSet> metricsSets = toMetricsSets(session.rawSets());
+    private Optional<ExerciseProgressPoint> toProgressPoint(WorkoutSessionGroup session, OneRepMaxFormula formula) {
+        List<ExerciseSet> metricsSets = MetricsConversion.toMetricsSets(session.rawSets());
         Optional<ExerciseSet> heaviest = SessionMetrics.heaviestSet(metricsSets);
         if (heaviest.isEmpty()) {
             return Optional.empty();
@@ -91,25 +89,6 @@ public class ExerciseProgressService {
                 h.weightKg(), h.reps(), heaviestRaw.getRpe(), h.toFailure(), e1rm, volume));
     }
 
-    private List<SessionGroup> groupIntoSessions(List<WorkoutSet> sets) {
-        LinkedHashMap<UUID, SessionGroup> bySession = new LinkedHashMap<>();
-        for (WorkoutSet s : sets) {
-            Workout workout = s.getWorkoutExercise().getWorkout();
-            SessionGroup group = bySession.computeIfAbsent(workout.getId(),
-                    id -> new SessionGroup(id, workout.getStartedAt(), workout.isDeload(), new ArrayList<>()));
-            group.rawSets().add(s);
-        }
-        return new ArrayList<>(bySession.values());
-    }
-
-    private static List<ExerciseSet> toMetricsSets(List<WorkoutSet> sets) {
-        return sets.stream().map(ExerciseProgressService::toMetricsSet).toList();
-    }
-
-    private static ExerciseSet toMetricsSet(WorkoutSet s) {
-        return new ExerciseSet(s.getId(), s.getCompletedAt(), s.getWeightKg(), s.getReps(), s.isWarmup(), s.isToFailure(), s.isAssisted());
-    }
-
     private static PersonalRecordsResponse toResponse(PersonalRecords records) {
         Map<RepRangeBucket, PersonalRecordEntryResponse> byRepRange = new EnumMap<>(RepRangeBucket.class);
         records.byRepRange().forEach((bucket, entry) ->
@@ -120,9 +99,6 @@ public class ExerciseProgressService {
                 records.maxE1rm().map(e -> new PersonalRecordEntryResponse(e.setId(), e.value())).orElse(null),
                 records.maxSessionVolume().map(v -> new SessionVolumeRecordResponse(v.workoutId(), v.value())).orElse(null),
                 byRepRange);
-    }
-
-    private record SessionGroup(UUID workoutId, Instant startedAt, boolean deload, List<WorkoutSet> rawSets) {
     }
 
 }

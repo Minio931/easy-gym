@@ -96,6 +96,15 @@ Pakiet `bodyweight`: `BodyWeight` (encja, tabela `body_weights` -- UWAGA, brak `
 - **Rozszerzony sync o `body_weights` od razu, nie "później".** `CLAUDE.md` z etapu 5 już zapowiadało że sync dojdzie do tej tabeli gdy encja powstanie -- zrobione tutaj, żeby nie zostawiać rozjazdu między dokumentacją a stanem kodu.
 - **Znane, świadomie nierozwiązane ograniczenie sync dla `body_weights`:** `ON CONFLICT (id)` w upsercie chroni tylko przed konfliktem na PK, nie na częściowym unikalnym indeksie `(user_id, measured_on)`. Dwa urządzenia offline tworzące NIEZALEŻNE nowe wpisy (różne id) na ten sam dzień -- rzadkie, ale możliwe -- skończą się zwykłym 409 przy sync, nie eleganckim rozwiązaniem przez LWW. Naprawa wymagałaby wykrywania kolizji dnia i scalania rekordów po stronie `SyncService`, nie tylko po id -- świadomie odłożone, udokumentowane w kodzie (`SyncService.upsertBodyWeight`), nie przemilczane.
 
+### Decyzje architektoniczne (etap 8 — dashboard)
+
+Pakiet `dashboard`: `GET /api/dashboard?from=&formula=` -- jeden endpoint, trzy widoki naraz (`weeklyVolumeByMuscleGroup`, `workoutsByDay`, `recentPersonalRecords`). **Pierwsze miejsce w projekcie, gdzie faktycznie stosuje się dosłownie zasadę z sekcji 9 promptu** ("nie ściągaj wszystkich serii żeby liczyć w pamięci") -- w odróżnieniu od etapów 6/7, gdzie zakres (jedno ćwiczenie / jeden user) był na tyle mały, że pociągnięcie danych i policzenie w Javie było świadomą, uzasadnioną decyzją.
+
+- **Wolumen tygodniowy per grupa mięśniowa i liczba treningów dziennie: prawdziwy `SUM`/`GROUP BY` w SQL (`DashboardRepository`, `NamedParameterJdbcTemplate`), nie JPA.** To jest DOKŁADNIE przypadek z sekcji 9 -- cała historia treningowa usera, pocięta na tygodnie/dni. `date_trunc('week', started_at AT TIME ZONE 'Europe/Warsaw')` -- konwersja do strefy Warszawa PRZED ucięciem do tygodnia, inaczej granica tygodnia liczyłaby się w UTC (ten sam błąd klasy co przy `IsoWeek`, tylko po stronie SQL zamiast Javy). Wynikowa data tygodnia mapowana z powrotem na `IsoWeek.of(...)` w Javie -- jedno źródło prawdy o regule ISO-8601, nie druga implementacja w SQL.
+- **"Ostatnie PR" to WYJĄTEK od reguły "agreguj w SQL" w tym samym pakiecie, i to celowo.** PR = running max po dacie z regułami wykluczeń (warmup/assisted) już zaimplementowanymi i przetestowanymi w `PersonalRecordCalculator` -- odtworzenie tej logiki w SQL (window functions) zdublowałoby reguły biznesowe w dwóch miejscach, wprost łamiąc "nie duplikuj logiki bez duplikowania testów" z tej samej sekcji 9. Zamiast tego: pociągnięcie wszystkich serii JEDNEGO usera (nadal ograniczony zbiór, nie "cała baza"), grupowanie per ćwiczenie -> per sesja (`WorkoutSessionGrouper`, wydzielony z `ExerciseProgressService` przy okazji tego etapu), `PersonalRecordCalculator.compute` per ćwiczenie, filtr do rekordów pobitych w ostatnich 30 dniach.
+- **`WorkoutSessionGrouper`/`MetricsConversion` wydzielone z `ExerciseProgressService` do osobnych, reużywalnych klas w pakiecie `workout`**, bo dashboard potrzebował dokładnie tego samego grupowania sesji i mapowania encja->metrics co etap 6 -- bez tego powstałaby kopia tej samej logiki w dwóch serwisach.
+- **`achievedAt` dla "ostatnie PR" liczone z `completed_at` konkretnej serii (dla max ciężaru/e1RM) albo `started_at` sesji (dla max objętości)** -- różne kategorie PR mają różne naturalne "kiedy to się stało", więc DTO nie ma jednego uniwersalnego pola daty tylko dwa źródła mapowane do jednego `achievedAt` w warstwie serwisu.
+
 ### Rozszerzenia względem literalnej specyfikacji z promptu (sekcja 2)
 
 Sekcja 2 promptu nie wymienia `updated_at`/`deleted_at` przy każdej tabeli — dodane, bo wymaga tego mechanizm sync opisany w sekcji 1 punkt 4 (last-write-wins po `updated_at`, offline delete musi się zsynchronizować). Bez tych kolumn endpoint sync z etapu 5 nie miałby jak działać. Jeśli to nadmiarowe względem Twojej wizji — powiedz, zanim zacznę etap 5 (endpoint sync), bo zmiana kształtu tabel później to migracja Flyway `ALTER TABLE`, nie coś do przepisania po cichu.
@@ -168,6 +177,9 @@ backend/
       ExerciseProgressService.java  # etap 6 -- pierwsze wpięcie metrics w realne dane, grupowanie po sesji
       dto/ExerciseProgressResponse.java, ExerciseProgressPoint.java, PersonalRecordsResponse.java,
           PersonalRecordEntryResponse.java, SessionVolumeRecordResponse.java
+      WorkoutSessionGroup.java, WorkoutSessionGrouper.java  # etap 8 -- wydzielone z ExerciseProgressService,
+                                    # reużywane przez DashboardService (ostatnie PR)
+      MetricsConversion.java       # etap 8 -- WorkoutSet -> metrics.ExerciseSet, jedno miejsce, nie kopiowane
     bodyweight/                  # etap 7 -- CRUD wagi ciała + drugie wpięcie metrics (BodyWeightAggregator)
       BodyWeight.java, BodyWeightRepository.java   # UWAGA: brak created_at, tylko measured_on/updated_at/deleted_at
       BodyWeightService.java, BodyWeightController.java
@@ -180,6 +192,11 @@ backend/
       SyncController.java
       dto/ExerciseSyncRecord.java, WorkoutSyncRecord.java, WorkoutExerciseSyncRecord.java, SetSyncRecord.java,
           BodyWeightSyncRecord.java, SyncBatch.java, SyncPushRequest.java, SyncPullResponse.java
+    dashboard/                   # etap 8 -- jedyne miejsce z prawdziwym SUM/GROUP BY w SQL (sekcja 9 promptu)
+      DashboardRepository.java     # NamedParameterJdbcTemplate, date_trunc('week', ... AT TIME ZONE 'Europe/Warsaw')
+      DashboardService.java        # SQL dla objętości/kalendarza, metrics (per user, nie per baza) dla "ostatnie PR"
+      DashboardController.java
+      dto/DashboardResponse.java, WeeklyMuscleGroupVolume.java, DailyWorkoutCount.java, RecentPersonalRecord.java
   src/test/java/com/example/easygymbackend/
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
@@ -205,6 +222,9 @@ backend/
                                            # izolacja globalnego ćwiczenia przez dane (200+puste), 404 dla cudzego
     bodyweight/BodyWeightFlowTest.java    # jeden wpis/dzień (409 na duplikat), edycja, soft-delete, średnia
                                            # tygodniowa + niepełny tydzień, walidacja zakresu, izolacja user A/B
+    dashboard/DashboardFlowTest.java      # SUM poprawny (wyklucza warmup, wlicza assisted), grupowanie per
+                                           # grupa mięśniowa, liczba treningów/dzień, okno 30 dni dla "ostatnie
+                                           # PR" (stare NIE wchodzi), izolacja user A/B
     sync/SyncFlowTest.java                # cała sesja w jednym batchu, LWW (starsza/nowsza aktualizacja),
                                            # tombstone, since-filtering, konflikt własności odrzuca CAŁY
                                            # batch i NIC się nie zapisuje (sprawdzone zapytaniem do bazy,
@@ -272,7 +292,7 @@ Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 - [x] **Etap 5 (backend) — endpoint sync.** `POST /api/sync` (push+pull) + `GET /api/sync?since=` (pull-only). Upsert-z-LWW po surowym SQL (`ON CONFLICT ... WHERE updated_at < EXCLUDED.updated_at`), walidacja własności PRZED zapisem (bezpośrednia + przez referencje, w tym referencje do rekordów z TEGO SAMEGO batcha), cały batch pada (400) przy konflikcie — decyzja użytkownika. Scope pierwotnie: `exercises`/`workouts`/`workout_exercises`/`sets`; `body_weights` dopisane w etapie 7. `SyncFlowTest`, 7 scenariuszy. Po drodze złapane i naprawione dwa kolejne realne buggi Postgres/JDBC (opisane w sekcji "Stack" wyżej): brak type inference dla gołego `Instant` w surowym SQL, i dla `:param IS NULL` gdy param faktycznie null. **75/75 testów w całym projekcie, realnie odpalone.** `SyncFlowTest` pokrywa już oba scenariusze konfliktowe z sekcji 9 promptu na poziomie backendu (starsza aktualizacja ignorowana, dwa "urządzenia" tego samego usera się zbiegają) — ale to nie zastępuje pełnego planu testowania Dexie+PWA po stronie frontu, tylko potwierdza że serwerowa połowa kontraktu (LWW, atomowość batcha) faktycznie działa. Dexie + PWA + service worker (front) — otwarte, poza mną.
 - [x] **Etap 6 (backend) — `GET /api/exercises/{id}/progress`.** Pierwsze wpięcie pakietu `metrics` w realne dane: grupowanie serii po sesji, `heaviestSet`/`OneRepMax`/`PersonalRecordCalculator` na danych z bazy, nie syntetycznych. Historia treningów (lista) już gotowa z fundamentu etapu 4 (`GET /api/workouts`). `ExerciseProgressTest`, 7 scenariuszy — w tym potwierdzone na prawdziwych danych, że rozgrzewka/assisted faktycznie znikają z wykresu, nie tylko w testach jednostkowych `metrics`. **82/82 testów w całym projekcie.** Ekran z wykresami (Recharts, front) — otwarte, poza mną.
 - [x] **Etap 7 (backend) — moduł wagi ciała.** `BodyWeight` encja + CRUD (`POST`/`PATCH`/`DELETE /api/body-weights`), `GET /api/body-weights` zwraca surowe wpisy + krocząca 7-dniowa + średnie tygodniowe z deltami -- drugie wpięcie `metrics` (`BodyWeightAggregator`) w realne dane. "Jeden wpis na dzień" egzekwowany samą bazą (częściowy unikalny indeks), nie logiką serwisu. Sync rozszerzony o `body_weights` (zgodnie z zapowiedzią z etapu 5) -- ze znanym, udokumentowanym ograniczeniem: kolizja dnia między dwoma NOWYMI id z różnych urządzeń offline kończy się 409, nie eleganckim LWW. `BodyWeightFlowTest`, 9 scenariuszy. **91/91 testów w całym projekcie, realnie odpalone.** Wykres (front) — otwarte, poza mną.
-- [ ] Etap 8 — dashboard (agregacje w Springu).
+- [x] **Etap 8 (backend) — dashboard.** `GET /api/dashboard?from=&formula=`: objętość tygodniowa per grupa mięśniowa i liczba treningów/dzień przez prawdziwy `SUM`/`GROUP BY` w SQL (`DashboardRepository`, pierwsze faktyczne zastosowanie tej zasady z sekcji 9 -- nie na niby jak w etapach 6/7, gdzie zakres był mały). "Ostatnie PR" świadomie NIE przez SQL -- odtworzenie reguł PR (running max, wykluczenia warmup/assisted) w window functions zdublowałoby logikę już przetestowaną w `PersonalRecordCalculator`. `WorkoutSessionGrouper`/`MetricsConversion` wydzielone z `ExerciseProgressService` do reużycia. `DashboardFlowTest`, 8 scenariuszy. **98/98 testów w całym projekcie, realnie odpalone.** Wykresy/heatmapa (front, Recharts) — otwarte, poza mną.
 - [ ] Etap 9 — eksport XLSX (Apache POI).
 
 ## Konwencje
