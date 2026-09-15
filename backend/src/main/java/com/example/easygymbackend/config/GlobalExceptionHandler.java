@@ -2,6 +2,7 @@ package com.example.easygymbackend.config;
 
 import com.example.easygymbackend.admin.InvalidBootstrapSecretException;
 import com.example.easygymbackend.admin.UserAlreadyExistsException;
+import com.example.easygymbackend.sync.SyncOwnershipViolationException;
 import com.example.easygymbackend.workout.ResourceNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleResourceNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SyncOwnershipViolationException.class)
+    public ResponseEntity<Map<String, String>> handleSyncOwnershipViolation(SyncOwnershipViolationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
     }
 
     // Siatka bezpieczeństwa pod wyścig: dwa równoczesne POST /api/admin/users

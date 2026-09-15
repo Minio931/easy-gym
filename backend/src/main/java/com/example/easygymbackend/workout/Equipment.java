@@ -11,11 +11,14 @@ public enum Equipment {
     BODYWEIGHT,
     OTHER;
 
-    String toDbValue() {
+    // public -- SyncService potrzebuje tego samego mapowania przy budowaniu
+    // surowego SQL (upsert z LWW omija encje JPA/EquipmentConverter celowo,
+    // patrz komentarz w SyncService), więc jedna definicja, nie dwie kopie.
+    public String toDbValue() {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    static Equipment fromDbValue(String value) {
+    public static Equipment fromDbValue(String value) {
         return Equipment.valueOf(value.toUpperCase(Locale.ROOT));
     }
 }

@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,5 +23,12 @@ public interface WorkoutRepository extends JpaRepository<Workout, UUID> {
             ORDER BY w.startedAt DESC
             """)
     List<Workout> findAllVisibleTo(@Param("userId") UUID userId);
+
+    /** Pod pull synchronizacji -- BEZ filtra deletedAt, tombstone'y muszą się zsynchronizować. */
+    @Query("""
+            SELECT w FROM Workout w
+            WHERE w.userId = :userId AND w.updatedAt > :since
+            """)
+    List<Workout> findChangedSince(@Param("userId") UUID userId, @Param("since") Instant since);
 
 }

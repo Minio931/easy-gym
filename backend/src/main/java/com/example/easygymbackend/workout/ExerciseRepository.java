@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,5 +32,17 @@ public interface ExerciseRepository extends JpaRepository<Exercise, UUID> {
               AND e.deletedAt IS NULL
             """)
     Optional<Exercise> findVisibleTo(@Param("id") UUID id, @Param("userId") UUID userId);
+
+    /**
+     * Pod pull synchronizacji -- BEZ filtra deletedAt (tombstone'y muszą się
+     * zsynchronizować na inne urządzenia, patrz komentarz w V3). Tylko własne
+     * usera -- globalne (seed) nie są tworzone przez klienta, więc nie
+     * synchronizujemy ich tą drogą.
+     */
+    @Query("""
+            SELECT e FROM Exercise e
+            WHERE e.userId = :userId AND e.updatedAt > :since
+            """)
+    List<Exercise> findChangedSince(@Param("userId") UUID userId, @Param("since") Instant since);
 
 }
