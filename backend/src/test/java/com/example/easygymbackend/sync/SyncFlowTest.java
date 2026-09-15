@@ -117,7 +117,8 @@ class SyncFlowTest {
                 List.of(new WorkoutSyncRecord(workoutId, now, null, null, "trening offline", false, now, null)),
                 List.of(new WorkoutExerciseSyncRecord(workoutExerciseId, workoutId, GLOBAL_EXERCISE_ID, 1, null, now, null)),
                 List.of(new SetSyncRecord(setId, workoutExerciseId, 1, new BigDecimal("100.00"), 5, null,
-                        false, false, false, now, now, null))
+                        false, false, false, now, now, null)),
+                List.of()
         ));
 
         JsonNode response = push(userAToken, request);
@@ -166,7 +167,7 @@ class SyncFlowTest {
 
         var deleteRequest = new SyncPushRequest(null, new SyncBatch(
                 List.of(), List.of(new WorkoutSyncRecord(workoutId, created, null, null, "do skasowania", false, deletedAt, deletedAt)),
-                List.of(), List.of()
+                List.of(), List.of(), List.of()
         ));
         push(userAToken, deleteRequest);
 
@@ -213,7 +214,7 @@ class SyncFlowTest {
                 List.of(new WorkoutSyncRecord(userBOwnValidWorkoutId, now, null, null, "powinno zniknac", false, now, null)),
                 List.of(new WorkoutExerciseSyncRecord(
                         conflictingWorkoutExerciseId, userAWorkoutId, GLOBAL_EXERCISE_ID, 1, null, now, null)),
-                List.of()
+                List.of(), List.of()
         ));
 
         mockMvc.perform(post("/api/sync")
@@ -244,6 +245,7 @@ class SyncFlowTest {
         return new SyncPushRequest(null, new SyncBatch(
                 List.of(),
                 List.of(new WorkoutSyncRecord(workoutId, updatedAt, null, null, notes, false, updatedAt, null)),
+                List.of(),
                 List.of(),
                 List.of()
         ));

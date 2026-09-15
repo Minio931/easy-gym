@@ -1,6 +1,9 @@
 package com.example.easygymbackend.sync;
 
 import com.example.easygymbackend.auth.CurrentUser;
+import com.example.easygymbackend.bodyweight.BodyWeight;
+import com.example.easygymbackend.bodyweight.BodyWeightRepository;
+import com.example.easygymbackend.sync.dto.BodyWeightSyncRecord;
 import com.example.easygymbackend.sync.dto.ExerciseSyncRecord;
 import com.example.easygymbackend.sync.dto.SetSyncRecord;
 import com.example.easygymbackend.sync.dto.SyncBatch;
@@ -51,19 +54,22 @@ public class SyncService {
     private final WorkoutRepository workoutRepository;
     private final WorkoutExerciseRepository workoutExerciseRepository;
     private final WorkoutSetRepository workoutSetRepository;
+    private final BodyWeightRepository bodyWeightRepository;
 
     public SyncService(
             NamedParameterJdbcTemplate jdbc,
             ExerciseRepository exerciseRepository,
             WorkoutRepository workoutRepository,
             WorkoutExerciseRepository workoutExerciseRepository,
-            WorkoutSetRepository workoutSetRepository
+            WorkoutSetRepository workoutSetRepository,
+            BodyWeightRepository bodyWeightRepository
     ) {
         this.jdbc = jdbc;
         this.exerciseRepository = exerciseRepository;
         this.workoutRepository = workoutRepository;
         this.workoutExerciseRepository = workoutExerciseRepository;
         this.workoutSetRepository = workoutSetRepository;
+        this.bodyWeightRepository = bodyWeightRepository;
     }
 
     @Transactional
@@ -76,8 +82,10 @@ public class SyncService {
         List<WorkoutExerciseSyncRecord> workoutExercises =
                 nullToEmpty(request.changes() == null ? null : request.changes().workoutExercises());
         List<SetSyncRecord> sets = nullToEmpty(request.changes() == null ? null : request.changes().sets());
+        List<BodyWeightSyncRecord> bodyWeights =
+                nullToEmpty(request.changes() == null ? null : request.changes().bodyWeights());
 
-        validateOwnership(userId, exercises, workouts, workoutExercises, sets);
+        validateOwnership(userId, exercises, workouts, workoutExercises, sets, bodyWeights);
 
         for (ExerciseSyncRecord record : exercises) {
             upsertExercise(userId, record);
@@ -90,6 +98,9 @@ public class SyncService {
         }
         for (SetSyncRecord record : sets) {
             upsertSet(record);
+        }
+        for (BodyWeightSyncRecord record : bodyWeights) {
+            upsertBodyWeight(userId, record);
         }
 
         return pull(userId, request.since());
@@ -112,7 +123,8 @@ public class SyncService {
                 exerciseRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
                 workoutRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
                 workoutExerciseRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
-                workoutSetRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList()
+                workoutSetRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
+                bodyWeightRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList()
         );
 
         return new SyncPullResponse(syncedAt, batch);
@@ -125,7 +137,8 @@ public class SyncService {
             List<ExerciseSyncRecord> exercises,
             List<WorkoutSyncRecord> workouts,
             List<WorkoutExerciseSyncRecord> workoutExercises,
-            List<SetSyncRecord> sets
+            List<SetSyncRecord> sets,
+            List<BodyWeightSyncRecord> bodyWeights
     ) {
         Set<UUID> batchExerciseIds = exercises.stream().map(ExerciseSyncRecord::id).collect(java.util.stream.Collectors.toSet());
         Set<UUID> batchWorkoutIds = workouts.stream().map(WorkoutSyncRecord::id).collect(java.util.stream.Collectors.toSet());
@@ -149,6 +162,9 @@ public class SyncService {
                 JOIN workouts w ON w.id = we.workout_id
                 WHERE s.id IN (:ids) AND w.user_id <> :userId
                 """);
+        rejectIfExistingRowsOwnedByOther("body_weights",
+                bodyWeights.stream().map(BodyWeightSyncRecord::id).collect(java.util.stream.Collectors.toSet()), userId,
+                "SELECT id FROM body_weights WHERE id IN (:ids) AND user_id <> :userId");
 
         // Referencje "w dół" dla NOWYCH rekordów muszą wskazywać na coś widocznego
         // dla usera -- albo już w bazie na jego koncie, albo w TYM SAMYM batchu
@@ -303,6 +319,37 @@ public class SyncService {
                 .addValue("deletedAt", toTimestamp(r.deletedAt())));
     }
 
+    /**
+     * UWAGA -- znane ograniczenie: `ON CONFLICT (id)` chroni tylko przed
+     * konfliktem na PK. Częściowy unikalny indeks (user_id, measured_on) z V3
+     * ("jeden żywy wpis na dzień") to INNY constraint -- jeśli dwa urządzenia
+     * offline utworzą NOWE wpisy (różne id) na ten sam dzień, drugi upsert w
+     * tym batchu i tak wyleci na tym indeksie jako zwykły DataIntegrityViolationException
+     * (409), nie zostanie rozwiązany przez LWW. Rzadkie przy dwóch userach i
+     * wpisie raz dziennie, ale realne -- nierozwiązane świadomie w tej wersji
+     * (wymagałoby wykrywania kolizji dnia i scalania rekordów, nie tylko id).
+     */
+    private void upsertBodyWeight(UUID userId, BodyWeightSyncRecord r) {
+        jdbc.update("""
+                INSERT INTO body_weights (id, user_id, measured_on, weight_kg, note, updated_at, deleted_at)
+                VALUES (:id, :userId, :measuredOn, :weightKg, :note, :updatedAt, :deletedAt)
+                ON CONFLICT (id) DO UPDATE SET
+                    measured_on = EXCLUDED.measured_on,
+                    weight_kg = EXCLUDED.weight_kg,
+                    note = EXCLUDED.note,
+                    updated_at = EXCLUDED.updated_at,
+                    deleted_at = EXCLUDED.deleted_at
+                WHERE body_weights.updated_at < EXCLUDED.updated_at
+                """, new MapSqlParameterSource()
+                .addValue("id", r.id())
+                .addValue("userId", userId)
+                .addValue("measuredOn", r.measuredOn())
+                .addValue("weightKg", r.weightKg())
+                .addValue("note", r.note())
+                .addValue("updatedAt", toTimestamp(r.updatedAt()))
+                .addValue("deletedAt", toTimestamp(r.deletedAt())));
+    }
+
     // Sterownik JDBC Postgresa nie potrafi wywnioskować typu SQL dla gołego
     // java.time.Instant przez NamedParameterJdbcTemplate (w odróżnieniu od
     // Hibernate/JPA, które ma własny type system) -- java.sql.Timestamp działa.
@@ -334,6 +381,11 @@ public class SyncService {
         return new SetSyncRecord(
                 s.getId(), s.getWorkoutExercise().getId(), s.getSetIndex(), s.getWeightKg(), s.getReps(), s.getRpe(),
                 s.isWarmup(), s.isToFailure(), s.isAssisted(), s.getCompletedAt(), s.getUpdatedAt(), s.getDeletedAt());
+    }
+
+    private static BodyWeightSyncRecord toRecord(BodyWeight b) {
+        return new BodyWeightSyncRecord(
+                b.getId(), b.getMeasuredOn(), b.getWeightKg(), b.getNote(), b.getUpdatedAt(), b.getDeletedAt());
     }
 
     private static <T> List<T> nullToEmpty(List<T> list) {

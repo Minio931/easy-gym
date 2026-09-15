@@ -14,6 +14,7 @@ public record SyncBatch(
         @Valid List<ExerciseSyncRecord> exercises,
         @Valid List<WorkoutSyncRecord> workouts,
         @Valid List<WorkoutExerciseSyncRecord> workoutExercises,
-        @Valid List<SetSyncRecord> sets
+        @Valid List<SetSyncRecord> sets,
+        @Valid List<BodyWeightSyncRecord> bodyWeights
 ) {
 }
