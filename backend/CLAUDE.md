@@ -105,6 +105,16 @@ Pakiet `dashboard`: `GET /api/dashboard?from=&formula=` -- jeden endpoint, trzy 
 - **`WorkoutSessionGrouper`/`MetricsConversion` wydzielone z `ExerciseProgressService` do osobnych, reużywalnych klas w pakiecie `workout`**, bo dashboard potrzebował dokładnie tego samego grupowania sesji i mapowania encja->metrics co etap 6 -- bez tego powstałaby kopia tej samej logiki w dwóch serwisach.
 - **`achievedAt` dla "ostatnie PR" liczone z `completed_at` konkretnej serii (dla max ciężaru/e1RM) albo `started_at` sesji (dla max objętości)** -- różne kategorie PR mają różne naturalne "kiedy to się stało", więc DTO nie ma jednego uniwersalnego pola daty tylko dwa źródła mapowane do jednego `achievedAt` w warstwie serwisu.
 
+### Decyzje architektoniczne (etap 9 — eksport XLSX)
+
+`GET /api/export/xlsx?from=&to=&exerciseIds=&workingSetsOnly=&formula=` -- Apache POI, 6 arkuszy (Podsumowanie/Treningi/Serie/Progres ćwiczeń/Waga ciała/Waga tygodniowo), 3 natywne wykresy Excela. **Ostatni etap z pierwotnej listy 9 -- backend realizuje teraz całość promptu, front wciąż w całości otwarty.**
+
+- **Dwa różne zakresy dla PR w tym samym pliku, celowo, udokumentowane w javadoc `XlsxExportService`.** "Czy PR" w arkuszu Serie i lista PR w Podsumowaniu liczone z CAŁEJ historii usera (niezależnie od filtra dat eksportu) -- bo ta sama seria nie może raz być PR-em, raz nie, zależnie jaki zakres dat akurat ktoś wybrał przy eksporcie; to jest arkusz źródłowy pod tabele przestawne, musi być stabilny. "Najlepszy ciężar/e1RM" w arkuszu Progres ćwiczeń liczone TYLKO w obrębie filtra -- to raport za dany okres, ma pokazywać best z TEGO okresu.
+- **"Czy PR" per wiersz to running-max, nie "czy to globalne maksimum" -- ten sam algorytm co `PersonalRecordCalculator.brokenIn()`, tylko wywoływany iteracyjnie po prefiksach sesji (`sessions[0..i]` dla każdego i), żeby złapać PR-y pobite w KAŻDEJ sesji z historii, nie tylko w ostatniej.** O(n²) na ćwiczenie -- celowo bez optymalizacji, bo przy realnych wolumenach (dziesiątki-setki sesji na ćwiczenie w wieloletniej historii) to niemierzalne, a przedwczesna optymalizacja tu tylko zaciemniłaby kod.
+- **Upsert/formuła nazwanego zakresu (`SerieDane`) złapana i naprawiona testem integracyjnym, nie przeglądem kodu.** `CellRangeAddress.formatAsString(sheetName, true)` już dokleja prefiks arkusza -- doklejenie go RĘCZNIE drugi raz dawało `'Serie'!Serie!$A$1:...` i `FormulaParseException` przy każdym eksporcie. Widoczne dopiero gdy `ExportFlowTest` faktycznie otworzył wygenerowany plik z powrotem przez POI -- kompilacja i sam kod HTTP 200 by tego nie złapały (wyjątek leciał przy budowaniu arkusza Serie, request i tak by się wywalił 500, ale w testach bez realnego POST-a przez `MockMvc` + odczytu pliku nie ma jak to zobaczyć).
+- **Test integracyjny odczytuje wygenerowany plik z powrotem przez `XSSFWorkbook`, nie tylko sprawdza status HTTP.** Dotyczy to też wykresów -- `sheet.getDrawingPatriarch().getCharts()` po ponownym otwarciu pliku potwierdza że XDDF faktycznie zapisał działający obiekt wykresu, nie tylko że kod się nie wysypał w trakcie budowy.
+- **Formatowanie wg sekcji 7 promptu dosłownie:** nagłówek pogrubiony/biały-na-ciemnym/zamrożony (`ExcelStyles`), `autoFilter`, szerokości kolumn `autoSizeColumn` (wymaga fontów w JVM, działa headless, ale warto pamiętać przy dockerowym obrazie bez fontów), formaty `dd.mm.yyyy`/`0.00 "kg"`/`0.0%`, PR podświetlony tłem, ujemne delty na czerwono/dodatnie na zielono (styl dobierany po znaku wartości w Javie, nie przez POI `ConditionalFormattingRule` -- prościej i pewniej, skoro wartość i tak jest już policzona w momencie zapisu komórki).
+
 ### Rozszerzenia względem literalnej specyfikacji z promptu (sekcja 2)
 
 Sekcja 2 promptu nie wymienia `updated_at`/`deleted_at` przy każdej tabeli — dodane, bo wymaga tego mechanizm sync opisany w sekcji 1 punkt 4 (last-write-wins po `updated_at`, offline delete musi się zsynchronizować). Bez tych kolumn endpoint sync z etapu 5 nie miałby jak działać. Jeśli to nadmiarowe względem Twojej wizji — powiedz, zanim zacznę etap 5 (endpoint sync), bo zmiana kształtu tabel później to migracja Flyway `ALTER TABLE`, nie coś do przepisania po cichu.
@@ -197,6 +207,11 @@ backend/
       DashboardService.java        # SQL dla objętości/kalendarza, metrics (per user, nie per baza) dla "ostatnie PR"
       DashboardController.java
       dto/DashboardResponse.java, WeeklyMuscleGroupVolume.java, DailyWorkoutCount.java, RecentPersonalRecord.java
+    export/                      # etap 9 -- ostatni z pierwotnej listy 9 etapów backendu
+      XlsxExportService.java       # 6 arkuszy, 2 zakresy PR (all-time w Serie/Podsumowaniu, w-filtrze w Progresie)
+      ExcelStyles.java             # nagłówek/daty/wagi/procenty/PR-highlight/delta-kolor -- jedno miejsce dla wszystkich arkuszy
+      ExcelCharts.java             # XDDF bar/line chart, referencje do zakresów komórek już zapisanych w arkuszu
+      ExportFilter.java, ExportController.java
   src/test/java/com/example/easygymbackend/
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
@@ -225,6 +240,9 @@ backend/
     dashboard/DashboardFlowTest.java      # SUM poprawny (wyklucza warmup, wlicza assisted), grupowanie per
                                            # grupa mięśniowa, liczba treningów/dzień, okno 30 dni dla "ostatnie
                                            # PR" (stare NIE wchodzi), izolacja user A/B
+    export/ExportFlowTest.java            # plik XLSX odczytany z powrotem przez POI (nie tylko status HTTP) --
+                                           # 6 arkuszy, nagłówki, PR poprawnie oznaczony, filtr workingSetsOnly,
+                                           # nazwany zakres SerieDane, wykresy istnieją na 3 arkuszach, izolacja
     sync/SyncFlowTest.java                # cała sesja w jednym batchu, LWW (starsza/nowsza aktualizacja),
                                            # tombstone, since-filtering, konflikt własności odrzuca CAŁY
                                            # batch i NIC się nie zapisuje (sprawdzone zapytaniem do bazy,
@@ -293,7 +311,9 @@ Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 - [x] **Etap 6 (backend) — `GET /api/exercises/{id}/progress`.** Pierwsze wpięcie pakietu `metrics` w realne dane: grupowanie serii po sesji, `heaviestSet`/`OneRepMax`/`PersonalRecordCalculator` na danych z bazy, nie syntetycznych. Historia treningów (lista) już gotowa z fundamentu etapu 4 (`GET /api/workouts`). `ExerciseProgressTest`, 7 scenariuszy — w tym potwierdzone na prawdziwych danych, że rozgrzewka/assisted faktycznie znikają z wykresu, nie tylko w testach jednostkowych `metrics`. **82/82 testów w całym projekcie.** Ekran z wykresami (Recharts, front) — otwarte, poza mną.
 - [x] **Etap 7 (backend) — moduł wagi ciała.** `BodyWeight` encja + CRUD (`POST`/`PATCH`/`DELETE /api/body-weights`), `GET /api/body-weights` zwraca surowe wpisy + krocząca 7-dniowa + średnie tygodniowe z deltami -- drugie wpięcie `metrics` (`BodyWeightAggregator`) w realne dane. "Jeden wpis na dzień" egzekwowany samą bazą (częściowy unikalny indeks), nie logiką serwisu. Sync rozszerzony o `body_weights` (zgodnie z zapowiedzią z etapu 5) -- ze znanym, udokumentowanym ograniczeniem: kolizja dnia między dwoma NOWYMI id z różnych urządzeń offline kończy się 409, nie eleganckim LWW. `BodyWeightFlowTest`, 9 scenariuszy. **91/91 testów w całym projekcie, realnie odpalone.** Wykres (front) — otwarte, poza mną.
 - [x] **Etap 8 (backend) — dashboard.** `GET /api/dashboard?from=&formula=`: objętość tygodniowa per grupa mięśniowa i liczba treningów/dzień przez prawdziwy `SUM`/`GROUP BY` w SQL (`DashboardRepository`, pierwsze faktyczne zastosowanie tej zasady z sekcji 9 -- nie na niby jak w etapach 6/7, gdzie zakres był mały). "Ostatnie PR" świadomie NIE przez SQL -- odtworzenie reguł PR (running max, wykluczenia warmup/assisted) w window functions zdublowałoby logikę już przetestowaną w `PersonalRecordCalculator`. `WorkoutSessionGrouper`/`MetricsConversion` wydzielone z `ExerciseProgressService` do reużycia. `DashboardFlowTest`, 8 scenariuszy. **98/98 testów w całym projekcie, realnie odpalone.** Wykresy/heatmapa (front, Recharts) — otwarte, poza mną.
-- [ ] Etap 9 — eksport XLSX (Apache POI).
+- [x] **Etap 9 (backend) — eksport XLSX.** `GET /api/export/xlsx?from=&to=&exerciseIds=&workingSetsOnly=&formula=`. 6 arkuszy (Podsumowanie/Treningi/Serie/Progres ćwiczeń/Waga ciała/Waga tygodniowo), 3 natywne wykresy Excela (XDDF, nie obrazki), nazwany zakres pod pivot table na Serie, formatowanie z sekcji 7 dosłownie (nagłówek zamrożony, `autoFilter`, formaty liczb, PR podświetlony, delty czerwień/zieleń). Dwa zakresy PR w jednym pliku, celowo: "czy PR" w Serie/Podsumowaniu = cała historia (stabilne niezależnie od filtra), "najlepszy ciężar/e1RM" w Progresie ćwiczeń = tylko w obrębie filtra. Złapany i naprawiony realny bug testem integracyjnym (nie przeglądem kodu): zdublowany prefiks arkusza w formule nazwanego zakresu (`'Serie'!Serie!...`) → `FormulaParseException` przy KAŻDYM eksporcie -- widoczne dopiero gdy `ExportFlowTest` otworzył wygenerowany plik z powrotem przez POI, nie przy samej kompilacji. **106/106 testów w całym projekcie, realnie odpalone.**
+
+**To zamyka wszystkie 9 etapów backendu z pierwotnej listy w prompcie.** Frontend (Next.js, PWA, Dexie, Recharts, cały UI) pozostaje w całości nietknięty — poza zakresem tego katalogu, do zrobienia przez osobny dev/agent na podstawie kontraktu API udokumentowanego tutaj.
 
 ## Konwencje
 

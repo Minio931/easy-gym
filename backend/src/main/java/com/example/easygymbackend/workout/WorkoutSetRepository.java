@@ -72,4 +72,26 @@ public interface WorkoutSetRepository extends JpaRepository<WorkoutSet, UUID> {
             """)
     List<WorkoutSet> findAllForUser(@Param("userId") UUID userId);
 
+    /**
+     * Pod eksport XLSX (etap 9) -- serie usera w zakresie dat, chronologicznie,
+     * z JOIN FETCH żeby uniknąć N+1 przy budowaniu arkuszy Treningi/Serie
+     * (każdy wiersz i tak potrzebuje nazwy ćwiczenia/grupy mięśniowej i daty
+     * treningu). Filtr po ćwiczeniach/tylko-robocze robi warstwa serwisu w
+     * Javie (na tym już wyfiltrowanym po dacie, więc małym zbiorze) -- nie
+     * JPQL z warunkiem "IN (:opcjonalnaLista)", który przy pustej/null liście
+     * ma te same problemy z wywnioskowaniem typu co "IS NULL" z etapu 5.
+     */
+    @Query("""
+            SELECT s FROM WorkoutSet s
+            JOIN FETCH s.workoutExercise we
+            JOIN FETCH we.exercise e
+            JOIN FETCH we.workout w
+            WHERE w.userId = :userId
+              AND s.deletedAt IS NULL AND we.deletedAt IS NULL AND w.deletedAt IS NULL
+              AND w.startedAt >= :from AND w.startedAt < :toExclusive
+            ORDER BY w.startedAt, s.setIndex
+            """)
+    List<WorkoutSet> findForExport(
+            @Param("userId") UUID userId, @Param("from") Instant from, @Param("toExclusive") Instant toExclusive);
+
 }
