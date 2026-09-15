@@ -38,6 +38,21 @@ Pełne założenia z promptu projektowego — potwierdzone, z jednym zastrzeżen
 - **Rotacja refresh tokenu przy każdym `/api/auth/refresh`.** Stary rekord dostaje `revoked_at`, powstaje nowy. Ponowne użycie starego refresh tokenu (replay) jest wykrywane i odrzucane — pokryte testem (`AuthControllerTest#refreshRotujeTokenINiePozwalaGoUzycPonownie`).
 - **`CurrentUser.id()`** (`auth/CurrentUser.java`) to jedyny sposób, w jaki przyszłe kontrolery mają poznawać `user_id` wywołującego — nigdy z body/query requestu. To jest mechanizm egzekwujący decyzję 2 (izolacja w warstwie serwisowej) w praktyce.
 
+### Decyzje architektoniczne (etap 3 — `metrics`, tylko backend)
+
+Pakiet `metrics` to **czysta biblioteka obliczeniowa, celowo odłączona od encji JPA** — `workouts`/`sets`/`body_weights` jako encje Springa jeszcze nie istnieją (dojdą w etapach 4/6/7), więc funkcje operują na własnych, niezależnych rekordach (`ExerciseSet`, `BodyWeightEntry`, ...). To mirror `lib/metrics.ts` po stronie frontu (poza zakresem `backend/` — front realizuje to osobno, ten sam etap 3 po ich stronie). Wpięcie w realne repozytoria/serwisy nastąpi dopiero gdy powstaną domenowe encje.
+
+Rzeczy, które NIE są oczywiste ze specyfikacji (sekcja 4), a zdecydowały o kształcie kodu:
+
+- **Dwie różne "objętości sesji", nie jedna.** `SessionMetrics.displayVolumeKg` (do pokazania userowi, wlicza `assisted` — "fizyczna praca i tak wykonana") vs `SessionMetrics.prEligibleVolumeKg` (do trackingu PR "największa objętość w sesji", wyklucza `assisted` — sekcja 4 promptu explicite każe wykluczać `assisted` ze WSZYSTKICH trzech kategorii PR, mimo że osobno definiuje "objętość sesji" jako coś co assisted wlicza). Łatwo to przeoczyć i użyć jednego wzoru wszędzie — rozdzielone na dwie nazwane funkcje specjalnie, żeby się nie dało pomylić po cichu.
+- **Formuła Brzyckiego (`weight × 36 / (37 − reps)`) dzieli przez zero przy reps=37, ujemny wynik powyżej.** Nieopisane w prompcie, ale realne przy `equipment='bodyweight'` + `to_failure` (np. pompki 40 powt.). `OneRepMax.estimate(...)` zwraca `Optional.empty()` dla reps > 36 przy Brzyckim zamiast fałszywej liczby — Epley nie ma tego problemu, liczy się zawsze.
+- **e1RM i PR liczone zawsze na żywo, nigdy cache'owane.** Formuła (Epley/Brzycki) jest wyborem usera w ustawieniach — jeśli e1RM/PR-by-e1RM byłyby zapisane w bazie, zmiana formuły cicho zafałszowałaby historię. `PersonalRecordCalculator` bierze formułę jako parametr przy każdym wywołaniu.
+- **`PersonalRecordCalculator.compute()` i `.brokenIn()` to ten sam algorytm, dwa wejścia.** `compute()` — aktualny stan rekordów. `brokenIn()` — które rekordy pobiła OSTATNIA sesja z chronologicznej listy (pod baner "PR pobity" w podsumowaniu treningu, sekcja 3.6, i pod kolumnę "czy PR" w eksporcie XLSX, sekcja 7 — to nie jest to samo co "czy to globalne maksimum", tylko "czy to był rekord W MOMENCIE wykonania"). Remis nie liczy się jako pobicie rekordu (ściśle `>`, nie `>=`).
+- **Tydzień ISO liczony przez `java.time.temporal.IsoFields`**, nie ręczną arytmetyką na `getDayOfWeek()` — sekcja 9 promptu explicite tego wymaga. `IsoWeek.mondayStart()` buduje datę z kotwicy "4 stycznia zawsze jest w tygodniu 1" (reguła ISO-8601), nie z przesunięć dni, więc tydzień 53 i przełomy roku działają bez specjalnych przypadków w kodzie.
+- **Bucketing tygodniowy (dashboard/objętość per grupa mięśniowa) po `workouts.started_at` całej sesji, nie po `sets.completed_at` każdej serii z osobna** — decyzja użytkownika, żeby jeden trening nigdy nie rozjechał się na dwa tygodnie ISO przy sesji kończącej się po północy.
+- **Porównania trendu tydzień-do-tygodnia domyślnie pomijają tygodnie/sesje `is_deload`** (deload znika z łańcucha porównań całkowicie — tydzień po deloadzie porównywany do ostatniego tygodnia nie-deload PRZED nim, nie do samego deloadu), **ale `TrendComparator.compareToPreviousWeek(...)` przyjmuje `includeDeload: boolean`** — decyzja użytkownika, że to ma być przełączalne, nie sztywno wykluczone w kodzie.
+- **Agregacje SQL/JPQL po stronie Springa (sekcja 9: "nie ściągaj wszystkich serii do serwisu żeby liczyć w pamięci") to osobna sprawa od tego pakietu.** `metrics` dostarcza reguły obliczeniowe (e1RM, PR, bucketing tygodnia) używane PO stronie danych już pobranych do konkretnego raportu/ekranu; agregacja na skalę "cała historia usera" (dashboard, etap 8) ma iść przez `GROUP BY`/`SUM` w zapytaniu repozytorium, nie przez pętlę Javy nad tysiącami rekordów — to dopiero etap 8, tu tylko odnotowane jako zasada na przyszłość.
+
 ### Rozszerzenia względem literalnej specyfikacji z promptu (sekcja 2)
 
 Sekcja 2 promptu nie wymienia `updated_at`/`deleted_at` przy każdej tabeli — dodane, bo wymaga tego mechanizm sync opisany w sekcji 1 punkt 4 (last-write-wins po `updated_at`, offline delete musi się zsynchronizować). Bez tych kolumn endpoint sync z etapu 5 nie miałby jak działać. Jeśli to nadmiarowe względem Twojej wizji — powiedz, zanim zacznę etap 5 (endpoint sync), bo zmiana kształtu tabel później to migracja Flyway `ALTER TABLE`, nie coś do przepisania po cichu.
@@ -84,6 +99,15 @@ backend/
       AdminUserService.java      # weryfikacja X-Bootstrap-Secret (stałoczasowo) + tworzenie konta
       InvalidBootstrapSecretException.java, UserAlreadyExistsException.java
       dto/CreateUserRequest.java, CreateUserResponse.java
+    metrics/                     # czyste funkcje, zero zależności od Springa/JPA -- patrz decyzje etapu 3
+      OneRepMaxFormula.java, OneRepMax.java          # e1RM Epley/Brzycki (Brzycki: Optional.empty() dla reps>36)
+      RepRangeBucket.java                            # 1 / 2-3 / 4-6 / 7-10 / 11-15 / 15+
+      ExerciseSet.java                               # wejście: jedna seria, niezależne od encji JPA
+      SessionMetrics.java                            # displayVolumeKg vs prEligibleVolumeKg, heaviestSet
+      PersonalRecords.java, PersonalRecordCalculator.java  # compute() i brokenIn() na tym samym algorytmie
+      IsoWeek.java                                   # tydzień ISO-8601, Europe/Warsaw, IsoFields (nie ręczna arytmetyka)
+      BodyWeightEntry.java, WeeklyBodyWeightAverage.java, BodyWeightAggregator.java
+      TrendComparator.java                           # porównanie tydzień-do-tygodnia, includeDeload: boolean
   src/test/java/com/example/easygymbackend/
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
@@ -92,6 +116,15 @@ backend/
                                            # starego refresh tokenu i dostęp bez/z tokenem do /api/me
     admin/AdminControllerTest.java        # tworzenie konta, zły/brak sekretu, duplikat loginu,
                                            # walidacja hasła, i że konto realnie działa w /api/auth/login
+    metrics/                              # BEZ Springa/Dockera -- czysty JUnit, `./gradlew test --tests
+                                           # "com.example.easygymbackend.metrics.*"` starcza, sekundy nie minuty
+      OneRepMaxTest.java                  # reps=1, wzory, granica Brzyckiego (36 działa, 37+ Optional.empty())
+      RepRangeBucketTest.java             # wszystkie granice zakresów
+      SessionMetricsTest.java             # displayVolume vs prEligibleVolume, tie-break najcięższej serii
+      PersonalRecordCalculatorTest.java   # PR per kategoria, per zakres, brokenIn (w tym: remis to NIE PR)
+      IsoWeekTest.java                    # 2020/W53, przełomy roku 2022->2023 i 2025->2026, DST wiosna/jesień
+      BodyWeightAggregatorTest.java       # średnia tygodniowa, niepełny tydzień, delta, krocząca 7-dniowa
+      TrendComparatorTest.java            # domyślne pomijanie deload + includeDeload=true
 ```
 
 ## Model danych — skrót
@@ -150,7 +183,7 @@ Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 
 - [x] **Etap 1 — schemat bazy.** Flyway V1–V4, seed 60 ćwiczeń, testy integracyjne na Testcontainers.
 - [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`/`admin`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, zakładanie kont przez `POST /api/admin/users` (sekret, nie JWT). Konta `Minio`/`Wojtur` założone i zweryfikowane end-to-end (login, `/api/me`, `./gradlew test --rerun-tasks` zielone: `EasyGymBackendApplicationTests`, `SchemaMigrationTest`, `AuthControllerTest`, `AdminControllerTest`). Po drodze złapane i naprawione dwa realne bugi Spring Boot 4 (brak `spring-boot-starter-flyway`, `@CreationTimestamp` czytany przed flushem) — opisane wyżej. Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
-- [ ] Etap 3 — `lib/metrics.ts` (front) + lustrzana logika w Javie + testy Vitest/JUnit.
+- [x] **Etap 3 (backend) — pakiet `metrics`.** e1RM (Epley/Brzycki, z guardem na dzielenie przez zero w Brzyckim), objętość (dwie odmiany, display vs PR-eligible), najcięższa seria, PR w 3 kategoriach + per zakres powtórzeń (`compute`/`brokenIn` na jednym algorytmie), tydzień ISO (`IsoFields`, Europe/Warsaw), średnie tygodniowe wagi ciała, porównanie trendu z opcjonalnym pomijaniem deload. 38 testów JUnit, zero zależności od Springa/bazy — realnie odpalone tutaj (`./gradlew test --tests "...metrics.*"`), nie tylko skompilowane. `lib/metrics.ts` po stronie frontu — osobny dev/agent, ten sam etap po ich stronie.
 - [ ] Etap 4 — ekran aktywnego treningu (front).
 - [ ] Etap 5 — offline sync (Dexie) + endpoint synchronizacji w Springu + plan testowania konfliktów.
 - [ ] Etap 6 — historia treningów, ekran ćwiczenia (front, zapytania zagregowane w Springu).
