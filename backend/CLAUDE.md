@@ -149,7 +149,7 @@ curl -X POST localhost:8080/api/admin/users \
 Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 
 - [x] **Etap 1 — schemat bazy.** Flyway V1–V4, seed 60 ćwiczeń, testy integracyjne na Testcontainers.
-- [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`/`admin`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, zakładanie kont przez `POST /api/admin/users` (sekret, nie JWT). `AuthControllerTest` + `AdminControllerTest`. Konta dla loginów `Minio`/`Wojtur` jeszcze nie założone w żadnej bazie — patrz "Zakładanie konta" wyżej. Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
+- [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`/`admin`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, zakładanie kont przez `POST /api/admin/users` (sekret, nie JWT). Konta `Minio`/`Wojtur` założone i zweryfikowane end-to-end (login, `/api/me`, `./gradlew test --rerun-tasks` zielone: `EasyGymBackendApplicationTests`, `SchemaMigrationTest`, `AuthControllerTest`, `AdminControllerTest`). Po drodze złapane i naprawione dwa realne bugi Spring Boot 4 (brak `spring-boot-starter-flyway`, `@CreationTimestamp` czytany przed flushem) — opisane wyżej. Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
 - [ ] Etap 3 — `lib/metrics.ts` (front) + lustrzana logika w Javie + testy Vitest/JUnit.
 - [ ] Etap 4 — ekran aktywnego treningu (front).
 - [ ] Etap 5 — offline sync (Dexie) + endpoint synchronizacji w Springu + plan testowania konfliktów.
