@@ -16,6 +16,7 @@ Spring Boot API dla aplikacji do śledzenia treningu. Jedyny serwer aplikacji �
 - `MockMvc`/`MockMvcRequestBuilders`/`MockMvcResultMatchers` (z `spring-test`) zostały bez zmian w starych pakietach `org.springframework.test.web.servlet.*`.
 - **Flyway wymaga `org.springframework.boot:spring-boot-starter-flyway`, samo `org.flywaydb:flyway-core` NIC nie odpala.** Boot 3 miał jeden monolityczny `spring-boot-autoconfigure.jar` z `FlywayAutoConfiguration` warunkowanym tylko `@ConditionalOnClass(Flyway.class)` — wystarczyło dodać `flyway-core` i działało. Boot 4 rozbił to na osobne moduły per-technologia (widać to też po pakiecie `org.springframework.boot.hibernate.autoconfigure.HibernateJpaConfiguration` w stack trace'ach) — `FlywayAutoConfiguration` żyje teraz w osobnym artefakcie `org.springframework.boot:spring-boot-flyway`, ciągniętym tylko przez `spring-boot-starter-flyway`. Bez tego: Flyway się nie odpala, zero błędu przy starcie, JPA/Hibernate po prostu waliduje pustą bazę i wywala `SchemaManagementException: missing table [...]` — mylący objaw, bo wygląda jak problem z migracją, a to brakująca zależność. Namierzone przez `find ~/.gradle/caches -iname "*.jar" | xargs grep -l FlywayAutoConfiguration.class` (nic nie znalazło) + przegląd BOM-u `spring-boot-dependencies-4.1.1.pom`.
 - Ogólna zasada dla tego projektu: przy dziwnym, cichym błędzie w Spring Boot 4 podejrzewaj najpierw rozbicie autokonfiguracji na moduł, którego nie ma na classpath — sprawdź zawartość jarów w `~/.gradle/caches`, nie ufaj przykładom z internetu pisanym pod Boot 3.
+- **`spring.jpa.open-in-view: false` (celowo ustawione) + `@ManyToOne(fetch = LAZY)` = każda metoda serwisu, która nawiguje po leniwej relacji (np. `workoutExercise.getExercise().getName()`), MUSI być `@Transactional(readOnly = true)`.** Bez tego sesja Hibernate zamyka się zaraz po repozytorium, a dostęp do leniwego pola wywala `LazyInitializationException` -- złapane realnie testem integracyjnym (`WorkoutFlowTest`), nie na oko. Domyślny wariant "OSIV=true" (Spring Boot default) by to ukrył kosztem trzymania połączenia z bazą otwartego przez cały czas renderowania odpowiedzi -- świadomie tego unikamy.
 
 ## Decyzje architektoniczne (etap 1)
 
@@ -52,6 +53,18 @@ Rzeczy, które NIE są oczywiste ze specyfikacji (sekcja 4), a zdecydowały o ks
 - **Bucketing tygodniowy (dashboard/objętość per grupa mięśniowa) po `workouts.started_at` całej sesji, nie po `sets.completed_at` każdej serii z osobna** — decyzja użytkownika, żeby jeden trening nigdy nie rozjechał się na dwa tygodnie ISO przy sesji kończącej się po północy.
 - **Porównania trendu tydzień-do-tygodnia domyślnie pomijają tygodnie/sesje `is_deload`** (deload znika z łańcucha porównań całkowicie — tydzień po deloadzie porównywany do ostatniego tygodnia nie-deload PRZED nim, nie do samego deloadu), **ale `TrendComparator.compareToPreviousWeek(...)` przyjmuje `includeDeload: boolean`** — decyzja użytkownika, że to ma być przełączalne, nie sztywno wykluczone w kodzie.
 - **Agregacje SQL/JPQL po stronie Springa (sekcja 9: "nie ściągaj wszystkich serii do serwisu żeby liczyć w pamięci") to osobna sprawa od tego pakietu.** `metrics` dostarcza reguły obliczeniowe (e1RM, PR, bucketing tygodnia) używane PO stronie danych już pobranych do konkretnego raportu/ekranu; agregacja na skalę "cała historia usera" (dashboard, etap 8) ma iść przez `GROUP BY`/`SUM` w zapytaniu repozytorium, nie przez pętlę Javy nad tysiącami rekordów — to dopiero etap 8, tu tylko odnotowane jako zasada na przyszłość.
+
+### Decyzje architektoniczne (fundament backendowy pod etap 4 — pakiet `workout`)
+
+Etap 4 z promptu to front (ekran aktywnego treningu). Backendowa część zrobiona wcześniej jako fundament, na wyraźną prośbę — realne encje JPA + CRUD pod `exercises`/`workouts`/`workout_exercises`/`sets`, żeby front miał na czym stanąć zamiast czekać na osobny etap. `routines`/`routine_items`/`body_weights` **celowo pominięte** (poza zakresem tego, o co poproszono) — dojdą przy właściwych etapach (6/7).
+
+- **Encja `WorkoutSet`, nie `Set`.** Tabela to `sets`, ale `java.util.Set` to nazwa zarezerwowana dla kolekcji w każdym pliku Javy — kolizja nazw byłaby myląca przy każdym imporcie.
+- **`Equipment` jako enum + `AttributeConverter`, nie `@Enumerated(STRING)`.** DB (CHECK + seed z V4) ma wartości lowercase (`'barbell'`), a `@Enumerated(STRING)` zapisałoby dokładną nazwę stałej Javy (`"BARBELL"`) — złamałoby to zgodność z już wsianymi 60 ćwiczeniami. Converter robi `name().toLowerCase()` w jedną stronę i `valueOf(upperCase)` w drugą.
+- **Izolacja `user_id` tranzytywna przez JOIN, nie osobna kolumna na każdej tabeli.** `workout_exercises` i `sets` nie mają własnego `user_id` (bo go w ogóle nie ma w schemacie z sekcji 2) — każde zapytanie repozytorium (`findVisibleTo`) filtruje przez JPQL JOIN aż do `workout.userId`. Sprawdzone testem na każdym szczeblu łańcucha osobno (`WorkoutFlowTest`), nie tylko na najgłębszym.
+- **404, nie 403, dla cudzych zasobów.** `ResourceNotFoundException` używany identycznie gdy zasób nie istnieje i gdy istnieje ale należy do innego usera — nie zdradzamy przez kod odpowiedzi, że cudze dane w ogóle są.
+- **Soft delete wszędzie zgodnie z konwencją z migracji** — `DELETE /api/sets/{id}` ustawia `deleted_at`, nie robi `DELETE FROM`. Sprawdzone testem że rekord znika z odpowiedzi API, ale zostaje w bazie (`WorkoutFlowTest#usunietaSeriaZnikaZOdpowiedziAleZostajeWBazieJakoSoftDelete`).
+- **`@CreationTimestamp`/`@UpdateTimestamp` (serwer sam bije `updated_at`) to rozwiązanie TYMCZASOWE, nie docelowe pod sync.** Etap 5 (Dexie + endpoint synchronizacji) zakłada że to KLIENT generuje `updated_at` (offline-first LWW) i serwer musi je PRZYJĄĆ, nie nadpisać własnym zegarem. Zwykłe REST-owe CRUD z tego etapu (bez sync) nadal mogą używać auto-timestampów Hibernate — ale endpoint sync z etapu 5 będzie potrzebował innej ścieżki zapisu (prawdopodobnie natywny SQL/JPQL UPDATE z jawnym `updated_at` z requestu, omijający te adnotacje). Nie przeoczyć tego przy etapie 5.
+- **Zaokrąglanie ciężaru do 0.25 kg (sekcja 8 promptu) NIE jest jeszcze wymuszone po stronie backendu.** Tylko zakres 0–500 (DB CHECK + Bean Validation). Świadomie odłożone — front i tak ma to wymusić przez przyciski +/-2.5, a dodanie custom Bean Validation constraintu teraz to zgadywanie UX zanim front go zdefiniuje.
 
 ### Rozszerzenia względem literalnej specyfikacji z promptu (sekcja 2)
 
@@ -108,6 +121,20 @@ backend/
       IsoWeek.java                                   # tydzień ISO-8601, Europe/Warsaw, IsoFields (nie ręczna arytmetyka)
       BodyWeightEntry.java, WeeklyBodyWeightAverage.java, BodyWeightAggregator.java
       TrendComparator.java                           # porównanie tydzień-do-tygodnia, includeDeload: boolean
+    workout/                     # fundament pod etap 4 (front) -- exercises/workouts/sets, BEZ routines/body_weights
+      Equipment.java, EquipmentConverter.java        # enum <-> lowercase DB value, zgodne z CHECK i seedem V4
+      Exercise.java, ExerciseRepository.java, ExerciseService.java, ExerciseController.java
+      Workout.java, WorkoutRepository.java
+      WorkoutExercise.java, WorkoutExerciseRepository.java
+      WorkoutSet.java, WorkoutSetRepository.java     # UWAGA: tabela "sets" nie ma created_at, tylko completed_at
+      WorkoutService.java          # start/update(=zakończ)/getDetail/list/addExercise, izolacja przez JOIN
+      SetService.java              # add/update/delete (soft), izolacja tranzytywna set->workout_exercise->workout
+      WorkoutController.java, SetController.java
+      WorkoutMapper.java           # jedno miejsce mapowania encja->DTO, używane przez oba serwisy
+      ResourceNotFoundException.java  # 404 zarówno dla "nie istnieje" jak i "cudze" -- celowo bez rozróżnienia
+      dto/StartWorkoutRequest.java, UpdateWorkoutRequest.java, WorkoutSummaryResponse.java, WorkoutDetailResponse.java,
+          AddExerciseRequest.java, WorkoutExerciseResponse.java, AddSetRequest.java, UpdateSetRequest.java,
+          SetResponse.java, CreateExerciseRequest.java, ExerciseResponse.java
   src/test/java/com/example/easygymbackend/
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
@@ -125,6 +152,9 @@ backend/
       IsoWeekTest.java                    # 2020/W53, przełomy roku 2022->2023 i 2025->2026, DST wiosna/jesień
       BodyWeightAggregatorTest.java       # średnia tygodniowa, niepełny tydzień, delta, krocząca 7-dniowa
       TrendComparatorTest.java            # domyślne pomijanie deload + includeDeload=true
+    workout/WorkoutFlowTest.java          # pełny przepływ (start->exercise->set->koniec) + izolacja user A/B
+                                           # na KAŻDYM szczeblu (workout, dodanie ćwiczenia, dodanie serii,
+                                           # edycja/usunięcie serii), soft-delete, walidacja zakresów
 ```
 
 ## Model danych — skrót
@@ -184,7 +214,7 @@ Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 - [x] **Etap 1 — schemat bazy.** Flyway V1–V4, seed 60 ćwiczeń, testy integracyjne na Testcontainers.
 - [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`/`admin`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, zakładanie kont przez `POST /api/admin/users` (sekret, nie JWT). Konta `Minio`/`Wojtur` założone i zweryfikowane end-to-end (login, `/api/me`, `./gradlew test --rerun-tasks` zielone: `EasyGymBackendApplicationTests`, `SchemaMigrationTest`, `AuthControllerTest`, `AdminControllerTest`). Po drodze złapane i naprawione dwa realne bugi Spring Boot 4 (brak `spring-boot-starter-flyway`, `@CreationTimestamp` czytany przed flushem) — opisane wyżej. Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
 - [x] **Etap 3 (backend) — pakiet `metrics`.** e1RM (Epley/Brzycki, z guardem na dzielenie przez zero w Brzyckim), objętość (dwie odmiany, display vs PR-eligible), najcięższa seria, PR w 3 kategoriach + per zakres powtórzeń (`compute`/`brokenIn` na jednym algorytmie), tydzień ISO (`IsoFields`, Europe/Warsaw), średnie tygodniowe wagi ciała, porównanie trendu z opcjonalnym pomijaniem deload. 38 testów JUnit, zero zależności od Springa/bazy — realnie odpalone tutaj (`./gradlew test --tests "...metrics.*"`), nie tylko skompilowane. `lib/metrics.ts` po stronie frontu — osobny dev/agent, ten sam etap po ich stronie.
-- [ ] Etap 4 — ekran aktywnego treningu (front).
+- [x] **Etap 4 (backend, fundament -- na życzenie, przed frontem) — pakiet `workout`.** Realne encje JPA + CRUD: `exercises` (global + własne, wyszukiwanie), `workouts` (start/koniec/deload/lista), `workout_exercises`, `sets` (dodanie/edycja/soft-delete). Izolacja `user_id` tranzytywna przez JOIN na KAŻDYM szczeblu, pokryta testem (`WorkoutFlowTest`, 11 scenariuszy) -- w tym realny bug złapany testem integracyjnym: `getDetail()` bez `@Transactional(readOnly=true)` + `open-in-view=false` + leniwa relacja = `LazyInitializationException`, nie widać tego bez Testcontainers. **68/68 testów zielonych w całym projekcie**, realnie odpalone (`./gradlew test --rerun-tasks`), Docker był dostępny w tej sesji. `routines`/`routine_items`/`body_weights` świadomie pominięte -- poza zakresem tego, o co poproszono, wracają przy etapach 6/7. Ekran aktywnego treningu (front) — osobny dev/agent, wciąż otwarte.
 - [ ] Etap 5 — offline sync (Dexie) + endpoint synchronizacji w Springu + plan testowania konfliktów.
 - [ ] Etap 6 — historia treningów, ekran ćwiczenia (front, zapytania zagregowane w Springu).
 - [ ] Etap 7 — moduł wagi ciała (front + agregacje tygodniowe w Springu).
