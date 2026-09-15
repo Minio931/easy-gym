@@ -34,4 +34,23 @@ public interface WorkoutSetRepository extends JpaRepository<WorkoutSet, UUID> {
             """)
     List<WorkoutSet> findChangedSince(@Param("userId") UUID userId, @Param("since") Instant since);
 
+    /**
+     * Pod ekran ćwiczenia (etap 6) -- wszystkie serie dla jednego ćwiczenia
+     * w całej historii usera, posortowane chronologicznie (data sesji, potem
+     * kolejność w sesji). Grupowanie po sesji (workout) robi warstwa serwisu,
+     * nie SQL -- to niewielki zbiór (jedno ćwiczenie, jeden user), więc czyste
+     * funkcje z pakietu metrics są właściwym narzędziem, nie GROUP BY w bazie
+     * (to drugie dopiero przy agregacjach na skalę "cała historia", etap 8).
+     */
+    @Query("""
+            SELECT s FROM WorkoutSet s
+            WHERE s.workoutExercise.exercise.id = :exerciseId
+              AND s.workoutExercise.workout.userId = :userId
+              AND s.deletedAt IS NULL
+              AND s.workoutExercise.deletedAt IS NULL
+              AND s.workoutExercise.workout.deletedAt IS NULL
+            ORDER BY s.workoutExercise.workout.startedAt, s.setIndex
+            """)
+    List<WorkoutSet> findAllForExercise(@Param("exerciseId") UUID exerciseId, @Param("userId") UUID userId);
+
 }
