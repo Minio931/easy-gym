@@ -126,7 +126,9 @@ Sekcja 2 promptu nie wymienia `updated_at`/`deleted_at` przy każdej tabeli — 
 ```
 backend/
   build.gradle.kts
-  docker-compose.yml            # Postgres lokalnie do developmentu (nie do produkcji)
+  Dockerfile                    # wieloetapowy build, obraz uruchomieniowy bez JDK/Gradle'a
+  .dockerignore
+  docker-compose.yml            # Postgres + backend, healthcheck+depends_on -- pełny stack lokalnie
   src/main/resources/
     application.yaml            # config przez zmienne środowiskowe, sensowne defaulty do dev
     db/migration/
@@ -260,7 +262,14 @@ Patrz migracje w `db/migration/` jako źródło prawdy (nie duplikuj tego opisu 
 
 ## Jak uruchomić lokalnie
 
-1. `docker compose up -d` — startuje Postgres na `localhost:5432` (baza `easy_gym`, user/hasło `easy_gym`/`easy_gym`, zgodnie z defaultami w `application.yaml`).
+**Cały stack w Dockerze (Postgres + backend), zero Javy/Gradle'a lokalnie** -- to jest ścieżka opisana dla frontendu w root `README.md`, patrz tam po pełne przykłady curl na login/zakładanie kont:
+```
+docker compose up -d --build
+```
+`Dockerfile` to wieloetapowy build (`eclipse-temurin:26-jdk` do `./gradlew bootJar`, potem `eclipse-temurin:26-jre` jako obraz uruchomieniowy -- JDK/Gradle nie trafiają do finalnego obrazu). `docker-compose.yml` ma healthcheck na Postgresie (`depends_on: condition: service_healthy`), więc backend nie wystartuje wyścigowo przed gotową bazą. Zweryfikowane end-to-end w tej sesji: build, start, Flyway, `POST /api/admin/users` + `POST /api/auth/login` przez działający kontener -- nie tylko że się buduje.
+
+**Praca nad kodem backendu (szybszy cykl, bez rebuildu obrazu za każdym razem):**
+1. `docker compose up -d postgres` — startuje sam Postgres na `localhost:5432` (baza `easy_gym`, user/hasło `easy_gym`/`easy_gym`).
 2. `./gradlew bootRun` — Spring Boot aplikuje migracje Flyway automatycznie przy starcie (`spring.flyway.enabled: true`).
 3. Weryfikacja ręczna schematu:
    ```
