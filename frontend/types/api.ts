@@ -270,6 +270,75 @@ export interface RoutineResponse {
 }
 
 /* ================================================================== *
+ * Waga ciała
+ * ================================================================== */
+
+/** Jeden ŻYWY wpis na dzień — kluczem biznesowym jest `measuredOn`, nie `id`. */
+export interface BodyWeightResponse {
+  id: string;
+  /** Dzień jako `YYYY-MM-DD`. */
+  measuredOn: string;
+  weightKg: number;
+  note: string | null;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+/** PUT /api/body-weights — **upsert po dacie**, nie po `id`. */
+export interface SaveBodyWeightRequest {
+  id?: string;
+  measuredOn: string;
+  /** Ostro między 0 a 400 — lustro CHECK-a w bazie. */
+  weightKg: number;
+  note?: string | null;
+}
+
+/**
+ * Tydzień ISO-8601 (pon–niedz, `Europe/Warsaw`) — ten sam podział co
+ * `IsoWeek` w `lib/metrics.ts` i po stronie serwera.
+ */
+export interface WeeklyBodyWeightResponse {
+  year: number;
+  week: number;
+  /** Poniedziałek i niedziela tygodnia, `YYYY-MM-DD`. */
+  from: string;
+  to: string;
+  measurementCount: number;
+  averageKg: number;
+  /** Mniej niż 2 pomiary — pokazujemy, ale wyróżniamy wizualnie (DESIGN §10). */
+  incomplete: boolean;
+  /** Względem poprzedniego tygodnia z danymi; `null` gdy nie ma z czym porównać. */
+  deltaKg: number | null;
+  deltaPercent: number | null;
+}
+
+export interface RollingAveragePoint {
+  date: string;
+  averageKg: number;
+}
+
+/** Średnia ostatniego tygodnia vs średnia sprzed czterech tygodni z danymi. */
+export interface BodyWeightTrendResponse {
+  fromYear: number;
+  fromWeek: number;
+  toYear: number;
+  toWeek: number;
+  fromAverageKg: number;
+  toAverageKg: number;
+  deltaKg: number;
+  deltaPercent: number;
+}
+
+/** GET /api/body-weights/stats — komplet danych ekranu wagi. */
+export interface BodyWeightStatsResponse {
+  entries: BodyWeightResponse[];
+  weekly: WeeklyBodyWeightResponse[];
+  rollingSevenDay: RollingAveragePoint[];
+  latest: BodyWeightResponse | null;
+  fourWeekTrend: BodyWeightTrendResponse | null;
+}
+
+/* ================================================================== *
  * Historia ćwiczenia (ekran ćwiczenia; tutaj używana do linijki "ostatnio:")
  * ================================================================== */
 
