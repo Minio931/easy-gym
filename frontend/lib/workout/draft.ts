@@ -36,3 +36,38 @@ export function emptyDraft(id: string, workoutExerciseId: string): SetDraft {
     submitAttempted: false,
   };
 }
+
+/**
+ * Czy szkic jest nietknięty — user go jeszcze nie dotknął.
+ *
+ * Tylko taki wolno podmienić podpowiedzią. Wpisany ciężar, ustawiony znacznik
+ * albo edycja zapisanej serii to decyzja użytkownika i podpowiedź nie ma prawa
+ * jej nadpisać, choćby przyszła sekundę później (historia ćwiczenia leci
+ * asynchronicznie).
+ */
+export function isUntouchedDraft(draft: SetDraft): boolean {
+  return (
+    !draft.editing &&
+    draft.weight === "" &&
+    draft.reps === "" &&
+    draft.rpe === null &&
+    !draft.isWarmup &&
+    !draft.toFailure &&
+    !draft.assisted
+  );
+}
+
+/**
+ * Podpowiedź ciężaru z ostatniego treningu (PROMPT §3 — punkt odniesienia).
+ *
+ * Wypełniamy WYŁĄCZNIE ciężar. Ciężar jest faktem: sztanga jest załadowana,
+ * zanim seria się zacznie, więc podpowiedź oszczędza wpisywanie. Powtórzenia
+ * są WYNIKIEM serii — wstawienie ich z góry sprawiłoby, że jedno nieuważne ✓
+ * zapisuje liczbę, której nikt nie wykonał.
+ */
+export function withSuggestedWeight(draft: SetDraft, weightKg: number): SetDraft {
+  if (!isUntouchedDraft(draft)) {
+    return draft;
+  }
+  return { ...draft, weight: String(weightKg) };
+}

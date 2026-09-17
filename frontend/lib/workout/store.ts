@@ -16,7 +16,12 @@ import {
   updateWorkoutExercise,
 } from "@/lib/api/workouts";
 import type { OneRepMaxFormula } from "@/lib/metrics";
-import { emptyDraft, type SetDraft } from "@/lib/workout/draft";
+import {
+  emptyDraft,
+  isUntouchedDraft,
+  withSuggestedWeight,
+  type SetDraft,
+} from "@/lib/workout/draft";
 import { MutationQueue, type FailedMutation } from "@/lib/workout/mutation-queue";
 import {
   buildLocalWorkout,
@@ -410,20 +415,61 @@ export async function ensureReference(
     const previous = history.sessions
       .filter((session) => session.workoutId !== currentWorkoutId)
       .at(-1);
+    const sets = (previous?.sets ?? []).map((set) => ({
+      weightKg: set.weightKg,
+      reps: set.reps,
+    }));
     setState({
       references: {
         ...state.references,
-        [exerciseId]: {
-          status: "ready",
-          sets: (previous?.sets ?? []).map((set) => ({ weightKg: set.weightKg, reps: set.reps })),
-        },
+        [exerciseId]: { status: "ready", sets },
       },
+      // Historia dociera po tym, jak wiersz serii już stoi na ekranie, więc
+      // podpowiedź ciężaru wchodzi dopiero TERAZ — i tylko do szkiców, których
+      // nikt w międzyczasie nie tknął.
+      drafts: suggestWeights(state.drafts, exerciseId, sets),
     });
   } catch {
     setState({
       references: { ...state.references, [exerciseId]: { status: "ready", sets: [] } },
     });
   }
+}
+
+/**
+ * Wstawia podpowiedź ciężaru do szkiców tego ćwiczenia. Numer serii bierze się
+ * z liczby serii już zrobionych w tej sesji — druga seria patrzy na drugą
+ * serię poprzedniego treningu, tak samo jak linijka „ostatnio: 100 × 5".
+ */
+function suggestWeights(
+  drafts: Record<string, SetDraft>,
+  exerciseId: string,
+  sets: readonly { weightKg: number; reps: number }[],
+): Record<string, SetDraft> {
+  if (sets.length === 0) {
+    return drafts;
+  }
+  const workout = state.workout;
+  if (workout === null) {
+    return drafts;
+  }
+
+  let changed = false;
+  const next = { ...drafts };
+  for (const exercise of workout.exercises) {
+    if (exercise.exerciseId !== exerciseId) {
+      continue;
+    }
+    const draft = drafts[exercise.id];
+    if (draft === undefined || !isUntouchedDraft(draft)) {
+      continue;
+    }
+    const setIndex = exercise.sets.filter((set) => set.deletedAt === null).length;
+    const suggestion = sets[Math.min(setIndex, sets.length - 1)];
+    next[exercise.id] = withSuggestedWeight(draft, suggestion.weightKg);
+    changed = true;
+  }
+  return changed ? next : drafts;
 }
 
 /* ------------------------------------------------------------------ *
@@ -487,9 +533,18 @@ export function addExerciseToWorkout(
   const local = buildWorkoutExercise(id, workout, exercise, orderIndex, now);
   const draft = emptyDraft(uuid(), id);
 
+  const reference = state.references[exercise.id];
   commit({
     workout: withExercise(workout, local),
-    drafts: { ...state.drafts, [id]: draft },
+    // Gdy historia tego ćwiczenia jest już w pamięci (drugie podejście w tej
+    // samej sesji), podpowiedź wchodzi od razu, bez czekania na sieć.
+    drafts: {
+      ...state.drafts,
+      [id]:
+        reference?.status === "ready" && reference.sets.length > 0
+          ? withSuggestedWeight(draft, reference.sets[0].weightKg)
+          : draft,
+    },
     activeExerciseId: id,
   });
   rememberExercise(exercise.id);
