@@ -235,3 +235,43 @@ export async function finishWorkoutViaApi(
   }
   return res.json();
 }
+
+/* ------------------------------------------------------------------ *
+ * Waga ciała
+ * ------------------------------------------------------------------ */
+
+export interface BodyWeightEntry {
+  id: string;
+  measuredOn: string;
+  weightKg: number;
+  [key: string]: unknown;
+}
+
+/** Żywe wpisy wagi (bez tombstone'ów) w podanym dniu. */
+export async function bodyWeightsOn(
+  request: APIRequestContext,
+  accessToken: string,
+  measuredOn: string,
+): Promise<BodyWeightEntry[]> {
+  const res = await request.get(
+    `${API_URL}/api/body-weights?from=${measuredOn}&to=${measuredOn}`,
+    { headers: authHeaders(accessToken) },
+  );
+  if (!res.ok()) {
+    throw new Error(`GET /api/body-weights: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as BodyWeightEntry[];
+}
+
+/** Sprząta po teście: kasuje wszystkie żywe wpisy z danego dnia. */
+export async function clearBodyWeightsOn(
+  request: APIRequestContext,
+  accessToken: string,
+  measuredOn: string,
+): Promise<void> {
+  for (const entry of await bodyWeightsOn(request, accessToken, measuredOn)) {
+    await request.delete(`${API_URL}/api/body-weights/${entry.id}`, {
+      headers: authHeaders(accessToken),
+    });
+  }
+}
