@@ -48,7 +48,11 @@ export function ChartTile<T>({
   const isEmpty = rows.length === 0;
 
   return (
-    <section className="rounded-card border border-hairline bg-surface p-4">
+    // `aria-label` daje sekcji rolę `region` i stabilną nazwę. Bez tego kafel
+    // da się wskazać tylko po tekście, a ten sam wyraz („Ciężar") jest i w
+    // tytule kafla, i w kafelku rekordu — czytnik ekranu i test trafiają wtedy
+    // w cokolwiek.
+    <section aria-label={title} className="rounded-card border border-hairline bg-surface p-4">
       <header className="flex items-baseline justify-between gap-3">
         <h3 className="label-caps">{title}</h3>
         {value !== undefined && value !== null && (
