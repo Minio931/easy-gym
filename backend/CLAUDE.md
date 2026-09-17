@@ -53,6 +53,45 @@ Rzeczy, które NIE są oczywiste ze specyfikacji (sekcja 4), a zdecydowały o ks
 - **Porównania trendu tydzień-do-tygodnia domyślnie pomijają tygodnie/sesje `is_deload`** (deload znika z łańcucha porównań całkowicie — tydzień po deloadzie porównywany do ostatniego tygodnia nie-deload PRZED nim, nie do samego deloadu), **ale `TrendComparator.compareToPreviousWeek(...)` przyjmuje `includeDeload: boolean`** — decyzja użytkownika, że to ma być przełączalne, nie sztywno wykluczone w kodzie.
 - **Agregacje SQL/JPQL po stronie Springa (sekcja 9: "nie ściągaj wszystkich serii do serwisu żeby liczyć w pamięci") to osobna sprawa od tego pakietu.** `metrics` dostarcza reguły obliczeniowe (e1RM, PR, bucketing tygodnia) używane PO stronie danych już pobranych do konkretnego raportu/ekranu; agregacja na skalę "cała historia usera" (dashboard, etap 8) ma iść przez `GROUP BY`/`SUM` w zapytaniu repozytorium, nie przez pętlę Javy nad tysiącami rekordów — to dopiero etap 8, tu tylko odnotowane jako zasada na przyszłość.
 
+### Decyzje architektoniczne (etapy 4-8 -- API domenowe i sync)
+
+Pełny kontrakt jest w [`API.md`](API.md); tutaj tylko to, czego z samego kontraktu nie widać:
+
+- **Dwie drogi zapisu tych samych danych: REST CRUD i `POST /api/sync`.** To nie jest duplikacja
+  przez przypadek -- online klient pisze przez REST i od razu dostaje policzone podsumowanie sesji
+  (objętość, PR), a kolejka offline wysyła paczkę do `/api/sync`. Obie drogi przechodzą przez te
+  same encje i te same reguły własności; różnią się tym, kto ustawia `updated_at` (REST: serwer,
+  sync: klient, z przycięciem do czasu serwera).
+- **Każda operacja na ćwiczeniach/seriach treningu zwraca CAŁY trening**, nie zmieniony fragment.
+  Ekran aktywnego treningu i tak po każdej serii potrzebuje przeliczonej objętości i banera "PR
+  pobity" -- zwracanie samej serii wymuszałoby drugie zapytanie po każdym kliknięciu.
+- **`PUT .../sets/{setId}` to upsert.** Klient offline generuje UUID serii w Dexie i po odzyskaniu
+  sieci nie wie, czy ta seria zdążyła już dojechać. Upsert czyni retry bezpiecznym (idempotentnym);
+  osobne POST/PUT dawałyby przy retry albo duplikat, albo 404.
+- **Cudzy rekord to 404, nie 403** (poza ćwiczeniami globalnymi, gdzie 403 -- ich istnienie i tak
+  nie jest tajemnicą, bo są w seedzie). Rozróżnianie "nie ma" od "nie twoje" zdradzałoby, że dany
+  UUID istnieje na drugim koncie.
+- **Waga ciała: upsert po `(user_id, measured_on)`, nie po id.** Kluczem biznesowym jest dzień, nie
+  UUID -- bez tego poprawka wagi z drugiego urządzenia wywalałaby 409 z częściowego indeksu
+  unikalnego z V3 zamiast po prostu edytować wpis.
+- **Formuła e1RM jako `?formula=`, nie kolumna w `profiles`.** Gdyby siedziała w profilu, i tak
+  trzeba by ją czytać przy każdym zapytaniu, a kuszenie do zapisania wyniku byłoby o krok bliżej.
+  Zostaje zasada z etapu 3: e1RM i PR liczone zawsze na żywo.
+- **`profiles` powstaje leniwie przy pierwszym `GET /api/profile`** -- `AdminUserService` tego
+  wiersza nie tworzy, a dokładanie migracji przy każdym nowym koncie byłoby absurdem.
+- **Agregaty w SQL, bucketowanie tygodni w Javie.** Lista treningów, objętość per grupa mięśniowa,
+  kalendarz i "ostatnie PR" (funkcja okna `max(...) OVER (PARTITION BY ... ROWS BETWEEN UNBOUNDED
+  PRECEDING AND 1 PRECEDING)`) liczą się w bazie. Podział na tygodnie ISO robi dopiero `IsoWeek` po
+  `workouts.started_at` -- inaczej sesja kończąca się po północy rozjechałaby się na dwa tygodnie
+  (sekcja 9 promptu + decyzja z etapu 3).
+- **Sync: LWW ściśle `>`, remis wygrywa serwer, `updated_at` z przyszłości przycinane do czasu
+  serwera.** Bez tego przycięcia jeden telefon z przestawionym zegarem wygrywałby każdy kolejny
+  konflikt już zawsze. Pojedynczy błędny rekord wraca w `rejected` i nie wywraca całej paczki --
+  inaczej jedna zepsuta seria blokowałaby synchronizację telefonu w nieskończoność.
+- **`spring-boot-starter-actuator` z wystawionym wyłącznie `/actuator/health`** (bez `details`) --
+  healthcheck kontenera i probe'y platformy potrzebują endpointu bez tokenu, ale `env`/`beans`
+  wystawione publicznie to wyciek konfiguracji.
+
 ### Rozszerzenia względem literalnej specyfikacji z promptu (sekcja 2)
 
 Sekcja 2 promptu nie wymienia `updated_at`/`deleted_at` przy każdej tabeli — dodane, bo wymaga tego mechanizm sync opisany w sekcji 1 punkt 4 (last-write-wins po `updated_at`, offline delete musi się zsynchronizować). Bez tych kolumn endpoint sync z etapu 5 nie miałby jak działać. Jeśli to nadmiarowe względem Twojej wizji — powiedz, zanim zacznę etap 5 (endpoint sync), bo zmiana kształtu tabel później to migracja Flyway `ALTER TABLE`, nie coś do przepisania po cichu.
@@ -99,7 +138,26 @@ backend/
       AdminUserService.java      # weryfikacja X-Bootstrap-Secret (stałoczasowo) + tworzenie konta
       InvalidBootstrapSecretException.java, UserAlreadyExistsException.java
       dto/CreateUserRequest.java, CreateUserResponse.java
+    common/
+      NotFoundException.java, ForbiddenOperationException.java, InvalidRequestException.java
+    profile/                     # GET/PUT /api/profile (wiersz w profiles tworzony leniwie)
+    exercise/                    # katalog ćwiczeń + ekran pojedynczego ćwiczenia
+      Exercise.java, ExerciseRepository.java (fuzzy search pg_trgm), Equipment.java
+      ExerciseService.java, ExerciseController.java, ExerciseHistoryService.java
+    routine/                     # szablony treningów; PUT podmienia całą listę pozycji
+      Routine.java, RoutineItem.java, repozytoria, RoutineService, RoutineController
+    workout/                     # trening, ćwiczenia treningu, serie
+      Workout.java, WorkoutExercise.java, WorkoutSet.java (tabela `sets`)
+      WorkoutSummaryRow.java     # projekcja listy historii liczona GROUP BY w bazie
+      WorkoutService.java        # CRUD + upsert serii, zwraca zawsze cały trening
+      PersonalRecordService.java # wejście do PersonalRecordCalculator na realnych danych
+      WorkoutController.java
+    bodyweight/                  # wpisy wagi (upsert po dacie) + średnie tygodniowe ISO
+    dashboard/                   # agregaty pulpitu: SQL + IsoWeek, funkcja okna na PR
+    sync/                        # POST /api/sync -- push+pull, LWW po updated_at
+      SyncService.java, SyncContext.java, SyncMapper.java, SyncController.java
     metrics/                     # czyste funkcje, zero zależności od Springa/JPA -- patrz decyzje etapu 3
+      MetricsMapper.java                             # jedyny most encja JPA -> metrics + parser ?formula=
       OneRepMaxFormula.java, OneRepMax.java          # e1RM Epley/Brzycki (Brzycki: Optional.empty() dla reps>36)
       RepRangeBucket.java                            # 1 / 2-3 / 4-6 / 7-10 / 11-15 / 15+
       ExerciseSet.java                               # wejście: jedna seria, niezależne od encji JPA
@@ -109,6 +167,16 @@ backend/
       BodyWeightEntry.java, WeeklyBodyWeightAverage.java, BodyWeightAggregator.java
       TrendComparator.java                           # porównanie tydzień-do-tygodnia, includeDeload: boolean
   src/test/java/com/example/easygymbackend/
+    support/ApiIntegrationTest.java       # baza testów API: JEDEN kontener Postgresa na całą JVM
+                                           # (singleton container) + dwóch userów (userA, userB)
+    exercise/ExerciseApiTest.java         # katalog, fuzzy search, 403 na globalnym, izolacja A/B
+    routine/RoutineApiTest.java           # podmiana pozycji, start treningu z szablonu, izolacja
+    workout/WorkoutApiTest.java           # objętości, e1RM obiema formułami, PR (remis to nie PR),
+                                           # soft delete kaskadą, izolacja A/B
+    bodyweight/BodyWeightApiTest.java     # upsert po dacie, ponowny wpis po soft delete, tygodnie ISO
+    sync/SyncApiTest.java                 # LWW, replay starej wersji, cudzy rekord, konflikt dnia
+                                           # w wadze, tombstone, zła seria nie wywraca paczki
+    dashboard/DashboardApiTest.java       # agregaty per grupa mięśniowa, ostatnie PR, izolacja
     EasyGymBackendApplicationTests.java   # smoke test kontekstu Springa (Testcontainers Postgres)
     db/SchemaMigrationTest.java           # weryfikuje migracje: seed = 60, CHECK-i, unikalność
                                            # body_weights per dzień po soft-delete
@@ -184,12 +252,19 @@ Zgodnie z promptem projektowym, realizowanym etapami (nie całość na raz):
 - [x] **Etap 1 — schemat bazy.** Flyway V1–V4, seed 60 ćwiczeń, testy integracyjne na Testcontainers.
 - [x] **Etap 2 (backend) — szkielet Springa + Auth JWT.** Pakiety `config`/`user`/`auth`/`admin`, login/refresh/logout, rotacja refresh tokenu, `CurrentUser` jako jedyne źródło `user_id`, zakładanie kont przez `POST /api/admin/users` (sekret, nie JWT). Konta `Minio`/`Wojtur` założone i zweryfikowane end-to-end (login, `/api/me`, `./gradlew test --rerun-tasks` zielone: `EasyGymBackendApplicationTests`, `SchemaMigrationTest`, `AuthControllerTest`, `AdminControllerTest`). Po drodze złapane i naprawione dwa realne bugi Spring Boot 4 (brak `spring-boot-starter-flyway`, `@CreationTimestamp` czytany przed flushem) — opisane wyżej. Szkielet Next.js poza zakresem `backend/` — osobny dev/agent.
 - [x] **Etap 3 (backend) — pakiet `metrics`.** e1RM (Epley/Brzycki, z guardem na dzielenie przez zero w Brzyckim), objętość (dwie odmiany, display vs PR-eligible), najcięższa seria, PR w 3 kategoriach + per zakres powtórzeń (`compute`/`brokenIn` na jednym algorytmie), tydzień ISO (`IsoFields`, Europe/Warsaw), średnie tygodniowe wagi ciała, porównanie trendu z opcjonalnym pomijaniem deload. 38 testów JUnit, zero zależności od Springa/bazy — realnie odpalone tutaj (`./gradlew test --tests "...metrics.*"`), nie tylko skompilowane. `lib/metrics.ts` po stronie frontu — osobny dev/agent, ten sam etap po ich stronie.
-- [ ] Etap 4 — ekran aktywnego treningu (front).
-- [ ] Etap 5 — offline sync (Dexie) + endpoint synchronizacji w Springu + plan testowania konfliktów.
-- [ ] Etap 6 — historia treningów, ekran ćwiczenia (front, zapytania zagregowane w Springu).
-- [ ] Etap 7 — moduł wagi ciała (front + agregacje tygodniowe w Springu).
-- [ ] Etap 8 — dashboard (agregacje w Springu).
-- [ ] Etap 9 — eksport XLSX (Apache POI).
+- [x] **Etapy 4-8 (backend) — całe API domenowe.** Ćwiczenia (CRUD + fuzzy search + historia
+  ćwiczenia), szablony, treningi z ćwiczeniami i seriami (upsert), waga ciała ze średnimi
+  tygodniowymi ISO, dashboard (agregaty SQL + funkcja okna na PR) i `POST /api/sync` (push+pull,
+  LWW). Kontrakt: [`API.md`](API.md). 32 nowe testy integracyjne na Testcontainers, każdy endpoint
+  per-user pokryty testem izolacji user A / user B; cały pakiet (`./gradlew test`) zielony.
+  Zweryfikowane też end-to-end na uruchomionym stosie dockerowym (konto -> login -> trening ->
+  dashboard -> sync). Części frontowe etapów 4-8 — osobny dev/agent.
+- [x] **Konteneryzacja i przygotowanie do deployu.** `backend/Dockerfile` (multi-stage, JRE 26,
+  non-root, healthcheck), `frontend/Dockerfile` (Next standalone), `docker-compose.yml` (pełny stos)
+  i `docker-compose.prod.yml` (API + front, baza zewnętrzna). Kroki: [`../README.md`](../README.md).
+- [ ] Etap 9 — eksport XLSX (Apache POI). **Czeka na decyzję** o kształcie eksportu (sekcja 7
+  promptu każe najpierw przedstawić opcje: dane + tabele przestawne / wykresy jako PNG / generowanie
+  po stronie serwera) — dlatego jako jedyny nie został zrobiony razem z resztą API.
 
 ## Konwencje
 
