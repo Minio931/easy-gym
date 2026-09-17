@@ -318,6 +318,57 @@ Z renderu — nie z lektury kodu — wyszły cztery rzeczy: zakres w kaflach ko�
 długa data w kaflu wagi ucinała się w pół słowa, kolumna „Deload" zgniatała tabelę do „0—",
 a pusty zakres rysował ramkę bez zawartości.
 
+## Decyzje architektoniczne (szablony treningów — uzupełnienie etapu 4)
+
+Etap 4 zrobił **odpalanie** szablonu (`applyRoutine`, licznik `0/3` z `targetSets`, nazwa w pasku
+sesji), ale nie dał żadnej drogi, żeby szablon POWSTAŁ: `lib/api/routines.ts` miał same `GET`-y,
+a backend pełny CRUD. Sekcja „Nie masz jeszcze szablonów" była ślepym zaułkiem — dało się ją
+wypełnić wyłącznie curlem.
+
+1. **Dwie drogi do szablonu, bo to dwa różne momenty.** „Zapisz jako szablon" na podsumowaniu
+   bierze układ, który właśnie się sprawdził (`/szablony` służy do poprawiania go później);
+   edytor na `/szablony/nowy` układa plan z góry, zanim padnie pierwsza seria. Żadna z nich nie
+   zastępuje drugiej.
+
+2. **Cel powtórzeń z sesji to MEDIANA serii roboczych, nie wartość najczęstsza.** Pierwsza wersja
+   brała modę i rozstrzygała remis najniższą wartością — na prawdziwej drabinie 3/2/1 z konta
+   testowego robiła z sesji plan „3 serie × 1 powtórzenie". Mediana daje 2, przy stałych seriach
+   (5/5/5) obie reguły dają to samo, a przy parzystej liczbie serii bierzemy DOLNY środek, żeby
+   cel został liczbą całkowitą. Cel serii to liczba serii ROBOCZYCH — dokładnie to, co liczy
+   licznik `0/3` na karcie ćwiczenia.
+
+3. **Edytor wysyła KOMPLET pozycji, nigdy różnicy.** `PUT /api/routines/{id}` podmienia całą listę
+   i pozycja pominięta w żądaniu dostaje tombstone (`backend/API.md`). Wysyłanie różnicy byłoby
+   tu cichym kasowaniem. Ta sama reguła obowiązuje w Dexie: `saveRoutineLocally` stawia tombstone
+   na pozycjach, których nie ma w nowej liście, bo zwykłe skasowanie wiersza nie dojechałoby do
+   drugiego urządzenia — paczka sync wysyła rekordy, a nie informację o nieobecności.
+
+4. **Kolejność ćwiczeń zmieniają strzałki, nie przeciąganie.** Lista jest w pionie w przewijanej
+   stronie, więc drag na telefonie walczy ze scrollem i przegrywa — a gest nie może być jedyną
+   drogą (DESIGN §9). `orderIndex` powstaje dopiero przy wysyłce, z pozycji w tablicy; trzymanie
+   go w szkicu oznaczałoby przenumerowywanie wszystkiego przy każdym przesunięciu wiersza.
+
+5. **Szablony działają bez zasięgu — w obie strony.** `lib/routines/store.ts` to jedyne miejsce
+   zapisu: najpierw Dexie z `dirty = 1`, potem API, a `OfflineError` to NIE jest nieudany zapis
+   (ta sama reguła co przy wadze i treningu). Lista czyta najpierw z Dexie, więc szablon da się
+   odpalić w hali bez sieci — wcześniej `WorkoutStart` szedł prosto do API i pokazywał pustkę,
+   mimo że rekordy leżały już na urządzeniu (sync ściąga `routines` i `routineItems` od etapu 5).
+   `id` szablonu i pozycji nadaje KLIENT, bo serwer honoruje podane `id` (`RoutineService.create`)
+   — rekord zapisany offline i ten sam wysłany po powrocie sieci to jeden wiersz, nie dwa.
+
+6. **Usunięcie szablonu pyta o potwierdzenie**, inaczej niż usunięcie serii, które ma „Cofnij".
+   Serię wpisuje się z powrotem w pięć sekund; szablon to praca włożona raz i używana miesiącami.
+
+7. **Nazwy ćwiczeń dociągamy z katalogu**, bo `RoutineResponse` niesie same `exerciseId`. Gdy
+   ćwiczenia nie ma w katalogu, wiersz mówi „Ćwiczenie spoza katalogu" — „?" ukrywałoby fakt, że
+   ćwiczenie zostało skasowane. Dociągnięcie katalogu nie nadpisuje szkicu, który user zdążył już
+   zmienić: nazwy wchodzą dopiero przy renderze.
+
+Sprawdzone na żywym backendzie (konto `Demo`): utworzenie, edycja z przestawieniem kolejności,
+start treningu z szablonu (kolejność i licznik `0/4`), zapis z zakończonej sesji, usunięcie,
+oraz pełna ścieżka offline — lista z Dexie, zapis bez zasięgu i dowiezienie go na serwer przez
+synchronizację po powrocie sieci.
+
 ## Struktura
 
 ```
@@ -330,6 +381,7 @@ frontend/
     (app)/
       layout.tsx              # RequireAuth + AppShell
       pulpit|trening|historia|waga|ustawienia/page.tsx
+      szablony/page.tsx         # lista szablonów; [id]/page.tsx = edytor ("nowy" = pusty)
       cwiczenie/[id]/page.tsx # ekran ćwiczenia (wejście z podsumowania treningu)
   components/
     shell/                    # app-bar, tab-bar, sync-pill, app-shell, require-auth
@@ -366,6 +418,9 @@ frontend/
     bodyweight/input.ts       # walidacja pola wagi, dzisiejsza data (+ testy)
     db/body-weight-repository.ts # wpisy wagi w Dexie, upsert po DNIU
     charts.ts                 # zakresy czasu, sloty palety, skala punktu, kubełki grup (+ testy)
+    routines/draft.ts         # szkic szablonu: zmiany, walidacja, szkic z sesji (+ testy)
+    routines/store.ts         # JEDYNE miejsce zapisu szablonu (Dexie -> API)
+    db/routine-repository.ts  # szablony w Dexie: tombstone'y pozycji, wersja serwera
     dashboard/volume.ts       # wiersze wykresu objętości, dopełnianie pustych tygodni (+ testy)
     dashboard/calendar.ts     # siatka kalendarza treningów (+ testy)
     dashboard/range.ts        # zakres pulpitu: ile tygodni, momenty -> dni (+ testy)
@@ -390,6 +445,7 @@ frontend/
   components/exercise/        # ekran pojedynczego ćwiczenia: rekordy + 3 wykresy
   components/bodyweight/      # ekran wagi: wpis, kafle, wykres, lista pomiarów
   components/dashboard/       # pulpit: ekran i kalendarz treningów
+  components/routines/        # szablony: lista, edytor, "zapisz sesję jako szablon"
   components/charts/chrome.tsx # wspólny chrom wykresów (osie, marginesy, tooltip)
   app/manifest.ts             # manifest PWA (generowany przez Next, nie plik w public/)
   public/sw.js                # service worker: TYLKO powłoka, zero cache'owania API
@@ -400,6 +456,7 @@ frontend/
   e2e/11-history-and-exercise.spec.ts # historia, wejście w sesję i ćwiczenie, zakres i tabela
   e2e/12-body-weight.spec.ts  # zapis wagi, upsert po dniu, walidacja zakresu
   e2e/13-dashboard.spec.ts    # kafle zgodne z backendem, zakres bez sieci, przełącznik deloadu
+  e2e/14-routines.spec.ts     # szablon: edytor, podmiana pozycji, start, zapis z sesji, kasowanie
   design/canvas/              # artboardy płótna projektowego (poza buildem apki)
   design/generate-icons.py    # generator ikon PWA (trzymany razem z wynikiem)
 ```
