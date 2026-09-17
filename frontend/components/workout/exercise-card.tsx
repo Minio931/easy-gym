@@ -58,7 +58,10 @@ export function ExerciseCard({
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="screen-title truncate">{exercise.exerciseName}</h2>
+          {/* Dwie linie zamiast ucięcia w jednej: „Wyciskanie sztangi na ławce
+              skośnej" i „...płaskiej" ucinały się do identycznego napisu, więc
+              dwie różne karty wyglądały tak samo. */}
+          <h2 className="screen-title line-clamp-2">{exercise.exerciseName}</h2>
           <p className="meta mt-0.5 truncate">{headerMeta(exercise, targetSets)}</p>
         </div>
         {targetSets !== undefined && (

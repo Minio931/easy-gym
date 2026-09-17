@@ -298,17 +298,32 @@
   }
 
   /* Rzędy pigułek (RPE, znaczniki serii) przewijają się SAME, bez wypychania
-   * layoutu -- ekran nie może przewijać się w poziomie przy 320 px. */
+   * layoutu -- ekran nie może przewijać się w poziomie przy 320 px.
+   *
+   * Prawa krawędź jest wygaszona maską: rząd uciętej pigułki („Usuń seri...")
+   * czyta się jako zepsuty, a ten sam rząd z gasnącym brzegiem -- jako
+   * przewijany. Maska działa tylko wtedy, gdy JEST co przewijać, bo przy
+   * krótszej treści ostatnia pigułka i tak nie sięga krawędzi. */
   .chip-row {
     display: flex;
     gap: 8px;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
   }
 
   .chip-row::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Rząd, w którym KAŻDA pigułka musi być osiągalna bez przewijania --
+   * znaczniki serii kończą się akcją destrukcyjną („Usuń serię"), a gest
+   * przewinięcia nie może być warunkiem dotarcia do niej (DESIGN §9). */
+  .chip-row-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   /* Liczba w aktywnym wierszu serii. Jednostka cqi zamiast media query, bo

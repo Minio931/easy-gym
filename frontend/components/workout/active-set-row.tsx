@@ -192,11 +192,11 @@ export function ActiveSetRow({
         />
       </div>
 
-      {/* key = id szkicu: bez tego React zachowuje ten sam węzeł DOM między
-          wierszami, a z nim pozycję przewinięcia — raz przewinięty do
-          „Rozgrzewki" rząd chipów startowałby z ukrytym „RPE" przy KAŻDEJ
-          kolejnej serii. */}
-      <div key={draft.id} className="chip-row mt-2.5 pl-9">
+      {/* Zawijany, nie przewijany: ostatnia pigułka to „Usuń serię", a ta
+          urywała się w pół słowa na krawędzi karty — i wyglądała na zepsutą.
+          Rząd znaczników jest krótki i skończony, więc mieści się w dwóch
+          liniach zamiast chować akcję za gestem. */}
+      <div key={draft.id} className="chip-row-wrap mt-2.5 pl-9">
         <Pill
           active={draft.rpe !== null}
           onClick={() => {
