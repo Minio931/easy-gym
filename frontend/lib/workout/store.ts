@@ -298,16 +298,19 @@ export async function loadActiveWorkout(formula: OneRepMaxFormula): Promise<void
       return;
     }
     if (detail === null) {
+      // UWAGA: bez `else` niżej ta gałąź wracała `return`-em i pomijała
+      // `requestSync()` na końcu funkcji — czyli w najczęstszym przypadku
+      // (brak otwartego treningu) synchronizacja nie startowała wcale.
       await handleNoActiveWorkoutOnServer(token, formula);
-      return;
+    } else {
+      commit({ status: "ready", workout: detail, error: null });
+      const db = getDatabase();
+      if (db !== null) {
+        void persistServerWorkout(db, detail).catch(() => undefined);
+      }
+      void loadRoutineTargets(detail);
+      void loadReferences(detail, formula);
     }
-    commit({ status: "ready", workout: detail, error: null });
-    const db = getDatabase();
-    if (db !== null) {
-      void persistServerWorkout(db, detail).catch(() => undefined);
-    }
-    void loadRoutineTargets(detail);
-    void loadReferences(detail, formula);
   } catch {
     if (token !== loadToken) {
       return;
