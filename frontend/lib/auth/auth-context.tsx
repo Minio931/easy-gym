@@ -20,6 +20,7 @@ import {
 } from "@/lib/auth/token-store";
 import { useIsHydrated } from "@/lib/use-is-hydrated";
 import { releaseLocalData } from "@/lib/sync/engine";
+import { resetBodyWeightStore } from "@/lib/bodyweight/store";
 import { resetWorkoutStore } from "@/lib/workout/store";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
@@ -110,6 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Migawka aktywnego treningu jest przypisana do konta — nie może zostać na
     // urządzeniu po wylogowaniu i wyskoczyć następnej osobie.
     resetWorkoutStore();
+    // Ekran wagi też trzyma dane konta w pamięci modułu — bez tego następna
+    // osoba na tym urządzeniu zobaczyłaby cudze pomiary do czasu przeładowania.
+    resetBodyWeightStore();
     if (current !== null) {
       // Best effort: unieważnienie refresh tokenu po stronie serwera. Brak
       // sieci nie może zablokować wylogowania lokalnie.
