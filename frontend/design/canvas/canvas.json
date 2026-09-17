@@ -1,0 +1,11 @@
+{
+  "artboards": [
+    { "file": "Logowanie.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Logowanie" },
+    { "file": "Main.dc.html", "x": 470, "y": 0, "w": 390, "h": 844, "title": "Aktywny trening" },
+    { "file": "Podsumowanie.dc.html", "x": 940, "y": 0, "w": 390, "h": 844, "title": "Podsumowanie treningu" },
+    { "file": "Pulpit.dc.html", "x": 1410, "y": 0, "w": 390, "h": 844, "title": "Pulpit" },
+    { "file": "Waga.dc.html", "x": 1880, "y": 0, "w": 390, "h": 844, "title": "Waga ciała" },
+    { "file": "System.dc.html", "x": 0, "y": 964, "w": 1180, "h": 1560, "title": "System projektowy" }
+  ],
+  "launch": { "view": "canvas" }
+}

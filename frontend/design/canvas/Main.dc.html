@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,400..800&family=Public+Sans:wght@400..700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #46D5E0; } a:hover { color: #8AE6ED; }
+    .app {
+      --bg:#0E0F11; --surface:#16181B; --surface-2:#1F2227; --surface-3:#2A2E34;
+      --hairline:rgba(255,255,255,.09); --ink:#F3F2EE; --ink-2:#B9BCC0; --ink-3:#80858C;
+      --cta:#F3F2EE; --cta-ink:#0E0F11; --accent:#46D5E0; --accent-ink:#06191C;
+      --pr:#F0B429; --pr-wash:rgba(240,180,41,.12); --serious:#EC835A; --warning:#FAB219;
+      font-family:"Public Sans",system-ui,sans-serif; font-size:16px; line-height:1.5;
+    }
+    .app.light {
+      --bg:#FAFAF8; --surface:#FFFFFF; --surface-2:#F1F1EE; --surface-3:#E4E4E0;
+      --hairline:rgba(16,17,20,.10); --ink:#101114; --ink-2:#4A4E55; --ink-3:#767B83;
+      --cta:#101114; --cta-ink:#FAFAF8; --accent:#0E8697; --accent-ink:#FFFFFF;
+      --pr:#B07607; --pr-wash:rgba(176,118,7,.10);
+    }
+    .num { font-family:"Archivo",system-ui,sans-serif; font-variant-numeric:tabular-nums;
+           font-variation-settings:"wdth" 90; font-weight:600; letter-spacing:-.01em; }
+    .num-hero { font-size:40px; line-height:40px; font-weight:700; font-variation-settings:"wdth" 88; }
+    .num-md { font-size:22px; line-height:24px; }
+    .title { font-family:"Archivo",system-ui,sans-serif; font-variation-settings:"wdth" 95;
+             font-size:20px; line-height:26px; font-weight:650; }
+    .label { font-size:13px; line-height:16px; font-weight:600; letter-spacing:.06em;
+             text-transform:uppercase; color:var(--ink-3); }
+    .meta { font-size:12px; line-height:16px; color:var(--ink-3); }
+    .row { display:flex; align-items:center; gap:12px; }
+    .step { width:56px; height:48px; border-radius:10px; border:1px solid var(--hairline);
+            background:var(--surface-2); color:var(--ink); font:600 15px/1 "Public Sans",system-ui,sans-serif;
+            font-variant-numeric:tabular-nums; cursor:pointer; }
+  </style>
+</helmet>
+<div class="app {{theme}}" style="width:390px; height:844px; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; box-sizing:border-box; overflow:hidden">
+
+  <!-- Pasek górny: 56 px, tytuł + czas sesji + stan sieci -->
+  <header style="height:56px; flex:0 0 56px; border-bottom:1px solid var(--hairline); display:flex; align-items:center; gap:10px; padding:0 16px">
+    <h1 class="title" style="margin:0">Trening</h1>
+    <span class="num num-md" style="color:var(--ink-2)">42:15</span>
+    <span style="flex:1"></span>
+    <span style="display:inline-flex; align-items:center; gap:6px; background:var(--surface-2); color:var(--serious); border-radius:999px; padding:4px 10px; font:600 12px/1 'Public Sans',system-ui,sans-serif">
+      <span style="width:6px; height:6px; border-radius:999px; background:var(--serious)"></span>Offline
+    </span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-2)">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.2 7.3l1.9 1.1M17.9 15.6l1.9 1.1M4.2 16.7l1.9-1.1M17.9 8.4l1.9-1.1"></path>
+    </svg>
+  </header>
+
+  <!-- Treść -->
+  <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:16px; box-sizing:border-box; overflow:hidden">
+
+    <!-- Karta ćwiczenia -->
+    <section style="background:var(--surface); border:1px solid var(--hairline); border-radius:14px; padding:14px 14px 12px">
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:1">
+          <h2 class="title" style="margin:0">Wyciskanie sztangi leżąc</h2>
+          <p class="meta" style="margin:2px 0 0">klatka piersiowa · 1 950 kg w tej sesji</p>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:var(--ink-3); margin-top:4px">
+          <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="12" cy="19" r="1.7"></circle>
+        </svg>
+      </div>
+
+      <!-- Seria rozgrzewkowa: R zamiast numeru, wykluczona z PR/objętości -->
+      <div class="row" style="height:48px; border-top:1px solid var(--hairline); margin-top:10px; opacity:.7">
+        <span class="meta" style="width:24px; text-align:center"><span style="display:inline-block; background:var(--surface-3); color:var(--ink-2); border-radius:999px; padding:2px 7px; font-weight:600">R</span></span>
+        <span class="num num-md" style="flex:1">60 <span class="meta">kg</span> × 10 <span class="meta">powt.</span></span>
+        <span style="width:48px; height:48px; border-radius:10px; background:var(--cta); color:var(--cta-ink); display:flex; align-items:center; justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg>
+        </span>
+      </div>
+
+      <!-- Seria zatwierdzona -->
+      <div style="border-top:1px solid var(--hairline); padding:6px 0 8px">
+        <div class="row" style="height:48px; opacity:.7">
+          <span class="meta" style="width:24px; text-align:center">1</span>
+          <span class="num num-md" style="flex:1">100 <span class="meta">kg</span> × 5 <span class="meta">powt.</span></span>
+          <span style="width:48px; height:48px; border-radius:10px; background:var(--cta); color:var(--cta-ink); display:flex; align-items:center; justify-content:center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg>
+          </span>
+        </div>
+        <p class="meta" style="margin:0 0 0 36px">ostatnio: 100 × 5</p>
+      </div>
+
+      <!-- Seria aktywna: liczba jest interfejsem, steppery pod spodem -->
+      <div style="border-top:1px solid var(--hairline); padding:10px 0 4px">
+        <div class="row" style="align-items:center">
+          <span class="meta" style="width:24px; text-align:center">2</span>
+          <div style="flex:1; display:flex; align-items:baseline; gap:8px; border:2px solid var(--accent); border-radius:10px; background:var(--surface-2); padding:6px 12px">
+            <span class="num num-hero">102.5</span><span class="meta">kg</span>
+            <span class="meta" style="font-size:16px; color:var(--ink-3)">×</span>
+            <span class="num num-hero">5</span><span class="meta">powt.</span>
+          </div>
+          <span style="width:48px; height:48px; border-radius:10px; border:1px solid var(--hairline); color:var(--ink-3); display:flex; align-items:center; justify-content:center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg>
+          </span>
+        </div>
+        <div style="display:flex; gap:8px; margin:10px 0 0 36px">
+          <button class="step">−2.5</button>
+          <button class="step">+2.5</button>
+          <span style="flex:1"></span>
+          <button class="step">−1</button>
+          <button class="step">+1</button>
+        </div>
+        <p class="meta" style="margin:8px 0 0 36px">ostatnio: 100 × 5</p>
+      </div>
+
+      <!-- Seria, która pobiła rekord -->
+      <div style="border-top:1px solid var(--hairline); margin-top:6px; padding-top:6px">
+        <div class="row" style="height:48px; background:var(--pr-wash); border-radius:10px; padding:0 8px; margin:0 -8px">
+          <span class="meta" style="width:24px; text-align:center">3</span>
+          <span class="num num-md" style="flex:1">110 <span class="meta">kg</span> × 5 <span class="meta">powt.</span></span>
+          <span style="background:var(--pr-wash); color:var(--pr); border:1px solid var(--pr); border-radius:999px; padding:3px 9px; font:700 11px/1 'Public Sans',system-ui,sans-serif; letter-spacing:.06em">PR</span>
+          <span style="width:48px; height:48px; border-radius:10px; background:var(--cta); color:var(--cta-ink); display:flex; align-items:center; justify-content:center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg>
+          </span>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px">
+        <button style="height:48px; border-radius:10px; border:1px solid var(--hairline); background:transparent; color:var(--ink); font:600 15px/1 'Public Sans',system-ui,sans-serif; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Dodaj serię
+        </button>
+        <button style="height:32px; border:0; background:transparent; color:var(--ink-3); font:400 13px/1 'Public Sans',system-ui,sans-serif; cursor:pointer">Kopiuj poprzednią serię</button>
+      </div>
+    </section>
+
+    <!-- Kolejne ćwiczenie, zwinięte -->
+    <section style="background:var(--surface); border:1px solid var(--hairline); border-radius:14px; padding:14px">
+      <div class="row">
+        <div style="flex:1">
+          <h2 class="title" style="margin:0">Rozpiętki na bramie</h2>
+          <p class="meta" style="margin:2px 0 0">klatka piersiowa · 3 serie zaplanowane</p>
+        </div>
+        <span class="num num-md" style="color:var(--ink-3)">0/3</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- Timer przerwy: wjeżdża nad nawigację, startuje sam po zatwierdzeniu serii -->
+  <div style="flex:0 0 64px; height:64px; background:var(--surface-2); border-top:1px solid var(--hairline); position:relative; display:flex; align-items:center; gap:10px; padding:0 16px">
+    <div style="position:absolute; top:0; left:0; height:2px; width:62%; background:var(--accent)"></div>
+    <span class="num num-md" style="color:var(--ink)">1:47</span>
+    <span class="meta">przerwa</span>
+    <span style="flex:1"></span>
+    <button style="height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--hairline); background:transparent; color:var(--ink-2); font:600 13px/1 'Public Sans',system-ui,sans-serif; cursor:pointer">+30 s</button>
+    <button style="height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--hairline); background:transparent; color:var(--ink-2); font:600 13px/1 'Public Sans',system-ui,sans-serif; cursor:pointer">Pomiń</button>
+  </div>
+
+  <!-- Dolna nawigacja -->
+  <nav style="flex:0 0 64px; height:64px; background:var(--surface); border-top:1px solid var(--hairline); display:flex">
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--ink-3)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M9.5 19V5M15 19v-6M20.5 19V8"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Pulpit</span>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--accent)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Trening</span>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--ink-3)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9A9 9 0 1 1 3 12"></path><path d="M3 4v5h5M12 7.5V12l3 2"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Historia</span>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--ink-3)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"></rect><path d="M8 9.5 12 13M8.5 7.2h7"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Waga</span>
+    </div>
+  </nav>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>
