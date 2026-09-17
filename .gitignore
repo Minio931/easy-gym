@@ -4,3 +4,8 @@
 
 .DS_Store
 *.log
+
+# Sekrety środowiskowe dla docker compose -- w repo zostaje tylko .env.example.
+.env
+.env.*
+!.env.example
