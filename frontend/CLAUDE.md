@@ -19,7 +19,7 @@ Dokumenty obok tego pliku:
 - Dexie 4 (IndexedDB) — lokalna baza i kolejka synchronizacji; PWA przez `app/manifest.ts` + `public/sw.js`
 - Recharts 3 — wykresy (kolory z tokenów CSS, nigdy z literałów w TS)
 - Vitest — testy czystych funkcji w `lib/`
-- Docelowo (kolejne etapy): ExcelJS
+- ExcelJS 4 — eksport .xlsx składany w przeglądarce (dynamiczny import)
 
 **Pułapki Next 16 / React 19 w tym projekcie:**
 - `eslint-config-next` włącza regułę `react-hooks/set-state-in-effect` — **`useState` + `useEffect` do czytania `localStorage` jest błędem lintu, nie stylem**. Stan zewnętrzny (sesja, ustawienia) czytamy przez `useSyncExternalStore`, a migawka musi być cache'owana w module (zwracanie nowego obiektu przy każdym wywołaniu = pętla renderów).
@@ -369,6 +369,61 @@ start treningu z szablonu (kolejność i licznik `0/4`), zapis z zakończonej se
 oraz pełna ścieżka offline — lista z Dexie, zapis bez zasięgu i dowiezienie go na serwer przez
 synchronizację po powrocie sieci.
 
+## Decyzje architektoniczne (etap 9 — eksport XLSX)
+
+Wariant wybrany przez użytkownika po przedstawieniu opcji (PROMPT §7 tego wymaga):
+**ExcelJS w przeglądarce, dane + arkusz źródłowy pod tabele przestawne, bez wykresów w pliku.**
+
+1. **Źródłem jest Dexie, nie nowe żądanie.** Po pierwszej synchronizacji leży tam komplet
+   historii (`since: null` = pełny zaciąg), więc eksport nie wymaga zmiany kontraktu, nie robi
+   N+1 po `GET /api/workouts/{id}` i działa bez zasięgu. To był argument, który przeważył:
+   „ściągnijmy wszystko do przeglądarki" brzmi jak złamanie PROMPT §9, ale tu nic się nie ściąga —
+   te dane już tam są.
+
+2. **Zero własnej arytmetyki w eksporcie.** Objętość, e1RM, rekordy, średnie tygodniowe i krocząca
+   idą z `lib/metrics.ts`. Druga implementacja oznaczałaby, że .xlsx pokazuje inny rekord niż ekran
+   ćwiczenia — rozjazd nie do zauważenia w porę.
+
+3. **Trzy rzeczy liczą się na PEŁNEJ historii, mimo że wiersze są filtrowane:** rekordy (inaczej
+   pierwsza seria każdego zakresu udawałaby PR), krocząca średnia 7 dni (okno sięga sześć dni
+   wstecz, więc przycięcie przed liczeniem fałszuje pierwsze wiersze) i delty tygodniowe wagi.
+   Filtr stosujemy dopiero na wyniku.
+
+4. **Kolumna „PR" znaczy „pobiła rekord W MOMENCIE wykonania"**, nie „jest globalnym maksimum" —
+   ten sam algorytm co `personalRecordsBrokenIn`, tylko przechodzony narastająco przez wszystkie
+   sesje ćwiczenia.
+
+5. **Bez wykresów w pliku, świadomie.** ExcelJS nie umie natywnych wykresów Excela, a wklejony PNG
+   nie reaguje na filtr ani na tabelę przestawną — po pierwszym kliknięciu pokazywałby co innego
+   niż tabela obok. Zamiast tego arkusz „Serie" jest płaskim źródłem (jeden wiersz = jedna seria,
+   zero scalanych komórek) z nazwanym zakresem `Serie_Dane`, który wpisuje się z palca w
+   „Wstaw → Tabela przestawna". Wykres z pivota zostaje ŻYWY.
+
+6. **Procent jako literał `0.0"%"`, nie format procentowy.** `lib/metrics.ts` oddaje wartości już
+   przemnożone (45 = 45%), a Excelowe `0.0%` pomnożyłoby jeszcze raz i pokazało „4500,0%".
+
+7. **Data to `Date`, ciężar to `number`** — nie tekst z doklejonym „kg". Tekstowa data nie pogrupuje
+   się w pivocie po miesiącach, a tekstowego ciężaru nie da się zsumować. Jednostkę niesie format
+   komórki.
+
+8. **Przed złożeniem pliku próbujemy się zsynchronizować**, ale nieudana synchronizacja NIE
+   przerywa eksportu. Bez tej próby plik zrobiony zaraz po treningu na drugim urządzeniu pomijałby
+   tamtą sesję i wyglądałby na kompletny; bez tej odporności eksport przestałby działać w piwnicy,
+   czyli straciłby swoją jedyną przewagę nad wariantem serwerowym.
+
+9. **ExcelJS wchodzi dynamicznym importem** — waży więcej niż reszta apki i nie ma go po co
+   wciągać do bundla ekranu treningu.
+
+Testy czytają wygenerowany plik Z POWROTEM (Vitest przez ExcelJS w Node, e2e przez otwarcie
+pobranego pliku). Plik, który powstaje i jest bezużyteczny — daty jako tekst, brak arkusza,
+rozgrzewka mimo filtru — przeszedłby każdy test patrzący tylko na nazwę.
+
+**Pułapka złapana dopiero na buildzie produkcyjnym:** dynamiczny import ExcelJS to leniwy chunk,
+a service worker cache'uje `/_next/static/` DOPIERO po pierwszym pobraniu — eksport bez zasięgu
+wywalał się na samym imporcie, mimo że dane leżą w Dexie. Ekran eksportu rozgrzewa więc chunk,
+póki jest zasięg (`void import("exceljs")` przy montowaniu), a `/szablony` i `/eksport` dołączyły
+do precache'owanych tras powłoki. W `next dev` tego się nie zobaczy, bo tam SW jest wyłączony.
+
 ## Struktura
 
 ```
@@ -382,6 +437,7 @@ frontend/
       layout.tsx              # RequireAuth + AppShell
       pulpit|trening|historia|waga|ustawienia/page.tsx
       szablony/page.tsx         # lista szablonów; [id]/page.tsx = edytor ("nowy" = pusty)
+      eksport/page.tsx          # eksport XLSX (wejście z ustawień, DESIGN §11)
       cwiczenie/[id]/page.tsx # ekran ćwiczenia (wejście z podsumowania treningu)
   components/
     shell/                    # app-bar, tab-bar, sync-pill, app-shell, require-auth
@@ -418,6 +474,9 @@ frontend/
     bodyweight/input.ts       # walidacja pola wagi, dzisiejsza data (+ testy)
     db/body-weight-repository.ts # wpisy wagi w Dexie, upsert po DNIU
     charts.ts                 # zakresy czasu, sloty palety, skala punktu, kubełki grup (+ testy)
+    export/dataset.ts         # surowe rekordy -> wiersze arkuszy, filtry, PR (+ testy)
+    export/workbook.ts        # skoroszyt ExcelJS: formaty, pivot-ready „Serie" (+ testy)
+    export/run.ts             # Dexie -> plik -> pobranie
     routines/draft.ts         # szkic szablonu: zmiany, walidacja, szkic z sesji (+ testy)
     routines/store.ts         # JEDYNE miejsce zapisu szablonu (Dexie -> API)
     db/routine-repository.ts  # szablony w Dexie: tombstone'y pozycji, wersja serwera
@@ -446,6 +505,7 @@ frontend/
   components/bodyweight/      # ekran wagi: wpis, kafle, wykres, lista pomiarów
   components/dashboard/       # pulpit: ekran i kalendarz treningów
   components/routines/        # szablony: lista, edytor, "zapisz sesję jako szablon"
+  components/export/          # ekran eksportu: filtry i pobranie pliku
   components/charts/chrome.tsx # wspólny chrom wykresów (osie, marginesy, tooltip)
   app/manifest.ts             # manifest PWA (generowany przez Next, nie plik w public/)
   public/sw.js                # service worker: TYLKO powłoka, zero cache'owania API
@@ -457,6 +517,7 @@ frontend/
   e2e/12-body-weight.spec.ts  # zapis wagi, upsert po dniu, walidacja zakresu
   e2e/13-dashboard.spec.ts    # kafle zgodne z backendem, zakres bez sieci, przełącznik deloadu
   e2e/14-routines.spec.ts     # szablon: edytor, podmiana pozycji, start, zapis z sesji, kasowanie
+  e2e/15-export.spec.ts       # pobrany .xlsx OTWIERANY w teście: arkusze, typy komórek, filtry
   design/canvas/              # artboardy płótna projektowego (poza buildem apki)
   design/generate-icons.py    # generator ikon PWA (trzymany razem z wynikiem)
 ```
@@ -539,7 +600,32 @@ Service Workers, potem Network → Offline i twarde przeładowanie.
   `playwright` (82 testy, oba profile) — zielone; ekran obejrzany na żywym backendzie (:8080)
   kontem `Demo` (16 treningów z progresją, dwa tygodnie deload) przy 320 / 390 / 430 px
   w obu motywach, bez poziomego scrolla.
-- [ ] Etap 9 — eksport XLSX (najpierw decyzja: ExcelJS na froncie vs Apache POI w Springu — `PROMPT.md` §7).
+- [x] **Etap 9 — eksport XLSX.** Decyzja użytkownika: ExcelJS na froncie, dane + arkusz źródłowy
+  pod tabele przestawne, bez wykresów w pliku. Sześć arkuszy z PROMPT §7, filtry (zakres dat,
+  wybrane ćwiczenia, tylko serie robocze), dane z Dexie (działa bez zasięgu), wejście z ustawień.
+  Odpalone tutaj: `lint`, `typecheck`, `vitest` (220 testów), `build`, `playwright` (98 testów,
+  oba profile) — zielone; plik pobrany z konta `Demo` i otwarty z powrotem: 16 treningów,
+  128 serii, 45 wierszy z PR, formaty i zamrożone nagłówki na miejscu.
+
+## Test całościowy (2026-09-17)
+
+Po domknięciu etapu 9 cała apka przeszła jeden przebieg end-to-end na **buildzie produkcyjnym**
+(`output: "standalone"`, serwowanym jak w obrazie: `node .next/standalone/server.js` z dołożonym
+`public/` i `.next/static/`), przeciwko żywemu backendowi, kontem `Demo`:
+
+- `lint`, `typecheck`, `vitest` (220), `build`, `playwright` (98, oba profile) — zielone.
+- Osiem ekranów (pulpit, trening, historia, waga, szablony, nowy szablon, ustawienia, eksport)
+  w obu motywach przy 390 px i przy 320 px: zero błędów konsoli, zero `pageerror`, zero odpowiedzi
+  5xx, zero poziomego scrolla, żaden ekran nie wyszedł pusty.
+- Service worker: zarejestrowany i kontrolujący stronę; powłoka renderuje się bez sieci.
+- Eksport .xlsx pobrany **bez zasięgu** i otwarty z powrotem.
+
+Dwie rzeczy wyszły dopiero tutaj i obie są naprawione: eksport offline wywalał się na leniwym
+chunku ExcelJS (patrz etap 9) i pulpit bez sieci mówił „dane zostaną wysłane", choć nic nie wysyła.
+
+**Znane ograniczenie, świadome:** pulpit jako jedyny ekran nie ma trybu offline — agregaty liczy
+baza (PROMPT §9), a lokalnego odpowiednika (jak `computeLocalStats` przy wadze) nie budowaliśmy.
+Dane do tego są w Dexie (dowodzi tego eksport), więc gdyby to miało się zmienić, jest z czego liczyć.
 
 ## Konwencje
 
