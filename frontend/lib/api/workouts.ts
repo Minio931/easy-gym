@@ -6,6 +6,7 @@ import type {
   SaveSetRequest,
   UpdateWorkoutRequest,
   WorkoutDetailResponse,
+  WorkoutListResponse,
 } from "@/types/api";
 
 /**
@@ -28,6 +29,28 @@ export async function getActiveWorkout(
     { signal },
   );
   return result ?? null;
+}
+
+/**
+ * Lista historii. `limit`/`offset` zamiast kursora, bo backend tak oddaje i przy
+ * dwóch użytkownikach paginacja po offsecie nie ma jak się rozjechać.
+ */
+export function listWorkouts(
+  options: { limit?: number; offset?: number; from?: string; to?: string; signal?: AbortSignal } = {},
+): Promise<WorkoutListResponse> {
+  const params = new URLSearchParams({
+    limit: String(options.limit ?? 30),
+    offset: String(options.offset ?? 0),
+  });
+  if (options.from !== undefined) {
+    params.set("from", options.from);
+  }
+  if (options.to !== undefined) {
+    params.set("to", options.to);
+  }
+  return apiFetch<WorkoutListResponse>(`/api/workouts?${params.toString()}`, {
+    signal: options.signal,
+  });
 }
 
 export function getWorkout(

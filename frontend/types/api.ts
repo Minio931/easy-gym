@@ -196,6 +196,33 @@ export interface WorkoutDetailResponse {
   updatedAt: string;
 }
 
+/**
+ * Wiersz listy `GET /api/workouts`. Podsumowanie liczy baza (`GROUP BY`), nie
+ * front pętlą po seriach — stąd tu są gotowe liczby, a nie zagnieżdżone serie
+ * (PROMPT §9).
+ */
+export interface WorkoutSummaryResponse {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  isDeload: boolean;
+  notes: string | null;
+  routineId: string | null;
+  exerciseCount: number;
+  setCount: number;
+  /** Objętość serii roboczych, `assisted` WLICZONE (jak `displayVolumeKg`). */
+  volumeKg: number;
+}
+
+/** GET /api/workouts — strona listy z licznikiem całości do paginacji. */
+export interface WorkoutListResponse {
+  items: WorkoutSummaryResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 /** POST /api/workouts — `id` i `startedAt` pochodzą z klienta. */
 export interface CreateWorkoutRequest {
   id?: string;
