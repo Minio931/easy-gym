@@ -19,6 +19,7 @@ const TITLES: Record<string, string> = {
   "/waga": "Waga ciała",
   "/szablony": "Szablony",
   "/ustawienia": "Ustawienia",
+  "/eksport": "Eksport",
 };
 
 /** Wysokości pasków doklejanych nad dolną nawigacją (DESIGN §7.3, §11). */

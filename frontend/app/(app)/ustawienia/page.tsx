@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,17 @@ export default function SettingsPage() {
             Wzór działa wstecz na całą historię — nic nie jest zapisywane w bazie.
           </p>
         </Row>
+      </div>
+
+      <div className="mt-6">
+        <SectionLabel>Dane</SectionLabel>
+        <Link
+          href="/eksport"
+          className="h-control flex w-full items-center justify-between rounded-control border border-hairline bg-surface-2 px-4 font-semibold text-ink active:bg-surface-3"
+        >
+          Eksport do Excela
+          <span className="meta">.xlsx</span>
+        </Link>
       </div>
 
       <div className="mt-6">
