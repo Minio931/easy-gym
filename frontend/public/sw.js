@@ -12,7 +12,7 @@
  * adresem, a `POST` i tak nie podlega cache'owaniu).
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `easy-gym-shell-${VERSION}`;
 const ASSET_CACHE = `easy-gym-assets-${VERSION}`;
 
@@ -22,6 +22,8 @@ const SHELL_ROUTES = [
   "/trening",
   "/historia",
   "/waga",
+  "/szablony",
+  "/eksport",
   "/ustawienia",
   "/logowanie",
 ];

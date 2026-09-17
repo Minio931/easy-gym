@@ -39,6 +39,16 @@ export function ExportScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // Rozgrzewamy chunk ExcelJS, póki jest zasięg. Biblioteka wchodzi
+    // dynamicznym importem (waży więcej niż reszta apki), a service worker
+    // cache'uje `/_next/static/` DOPIERO po pierwszym pobraniu — bez tego
+    // eksport bez zasięgu wywalał się na samym imporcie, mimo że dane leżą
+    // w Dexie. Złapane dopiero na buildzie produkcyjnym, bo w `next dev`
+    // service workera nie ma w ogóle.
+    void import("exceljs").catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     void findExercises("", controller.signal)
       .then(setCatalog)
