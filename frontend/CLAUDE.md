@@ -212,6 +212,56 @@ lewy ucinał etykiety osi Y (ucięte „108 kg" → „08 kg" nadal czyta się j
 poza domenę i siadały na etykietach osi, a skracanie tylko dużych wartości do ton dawało oś,
 na której „1,6 t" sąsiaduje z „800" — dwie jednostki na jednej skali.
 
+## Decyzje architektoniczne (etap 7 — waga ciała)
+
+1. **Wpis jest upsertem po DNIU po obu stronach.** Serwer ma częściowy indeks unikalny na
+   `(user_id, measured_on)`, więc lokalny zapis też szuka wiersza z tą datą i go nadpisuje.
+   Tworzenie nowego wiersza przy każdej poprawce wysłałoby dwa wpisy z tego samego dnia w paczce
+   sync; serwer rozstrzygnąłby to tombstone'em, a użytkownik zobaczyłby, jak jego poprawka znika.
+
+2. **Ekran mówi wprost, że zapis nadpisze istniejący wpis** — z wartością i zmienioną etykietą
+   przycisku („Popraw wpis"). Bez tego „Zapisz" na już zważonym dniu wygląda jak dodawanie.
+
+3. **Brak zasięgu to NIE nieudany zapis.** Wpis siedzi w Dexie i pojedzie synchronizacją, więc
+   z punktu widzenia użytkownika zapis się udał. Komunikat o błędzie skłaniałby do wpisania
+   wagi drugi raz, czyli do konfliktu.
+
+4. **Statystyki: serwer, gdy jest sieć; `computeLocalStats` gdy jej nie ma.** Funkcja składa
+   DOKŁADNIE ten sam kształt odpowiedzi z funkcji `lib/metrics.ts` (mirror backendu), więc ekran
+   ma jedno wejście danych i jedną ścieżkę renderowania. Własnej arytmetyki tam nie ma — rozjazd
+   oznaczałby inną średnią tygodniową zależnie od zasięgu. Ekran sygnalizuje, że liczby są lokalne.
+
+5. **Dzień kalendarzowy na osi X to POŁUDNIE, nie północ.** Północ leży na granicy doby i przy
+   zmianie czasu potrafi wylądować w dniu poprzednim — punkt przeskakuje o kratkę bez powodu
+   w danych. Ta sama konwencja co w `lib/metrics.ts`.
+
+6. **Średnia tygodniowa siada w ŚRODKU tygodnia** (czwartek 12:00 = trzy doby od południa
+   poniedziałku). Średnia pon–niedz nie opisuje poniedziałku, a postawiona na granicy rozjeżdża się
+   z chmurą pomiarów, przez którą ma przechodzić. Odruchowe „+3,5 dnia" od południa wypada
+   w piątek i przekrzywia całą linię.
+
+7. **Obie serie mają wspólną domenę osi Y z marginesem min. pół kilograma.** Bez wspólnej domeny
+   linia średnich potrafi wypaść poza chmurę pomiarów, w której z definicji leży; bez dolnej
+   granicy marginesu waga zmienna o 200 g rysuje się jako płaska kreska przy krawędzi.
+
+8. **Dwie serie na jednej osi Y są tu poprawne** — to ta sama wielkość w tych samych kilogramach.
+   Zasada „jedna oś Y" (DESIGN §10) zabrania dwóch SKAL, nie dwóch serii.
+
+9. **Podziałka osi Y wykresu wagi jest bez jednostki.** Waga ma część dziesiętną, więc „84.6 kg"
+   nie mieści się w szerokości osi i Recharts łamie etykietę na dwie linie. Jednostkę niosą
+   nagłówek kafla i tooltip.
+
+10. **Granice pola są ostre po obu stronach (0 < waga < 400)** — takie same jak `CHECK` w bazie
+    i `@DecimalMin/@DecimalMax` w `SaveBodyWeightRequest`. Dopuszczenie 0 albo 400 dałoby `400`
+    z serwera zamiast komunikatu na ekranie.
+
+**Otwarta sprawa (nie zaimplementowana świadomie):** PROMPT §5 wspomina o `includeDeload`
+w porównaniach trendu, ale endpoint `/api/body-weights/stats` takiego parametru **nie ma** —
+`is_deload` jest cechą TRENINGU, nie tygodnia ważenia. Przełączalne pomijanie deloadu żyje
+w `TrendComparator` (`lib/metrics.ts`) i dotyczy trendu objętości, czyli etapu 8. Gdyby trend wagi
+też miał pomijać tygodnie deloadowe, wymaga to zmiany kontraktu po stronie backendu — do ustalenia,
+nie do dorobienia po cichu na froncie.
+
 ## Struktura
 
 ```
@@ -254,6 +304,11 @@ frontend/
       use-sync.ts             # useSyncState() dla UI
     exercise/catalog.ts       # findExercises(): serwer, a bez sieci lokalny katalog
     exercise/history.ts       # historia ćwiczenia -> punkty wykresów (+ testy)
+    bodyweight/store.ts       # JEDYNE miejsce zapisu wagi (Dexie -> API)
+    bodyweight/stats.ts       # lokalny odpowiednik /stats (mirror metrics) na brak sieci
+    bodyweight/points.ts      # punkty wykresu wagi, domena osi Y (+ testy)
+    bodyweight/input.ts       # walidacja pola wagi, dzisiejsza data (+ testy)
+    db/body-weight-repository.ts # wpisy wagi w Dexie, upsert po DNIU
     charts.ts                 # zakresy czasu, sloty palety, skala punktu (+ testy)
     api/sync.ts               # POST /api/sync
     workout/
@@ -273,6 +328,8 @@ frontend/
   components/charts/          # kafel wykresu (zakres + tabela) i wykresy ćwiczenia
   components/history/         # lista historii treningów
   components/exercise/        # ekran pojedynczego ćwiczenia: rekordy + 3 wykresy
+  components/bodyweight/      # ekran wagi: wpis, kafle, wykres, lista pomiarów
+  components/charts/chrome.tsx # wspólny chrom wykresów (osie, marginesy, tooltip)
   app/manifest.ts             # manifest PWA (generowany przez Next, nie plik w public/)
   public/sw.js                # service worker: TYLKO powłoka, zero cache'owania API
   public/icons/               # ikony PWA (generuje design/generate-icons.py)
@@ -280,6 +337,7 @@ frontend/
   types/sync.ts               # kontrakt paczki POST /api/sync (mirror SyncRecords.java)
   e2e/10-offline-sync.spec.ts # cała sesja offline -> serwer po powrocie sieci
   e2e/11-history-and-exercise.spec.ts # historia, wejście w sesję i ćwiczenie, zakres i tabela
+  e2e/12-body-weight.spec.ts  # zapis wagi, upsert po dniu, walidacja zakresu
   design/canvas/              # artboardy płótna projektowego (poza buildem apki)
   design/generate-icons.py    # generator ikon PWA (trzymany razem z wynikiem)
 ```
@@ -343,7 +401,15 @@ Service Workers, potem Network → Offline i twarde przeładowanie.
   Odpalone tutaj: `lint`, `typecheck`, `vitest` (118 testów), `build`, `playwright` (72 testy,
   oba profile) — zielone; ekrany obejrzane na żywym backendzie przy 390 px na koncie z realną
   progresją z czterech miesięcy (stąd trzy poprawki osi opisane wyżej).
-- [ ] Etap 7 — moduł wagi ciała.
+- [x] **Etap 7 — moduł wagi ciała.** Szybki wpis (jeden na dzień, edytowalny, z ostrzeżeniem
+  o nadpisaniu), kafle (ostatnia waga, średnia tygodnia, zmiana tydzień do tygodnia), trend
+  4-tygodniowy, wykres wg DESIGN §10 (surowe pomiary jako jasne punkty, średnie tygodniowe jako
+  linia na wierzchu, tydzień niepełny jako pusty punkt z obwódką), przełącznik zakresu i tabela,
+  lista ostatnich pomiarów z usuwaniem. Zapis idzie najpierw do Dexie, więc działa bez zasięgu.
+  Odpalone tutaj: `lint`, `typecheck`, `vitest` (134 testy), `build`, `playwright` (76 testów,
+  oba profile) — zielone; ekran obejrzany przy 390 px na koncie z 44 pomiarami z 13 tygodni
+  (w tym dwa tygodnie niepełne), a upsert potwierdzony przez API: dwa zapisy tego samego dnia
+  zostawiają JEDEN wiersz z poprawioną wartością.
 - [ ] Etap 8 — dashboard (agregaty liczy backend, nie przeglądarka).
 - [ ] Etap 9 — eksport XLSX (najpierw decyzja: ExcelJS na froncie vs Apache POI w Springu — `PROMPT.md` §7).
 
