@@ -9,8 +9,12 @@ import type { WorkoutDetailResponse } from "@/types/api";
  * (w tym wiersz wstępnie wypełniony po ✓) świadomie ginie przy zamknięciu
  * karty — wskrzeszony po dwóch dniach udawałby serię, której nikt nie zrobił.
  *
- * To jest przystanek do etapu 5. Kształt rekordu (`userId` + encja serwera)
- * przenosi się 1:1 do tabeli Dexie; zmieni się nośnik, nie dane.
+ * Etap 5 NIE zastąpił tego Dexie, tylko dołożył Dexie obok. Podział ról:
+ * ta migawka jest synchronicznym cache'em ekranu (pełny trening w pierwszej
+ * klatce po wejściu, bez czekania na asynchroniczny odczyt z IndexedDB),
+ * a zapisem trwałym i źródłem dla synchronizacji jest `lib/db/`. Obie kopie
+ * pisze `commit()` z tego samego `state.workout`, więc nie mają jak się
+ * rozjechać, i obie giną przy wylogowaniu.
  */
 
 const STORAGE_KEY = "easy-gym.active-workout";

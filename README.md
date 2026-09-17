@@ -92,9 +92,25 @@ cd backend && ./gradlew test            # wymaga działającego Dockera (Testcon
 cd backend && ./gradlew test --tests "com.example.easygymbackend.metrics.*"   # sekundy, bez Dockera
 cd frontend && npm test                 # Vitest
 cd frontend && npm run typecheck && npm run lint
+cd frontend && npm run test:e2e         # Playwright -- wymaga żywego backendu i frontu, patrz niżej
 ```
 
 Testy integracyjne odpalają prawdziwego Postgresa w kontenerze (`postgres:16-alpine`), nie H2 — cała izolacja danych per-user jest sprawdzana na tej samej bazie, co produkcja.
+
+**E2E potrzebują żywego stosu**, bo klikają po uruchomionej apce przeciwko prawdziwemu API:
+
+```bash
+# front pod :3001 (Playwright go NIE startuje -- celowo, patrz playwright.config.ts)
+cd frontend && npm run dev -- -p 3001
+# backend pod adresem z PLAYWRIGHT_API_URL (domyślnie :8081)
+cd frontend && PLAYWRIGHT_API_URL=http://localhost:8080 npm run test:e2e
+```
+
+Dwa warunki, o które najłatwiej się potknąć:
+- **oba konta** (`Minio` i `Wojtur`) muszą istnieć w bazie tego backendu — scenariusze izolacji
+  logują się na drugie konto i bez niego sypią się na `401`, co wygląda jak błąd apki;
+- backend musi mieć `http://localhost:3001` w `CORS_ALLOWED_ORIGINS`, inaczej każde żądanie
+  z testów kończy się preflightem `403`.
 
 ---
 
@@ -213,6 +229,18 @@ To był błąd sprzed konfiguracji toolchainów — `settings.gradle.kts` ma ter
 
 **Frontend gada z API pod złym adresem**
 `NEXT_PUBLIC_API_URL` jest wkompilowany w bundle. Po zmianie: `docker compose build frontend`.
+
+**Apka nie instaluje się jako PWA / nie działa offline po instalacji**
+Service worker rejestruje się **tylko w buildzie produkcyjnym** (`npm run build && npm start` albo
+obraz dockerowy). W `next dev` jest świadomie wyłączony: nazwy chunków zmieniają się przy każdym
+zapisie, a SW trzymający je w cache potrafi podać stary chunk do nowego HTML-a. Offline samych
+danych (trening bez zasięgu) działa w obu trybach, bo to Dexie, nie service worker.
+
+**Po wdrożeniu nowej wersji apka pokazuje starą**
+Service worker wchodzi od razu (`skipWaiting` + `clients.claim`), ale otwarta karta dokończy się na
+starych zasobach. Wystarczy przeładowanie. Jeśli coś zostało na trwałe: DevTools → Application →
+Service Workers → Unregister + Clear site data. Uwaga: „Clear site data" kasuje też Dexie, czyli
+**niezsynchronizowane treningi** — najpierw upewnij się, że pigułka nie pokazuje „w kolejce".
 
 **Testy backendu nie startują**
 Testcontainers potrzebuje działającego Dockera. Same testy `metrics` są czystym JUnitem i działają

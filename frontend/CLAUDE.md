@@ -16,8 +16,9 @@ Dokumenty obok tego pliku:
 - Tailwind CSS v4 — konfiguracja w CSS (`app/globals.css`), **bez `tailwind.config.js`**
 - `next/font/google`: Archivo (zmienny, oś `wdth`) + Public Sans, oba z `latin-ext` (polska diakrytyka)
 - `date-fns` 4 + `@date-fns/tz` — tydzień ISO i strefa `Europe/Warsaw`
+- Dexie 4 (IndexedDB) — lokalna baza i kolejka synchronizacji; PWA przez `app/manifest.ts` + `public/sw.js`
 - Vitest — testy czystych funkcji w `lib/`
-- Docelowo (kolejne etapy): Dexie (offline + kolejka sync), Recharts, ExcelJS
+- Docelowo (kolejne etapy): Recharts, ExcelJS
 
 **Pułapki Next 16 / React 19 w tym projekcie:**
 - `eslint-config-next` włącza regułę `react-hooks/set-state-in-effect` — **`useState` + `useEffect` do czytania `localStorage` jest błędem lintu, nie stylem**. Stan zewnętrzny (sesja, ustawienia) czytamy przez `useSyncExternalStore`, a migawka musi być cache'owana w module (zwracanie nowego obiektu przy każdym wywołaniu = pętla renderów).
@@ -53,8 +54,12 @@ Rzeczy specyficzne dla TS, których nie ma w wersji Javy:
 1. **Jedno miejsce zapisu: `lib/workout/store.ts`.** Każda zmiana treningu idzie tą samą drogą:
    łatka optymistyczna na lokalnej migawce → zapis migawki do `localStorage` → zadanie w
    szeregowej kolejce (`lib/workout/mutation-queue.ts`), które woła API i podmienia migawkę
-   odpowiedzią serwera. Żaden komponent nie woła `lib/api/workouts` bezpośrednio. W etapie 5
-   zmienia się **wyłącznie ciało `submit()`** (Dexie + trwała kolejka sync) i `persistence.ts`.
+   odpowiedzią serwera. Żaden komponent nie woła `lib/api/workouts` bezpośrednio.
+   *(Etap 5: przewidywanie „zmieni się wyłącznie ciało `submit()`" sprawdziło się tylko w połowie.
+   `submit()` faktycznie wystarczyło, żeby zapis szedł do Dexie — ale usunięcia wymagały jawnych
+   tombstone'ów, bo migawka po prostu nie zawiera już skasowanego wiersza, a ścieżka ładowania
+   musiała nauczyć się, że 204 z serwera nie znaczy „skasuj trening". Żaden komponent nie wymagał
+   zmiany i to akurat się zgadzało.)*
 
 2. **Kolejka jest szeregowa (FIFO, jedno zadanie naraz), a odpowiedź serwera podmienia stan tylko
    wtedy, gdy nic więcej nie czeka.** Backend oddaje cały `WorkoutDetailResponse` z każdej
@@ -97,7 +102,71 @@ Rzeczy specyficzne dla TS, których nie ma w wersji Javy:
 
 10. **„Ostatnio używane" i czas przerwy per ćwiczenie siedzą w `localStorage`**, bo backend nie ma
     `GET /api/exercises/recent` ani endpointu preferencji, a `GET /api/workouts` zwraca
-    podsumowania bez nazw ćwiczeń. W etapie 5 zastąpi to zapytanie do Dexie.
+    podsumowania bez nazw ćwiczeń. *(Etap 5 tego nie przeniósł do Dexie: „ostatnio używane" to
+    preferencja urządzenia, nie dane do synchronizacji, a lista `id`-ków w `localStorage` działa
+    offline tak samo dobrze. Do Dexie trafił natomiast sam KATALOG ćwiczeń — patrz etap 5 pkt 11.)*
+
+## Decyzje architektoniczne (etap 5 — Dexie, synchronizacja, PWA)
+
+1. **Jedna baza Dexie na konto** (`easy-gym.<userId>`), nie wspólna z kolumną `userId`. Backend
+   pilnuje izolacji filtrem w serwisie i wymusza na to test przy każdym endpoincie, bo zapomniany
+   filtr to realny błąd. Tutaj tej pomyłki nie da się popełnić: cudzych danych po prostu nie ma
+   w tej bazie.
+
+2. **`dirty: 0 | 1` na wierszu zamiast osobnego dziennika operacji.** Serwer rozstrzyga konflikty
+   last-write-wins na CAŁYCH rekordach, więc odtwarzanie dziennika nie dałoby nic poza ryzykiem
+   kolejności, a ponowna wysyłka tego samego wiersza jest idempotentna. `0|1`, nie `boolean` —
+   **IndexedDB nie indeksuje wartości logicznych**, więc `where("dirty").equals(true)` nigdy nic
+   nie zwraca i jest to cichy błąd, nie wyjątek. Ta sama pułapka dotyczy `null`: wiersza
+   z `endedAt: null` NIE MA w indeksie `endedAt`, dlatego „trening w toku" filtruje się w pamięci.
+
+3. **REST nie został zastąpiony synchronizacją — obie drogi zostają.** Online zapis leci przez
+   REST, bo tylko on oddaje policzone `personalRecordsBrokenIn` i objętości; paczka sync zwraca
+   surowe rekordy. Backend projektował te dwie drogi razem (`backend/CLAUDE.md`). Kolejność jest
+   sztywna: **najpierw Dexie, potem sieć** (PROMPT §3.5).
+
+4. **Reguła LWW jest ta sama po obu stronach: ściśle `>`, remis wygrywa serwer.** Gdyby klient
+   stosował `>=` tam, gdzie serwer stosuje `>`, przy równych znacznikach obie strony uznałyby się
+   za zwycięzcę i rekord rozjechałby się między urządzeniami bez żadnego sygnału. Reguły siedzą
+   w `lib/sync/merge.ts` jako czyste funkcje z testami, bo to jedyne miejsce synchronizacji,
+   w którym błąd jest niewidoczny.
+
+5. **`since` zapisujemy 5 minut przed `serverTime`** (API.md, reguła 8). Drugie urządzenie może
+   zatwierdzić transakcję milisekundę później z wcześniejszym `updatedAt`; bez cofnięcia ten zapis
+   nie trafiłby do żadnego kolejnego zaciągu. Koszt: kilka rekordów przysyłanych ponownie — to samo
+   `id` i `updatedAt`, więc bez skutku.
+
+6. **`dirty` zdejmujemy tylko z wierszy, których `updatedAt` nie zmienił się od wysłania.** Seria
+   poprawiona w trakcie lotu żądania musi zostać brudna, inaczej zostałaby uznana za zapisaną
+   i nigdy by nie dojechała.
+
+7. **204 z `/api/workouts/active` nie czyści już ekranu bezwarunkowo.** Trening rozpoczęty bez
+   zasięgu istnieje tylko lokalnie — serwer o nim nie wie i nie ma prawa go skasować. Stary kod
+   wyrzuciłby w tym miejscu całą sesję z siłowni.
+
+8. **Zakończenie treningu działa offline.** `endedAt` ląduje w Dexie z `dirty = 1`, a podsumowanie
+   pokazuje wszystko poza plakietkami rekordów — `personalRecordsBrokenIn` zależy od całej historii
+   ćwiczenia. Lepiej pokazać rekordy z opóźnieniem niż zgadnąć i po chwili zabrać.
+
+9. **Wylogowanie najpierw wypycha zaległości, a bazę kasuje tylko przy pustej kolejce.**
+   Bezwarunkowe kasowanie wyrzuciłoby do kosza trening zrobiony bez zasięgu. Migawkę
+   w `localStorage` czyścimy zawsze — to ona jest widoczna od razu dla następnej osoby.
+
+10. **`localStorage` ZOSTAJE obok Dexie jako cache ekranu.** Jest synchroniczny, więc wznowiony
+    trening jest pełny w pierwszej klatce, zanim wróci asynchroniczny odczyt z IndexedDB. Obie
+    kopie zapisuje `commit()` z tego samego `state.workout`, więc nie mają jak się rozjechać.
+
+11. **Wyszukiwarka ćwiczeń schodzi na lokalny katalog przy `OfflineError`** (i tylko przy nim —
+    4xx/5xx ma dojść jako błąd). Bez tego offline dawało się zacząć trening, ale nie dodać do niego
+    ćwiczenia. Lokalne szukanie to zwykłe „zawiera" bez ogonków, świadomie gorsze niż `pg_trgm`
+    na serwerze.
+
+12. **Service worker cache'uje WYŁĄCZNIE powłokę** (HTML tras, chunki, fonty, ikony); `/api/*`
+    i `/actuator/*` są jawnie wykluczone. Cache odpowiedzi API byłby drugą, niewidoczną kopią
+    danych, która nie zna `updatedAt` ani `deletedAt`. Jedna warstwa offline na dane, nie dwie.
+    **Rejestracja tylko w buildzie produkcyjnym** — w `next dev` nazwy chunków zmieniają się przy
+    każdym zapisie i SW potrafi podać stary chunk do nowego HTML-a (biała strona „naprawiana"
+    czyszczeniem danych witryny). Konsekwencja: e2e sprawdzają offline na poziomie Dexie, nie SW.
 
 ## Struktura
 
@@ -128,8 +197,20 @@ frontend/
     use-now.ts                # wspólny zegar sekundowy (czas sesji) -- jeden interval na apkę
     use-online.ts             # stan sieci przez useSyncExternalStore
     format.ts                 # czas, objętość, polska odmiana przez liczebnik (+ testy)
+    db/
+      schema.ts               # tabele Dexie = rekordy paczki sync + flaga `dirty`
+      database.ts             # cykl życia bazy per konto, `since`, kasowanie przy wylogowaniu
+      workout-repository.ts   # WorkoutDetailResponse <-> wiersze; tombstone'y
+      exercise-repository.ts  # katalog ćwiczeń + szukanie lokalne (zapas offline)
+    sync/
+      merge.ts                # reguły LWW jako czyste funkcje (+ 11 testów)
+      merge.test.ts
+      engine.ts               # zbierz brudne -> POST /api/sync -> zastosuj; stan dla pigułki
+      use-sync.ts             # useSyncState() dla UI
+    exercise/catalog.ts       # findExercises(): serwer, a bez sieci lokalny katalog
+    api/sync.ts               # POST /api/sync
     workout/
-      store.ts                # JEDYNE miejsce zapisu treningu (stan + kolejka + migawka)
+      store.ts                # JEDYNE miejsce zapisu treningu (stan + kolejka + Dexie + migawka)
       mutation-queue.ts       # szeregowa kolejka zapisów, retry 1/3/9 s
       optimistic.ts           # czyste łatki na WorkoutDetailResponse (+ testy)
       set-values.ts           # parsowanie/granice/walidacja pól serii (+ testy)
@@ -142,8 +223,14 @@ frontend/
       recent-exercises.ts     # "ostatnio uzywane" w localStorage
       uuid.ts
   components/workout/         # ekran treningu: karta, wiersze serii, arkusze, timer, podsumowanie
+  app/manifest.ts             # manifest PWA (generowany przez Next, nie plik w public/)
+  public/sw.js                # service worker: TYLKO powłoka, zero cache'owania API
+  public/icons/               # ikony PWA (generuje design/generate-icons.py)
   types/api.ts                # kontrakt z backendem
+  types/sync.ts               # kontrakt paczki POST /api/sync (mirror SyncRecords.java)
+  e2e/10-offline-sync.spec.ts # cała sesja offline -> serwer po powrocie sieci
   design/canvas/              # artboardy płótna projektowego (poza buildem apki)
+  design/generate-icons.py    # generator ikon PWA (trzymany razem z wynikiem)
 ```
 
 ## Jak uruchomić lokalnie
@@ -160,7 +247,17 @@ npm run test        # vitest, czyste funkcje -- sekundy, bez sieci i bez backend
 npm run typecheck   # tsc --noEmit
 npm run lint        # eslint (flat config)
 npm run build       # next build -- pobiera fonty z Google, wymaga sieci
+npm run test:e2e    # playwright -- wymaga ZYWEGO backendu i frontu (patrz nizej)
 ```
+
+E2E potrzebują trzech rzeczy naraz: backendu (`PLAYWRIGHT_API_URL`, domyślnie `:8081`), frontu
+pod `:3001` (`npm run dev -- -p 3001`) i **obu kont** (`Minio`, `Wojtur`) w bazie tego backendu.
+Backend musi też dopuszczać `http://localhost:3001` w `CORS_ALLOWED_ORIGINS` — inaczej wszystkie
+żądania z testów lecą w preflight 403, co wygląda jak błąd apki, a jest konfiguracją.
+
+**Service workera te testy nie dotykają** (chodzą po `next dev`, gdzie rejestracja jest wyłączona).
+Powłokę offline sprawdza się ręcznie: `npm run build && npm start`, DevTools → Application →
+Service Workers, potem Network → Offline i twarde przeładowanie.
 
 ## Postęp etapów (numeracja z `PROMPT.md` §11)
 
@@ -176,7 +273,18 @@ npm run build       # next build -- pobiera fonty z Google, wymaga sieci
   jedną kolejkę, zakończenie + podsumowanie z `personalRecordsBrokenIn`. Odpalone tutaj:
   `lint`, `typecheck`, `vitest` (85 testów), `build` — zielone; ekran przeklikany na żywym
   backendzie (:8081) kontem `Minio` przy 320 / 390 / 430 px, w obu motywach.
-- [ ] Etap 5 — Dexie + kolejka sync + PWA (**wymaga uzgodnienia kontraktu endpointu sync z sesją backendową przed kodowaniem**).
+- [x] **Etap 5 — Dexie + kolejka sync + PWA.** Lokalna baza per konto (tabele = rekordy paczki
+  `POST /api/sync`, flaga `dirty` zamiast dziennika operacji), silnik synchronizacji (push
+  brudnych wierszy + pull, LWW ściśle `>`, `since` z marginesem 5 min), zapis treningu najpierw do
+  Dexie i dopiero potem do API, zakończenie treningu offline, wyszukiwarka ćwiczeń z zapasem
+  w lokalnym katalogu, kasowanie bazy przy wylogowaniu (dopiero po opróżnieniu kolejki),
+  licznik zaległości w pigułce, manifest + service worker + ikony (instalowalna na Androidzie).
+  Kontrakt sync był już gotowy w `backend/API.md` — notatka „wymaga uzgodnienia" była nieaktualna.
+  Odpalone tutaj: `lint`, `typecheck`, `vitest` (96 testów), `build`, `playwright` (68 testów,
+  oba profile) — zielone. PWA zweryfikowana na realnym `next build && next start`: SW rejestruje
+  się, precache'uje 6 tras powłoki + 13 zasobów, twarde przeładowanie bez sieci renderuje apkę
+  z własnymi fontami i React się hydratuje, a żądanie do API nie jest podawane z cache.
+  Przy okazji złapane i naprawione trzy realne błędy — patrz commity `fix(frontend)`.
 - [ ] Etap 6 — historia treningów i ekran ćwiczenia z wykresami.
 - [ ] Etap 7 — moduł wagi ciała.
 - [ ] Etap 8 — dashboard (agregaty liczy backend, nie przeglądarka).
