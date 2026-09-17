@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BodyWeightChart } from "@/components/charts/body-weight-chart";
 import { ChartTile, type ChartTableColumn } from "@/components/charts/chart-tile";
-import { EmptyState, Screen, SectionLabel, Skeleton } from "@/components/ui/screen";
+import { EmptyState, Screen, SectionLabel, Skeleton, Tile } from "@/components/ui/screen";
 import {
   rawPoints,
   weeklyPoints,
@@ -309,16 +309,6 @@ function EntryList({ entries }: { entries: readonly BodyWeightResponse[] }) {
         </p>
       )}
     </section>
-  );
-}
-
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="min-w-0 flex-1 rounded-card border border-hairline bg-surface px-1.5 py-3 text-center">
-      <p className="num num-lg truncate">{value}</p>
-      <p className="label-caps mt-1 truncate">{label}</p>
-      {hint !== undefined && <p className="meta truncate">{hint}</p>}
-    </div>
   );
 }
 

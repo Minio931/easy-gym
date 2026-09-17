@@ -38,3 +38,18 @@ export function Skeleton({ className = "" }: { className?: string }) {
     />
   );
 }
+
+/**
+ * Kafel liczby: duża wartość, podpis, opcjonalna wskazówka. Trzy takie w rzędzie
+ * mieszczą się w 390 px — i tylko trzy, dlatego `truncate` jest tu wszędzie:
+ * ucięta etykieta jest do przełknięcia, ucięta liczba czyta się jak inna liczba.
+ */
+export function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0 flex-1 rounded-card border border-hairline bg-surface px-1.5 py-3 text-center">
+      <p className="num num-lg truncate">{value}</p>
+      <p className="label-caps mt-1 truncate">{label}</p>
+      {hint !== undefined && <p className="meta truncate">{hint}</p>}
+    </div>
+  );
+}
