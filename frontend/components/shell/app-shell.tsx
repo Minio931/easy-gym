@@ -17,6 +17,7 @@ const TITLES: Record<string, string> = {
   "/trening": "Trening",
   "/historia": "Historia",
   "/waga": "Waga ciała",
+  "/szablony": "Szablony",
   "/ustawienia": "Ustawienia",
 };
 
@@ -43,7 +44,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     ? "Podsumowanie"
     : pathname.startsWith("/cwiczenie/")
       ? "Ćwiczenie"
-      : (TITLES[pathname] ?? "easy-gym");
+      : pathname.startsWith("/szablony/")
+        ? "Szablon"
+        : (TITLES[pathname] ?? "easy-gym");
   const showActiveWorkoutBar = hasWorkout && !isWorkout;
 
   const extraBottomPx =
