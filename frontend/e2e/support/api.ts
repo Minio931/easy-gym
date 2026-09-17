@@ -97,10 +97,13 @@ export interface StartedWorkout {
 export async function startWorkoutViaApi(
   request: APIRequestContext,
   accessToken: string,
+  /** Data startu -- domyślnie teraz. Podawana wprost tam, gdzie test
+   *  potrzebuje treningu w przeszłości (przełącznik zakresu na wykresach). */
+  startedAt: string = new Date().toISOString(),
 ): Promise<StartedWorkout> {
   const res = await request.post(`${API_URL}/api/workouts`, {
     headers: authHeaders(accessToken),
-    data: { id: crypto.randomUUID(), startedAt: new Date().toISOString() },
+    data: { id: crypto.randomUUID(), startedAt },
   });
   if (!res.ok()) {
     throw new Error(`POST /api/workouts: ${res.status()} ${await res.text()}`);
@@ -131,6 +134,39 @@ export async function findExerciseId(
     throw new Error(`Brak ćwiczenia pasującego do "${query}" w katalogu -- zaktualizuj helper testowy`);
   }
   return items[0];
+}
+
+/**
+ * Tworzy WŁASNE ćwiczenie usera o unikalnej nazwie.
+ *
+ * Potrzebne tam, gdzie test musi mieć pewność, że historia ćwiczenia zawiera
+ * wyłącznie to, co sam zapisał. Ćwiczenia z katalogu globalnego (np. wyciskanie)
+ * zbierają dane z każdego wcześniejszego przebiegu -- zakończone treningi nie
+ * znikają same, a fixture sprząta tylko te AKTYWNE.
+ */
+export async function createExerciseViaApi(
+  request: APIRequestContext,
+  accessToken: string,
+  name: string,
+): Promise<ExerciseSummary> {
+  const res = await request.post(`${API_URL}/api/exercises`, {
+    headers: authHeaders(accessToken),
+    data: { name, muscleGroup: "klatka piersiowa", equipment: "barbell" },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /api/exercises: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as ExerciseSummary;
+}
+
+export async function deleteExerciseViaApi(
+  request: APIRequestContext,
+  accessToken: string,
+  exerciseId: string,
+): Promise<void> {
+  await request.delete(`${API_URL}/api/exercises/${exerciseId}`, {
+    headers: authHeaders(accessToken),
+  });
 }
 
 /** Dodaje ćwiczenie do treningu przez API -- do scenariuszy, które testują
