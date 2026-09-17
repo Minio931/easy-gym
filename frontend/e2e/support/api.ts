@@ -237,6 +237,63 @@ export async function finishWorkoutViaApi(
 }
 
 /* ------------------------------------------------------------------ *
+ * Szablony treningów
+ * ------------------------------------------------------------------ */
+
+export interface RoutineItem {
+  id: string;
+  exerciseId: string;
+  orderIndex: number;
+  targetSets: number | null;
+  targetReps: number | null;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  notes: string | null;
+  items: RoutineItem[];
+}
+
+export async function listRoutinesViaApi(
+  request: APIRequestContext,
+  accessToken: string,
+): Promise<Routine[]> {
+  const res = await request.get(`${API_URL}/api/routines`, { headers: authHeaders(accessToken) });
+  if (!res.ok()) {
+    throw new Error(`GET /api/routines: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as Routine[];
+}
+
+export async function deleteRoutineViaApi(
+  request: APIRequestContext,
+  accessToken: string,
+  routineId: string,
+): Promise<void> {
+  await request.delete(`${API_URL}/api/routines/${routineId}`, {
+    headers: authHeaders(accessToken),
+  });
+}
+
+/**
+ * Kasuje szablony po prefiksie nazwy. Szablony -- w odróżnieniu od aktywnego
+ * treningu -- nie znikają same, a zostawione zaśmiecają ekran startu treningu
+ * przy każdym kolejnym przebiegu.
+ */
+export async function clearRoutinesNamed(
+  request: APIRequestContext,
+  accessToken: string,
+  prefix: string,
+): Promise<void> {
+  for (const routine of await listRoutinesViaApi(request, accessToken)) {
+    if (routine.name.startsWith(prefix)) {
+      await deleteRoutineViaApi(request, accessToken, routine.id);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Waga ciała
  * ------------------------------------------------------------------ */
 
