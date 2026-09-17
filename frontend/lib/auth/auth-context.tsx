@@ -19,6 +19,7 @@ import {
   writeSession,
 } from "@/lib/auth/token-store";
 import { useIsHydrated } from "@/lib/use-is-hydrated";
+import { releaseLocalData } from "@/lib/sync/engine";
 import { resetWorkoutStore } from "@/lib/workout/store";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
@@ -99,6 +100,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const current = readSession();
+    // Zaległości wypychamy PRZED skasowaniem sesji — bez tokenu synchronizacja
+    // nie ma jak przejść, a trening zrobiony bez zasięgu nie może zginąć przy
+    // wylogowaniu. Offline `fetch` odrzuca się od razu, więc to nie blokuje.
+    if (current !== null) {
+      await releaseLocalData(current.userId);
+    }
     writeSession(null);
     // Migawka aktywnego treningu jest przypisana do konta — nie może zostać na
     // urządzeniu po wylogowaniu i wyskoczyć następnej osobie.

@@ -3,7 +3,7 @@
 import type { Table } from "dexie";
 import { postSync } from "@/lib/api/sync";
 import { OfflineError } from "@/lib/api/errors";
-import { getDatabase, readSince, writeSince } from "@/lib/db/database";
+import { dropDatabase, getDatabase, getDatabaseFor, readSince, writeSince } from "@/lib/db/database";
 import { CLEAN, DIRTY, type EasyGymDatabase, type Local } from "@/lib/db/schema";
 import { nextSince, shouldAcceptIncoming } from "@/lib/sync/merge";
 import type {
@@ -255,6 +255,30 @@ export async function refreshPending(): Promise<void> {
     return;
   }
   setState({ pending: await countPending(db) });
+}
+
+/**
+ * Sprzątanie przy wylogowaniu.
+ *
+ * Najpierw próba wypchnięcia zaległości, potem kasowanie bazy — ale **tylko
+ * gdy kolejka jest pusta**. Bezwarunkowe kasowanie wyrzuciłoby do kosza trening
+ * zrobiony bez zasięgu, jeśli user wylogowałby się przed odzyskaniem sieci;
+ * nietknięta baza czeka na jego ponowne zalogowanie i wtedy się dosynchronizuje.
+ *
+ * Migawkę w `localStorage` czyści `resetWorkoutStore()` niezależnie od tego —
+ * to ona jest widoczna od razu po wejściu następnej osoby, baza per-konto nie.
+ */
+export async function releaseLocalData(userId: string): Promise<void> {
+  const db = getDatabaseFor(userId);
+  if (db === null) {
+    return;
+  }
+  await requestSync().catch(() => undefined);
+  const pending = await countPending(db).catch(() => 1);
+  if (pending === 0) {
+    await dropDatabase(userId);
+  }
+  resetSyncState();
 }
 
 export function resetSyncState(): void {

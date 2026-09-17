@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
+import { requestSync } from "@/lib/sync/engine";
+import { useSyncState } from "@/lib/sync/use-sync";
 import { useIsOnline } from "@/lib/use-online";
 import { retryFailedMutations, useWorkoutState } from "@/lib/workout/store";
 
@@ -18,6 +20,7 @@ import { retryFailedMutations, useWorkoutState } from "@/lib/workout/store";
 export function SyncPill() {
   const isOnline = useIsOnline();
   const { failed } = useWorkoutState();
+  const sync = useSyncState();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   if (failed.length > 0) {
@@ -86,9 +89,27 @@ export function SyncPill() {
     );
   }
 
-  // Licznika „⟳ n w kolejce" świadomie NIE MA w etapie 4. Zapis w tle ma być
-  // niewidoczny (spec §4: „Zapis w tle — nic"), a kolejka jest tu wyłącznie
-  // w pamięci, więc migałaby przy każdej zatwierdzonej serii. Wróci w etapie 5
-  // razem z trwałą kolejką w Dexie, gdzie oznacza realnie zaległą robotę.
+  // Licznik zaległości pokazujemy dopiero od etapu 5, bo dopiero teraz oznacza
+  // realną robotę: wiersze leżące w Dexie z `dirty = 1`. W etapie 4 kolejka
+  // żyła w pamięci zakładki i migałaby przy każdej zatwierdzonej serii, a zapis
+  // w tle ma być niewidoczny (spec §4: „Zapis w tle — nic").
+  //
+  // Online i wszystko wysłane => nie pokazujemy NIC. Cisza jest normą.
+  if (sync.pending > 0) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          void requestSync();
+        }}
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-[12px] font-semibold text-ink-2"
+        aria-label={`${sync.pending} ${sync.pending === 1 ? "zmiana czeka" : "zmian czeka"} na wysłanie. Dotknij, aby zsynchronizować teraz.`}
+      >
+        <span aria-hidden="true">⟳</span>
+        {sync.pending} w kolejce
+      </button>
+    );
+  }
+
   return null;
 }
