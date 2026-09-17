@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Screen, SectionLabel, Skeleton } from "@/components/ui/screen";
 import { getWorkout } from "@/lib/api/workouts";
@@ -32,6 +33,10 @@ const REP_RANGE_LABELS: Record<RepRangeKey, string> = {
  */
 export function WorkoutSummary({ workoutId }: { workoutId: string }) {
   const router = useRouter();
+  // Skąd tu weszliśmy, tam wracamy. Po zakończeniu treningu (`wroc` puste)
+  // to pulpit i `replace`, żeby cofnięcie nie wskrzesiło martwej sesji;
+  // z historii wracamy na listę, bo tam użytkownik faktycznie był.
+  const backTo = useSearchParams().get("wroc") === "historia" ? "/historia" : "/pulpit";
   const { settings } = useSettings();
   const [workout, setWorkout] = useState<WorkoutDetailResponse | null>(null);
   const [failed, setFailed] = useState(false);
@@ -54,7 +59,7 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
     return (
       <Screen>
         <p className="meta py-8 text-center">Nie udało się wczytać podsumowania.</p>
-        <CloseButton onClick={() => router.replace("/pulpit")} />
+        <CloseButton onClick={() => router.replace(backTo)} />
       </Screen>
     );
   }
@@ -119,10 +124,17 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
               key={exercise.id}
               className={`flex items-center gap-3 px-4 py-3 ${index === 0 ? "" : "border-t border-hairline"}`}
             >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-ink">{exercise.exerciseName}</span>
+              {/* Nazwa ćwiczenia prowadzi do jego ekranu z wykresami — to jest
+                  główne wejście w historię pojedynczego ruchu (etap 6). */}
+              <Link
+                href={`/cwiczenie/${exercise.exerciseId}`}
+                className="min-w-0 flex-1 py-1"
+              >
+                <span className="block truncate text-ink underline underline-offset-4 decoration-hairline">
+                  {exercise.exerciseName}
+                </span>
                 <span className="meta">{setsLabel(exercise.sets.length)}</span>
-              </span>
+              </Link>
               <span className="num num-md shrink-0 text-ink-2">
                 {formatVolume(exercise.displayVolumeKg)} <span className="meta">kg</span>
               </span>
@@ -132,7 +144,7 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
       </section>
 
       <div className="mt-8">
-        <CloseButton onClick={() => router.replace("/pulpit")} />
+        <CloseButton onClick={() => router.replace(backTo)} />
       </div>
     </Screen>
   );

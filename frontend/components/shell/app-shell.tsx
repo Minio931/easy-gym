@@ -37,7 +37,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [settings.oneRepMaxFormula]);
 
   const isWorkout = pathname === "/trening";
-  const title = pathname.startsWith("/trening/") ? "Podsumowanie" : (TITLES[pathname] ?? "easy-gym");
+  // Nazwa ćwiczenia jest długa i zmienna, więc w pasku zostaje rodzaj ekranu,
+  // a nazwa jest nagłówkiem treści — tak samo jak przy podsumowaniu.
+  const title = pathname.startsWith("/trening/")
+    ? "Podsumowanie"
+    : pathname.startsWith("/cwiczenie/")
+      ? "Ćwiczenie"
+      : (TITLES[pathname] ?? "easy-gym");
   const showActiveWorkoutBar = hasWorkout && !isWorkout;
 
   const extraBottomPx =
