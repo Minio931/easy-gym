@@ -260,7 +260,63 @@ w porównaniach trendu, ale endpoint `/api/body-weights/stats` takiego parametru
 `is_deload` jest cechą TRENINGU, nie tygodnia ważenia. Przełączalne pomijanie deloadu żyje
 w `TrendComparator` (`lib/metrics.ts`) i dotyczy trendu objętości, czyli etapu 8. Gdyby trend wagi
 też miał pomijać tygodnie deloadowe, wymaga to zmiany kontraktu po stronie backendu — do ustalenia,
-nie do dorobienia po cichu na froncie.
+nie do dorobienia po cichu na froncie. **Domknięte w etapie 8:** przełącznik stanął przy trendzie
+objętości na pulpicie (`GET /api/dashboard?includeDeload=`), waga ciała została bez niego, kontrakt
+bez zmian.
+
+## Decyzje architektoniczne (etap 8 — pulpit)
+
+1. **Jedno żądanie na wejściu, stały zakres 27 tygodni; pigułki filtrują pamięć.** Pół roku
+   agregatów waży tyle co nic, a przełączenie „3M → 1M" w hali nie może czekać na sieć. Jedynym
+   wyjątkiem jest `includeDeload` — trend liczy serwer, więc przełącznik oznacza nowe żądanie.
+   To jest świadomy koszt: sposób liczenia trendu to pytanie zadawane raz na kilka tygodni.
+
+2. **`includeDeload` należy do trendu OBJĘTOŚCI i mieszka na pulpicie** — to domknięcie otwartej
+   sprawy z etapu 7. Waga ciała go nie dostaje, bo `is_deload` jest cechą treningu, nie tygodnia
+   ważenia, i nic w kontrakcie backendu się przez to nie zmienia.
+
+3. **Backend oddaje WYŁĄCZNIE tygodnie z treningiem, więc front dokłada zerowe sloty osi**
+   (`fillMissingWeeks`). Bez tego sześć tygodni przerwy znika z wykresu, a słupek sprzed dwóch
+   miesięcy siada obok bieżącego i udaje zeszły tydzień — ten sam rodzaj kłamstwa, co oś
+   kategorialna z etapu 6. Tydzień bez treningu ma tu prawdziwą wartość: zero. To nie jest
+   agregowanie w przeglądarce; sumy przychodzą policzone.
+
+4. **Zakres złożony z samych zer nie rysuje wykresu, tylko mówi to zdaniem.** Recharts dostaje
+   wtedy zdegenerowaną domenę `[0, 0]`: znikają oś i numery tygodni, a kafel wygląda na zepsuty
+   albo wciąż ładujący się.
+
+5. **Stacked bar ma własny kształt segmentu.** `radius` Rechartsa zaokrągla każdy segment osobno
+   (stos rozpada się na łańcuch pigułek), a 2 px przerwy między segmentami (DESIGN §10) nie umie
+   w ogóle. Przerwa idzie NAD segmentem i omija najwyższy, żeby cały słupek nie był o 2 px niższy,
+   niż mówi oś; przy segmencie cieńszym niż przerwa zostaje 1 px danych, bo kreska jest prawdziwa,
+   a pusta przestrzeń kłamie.
+
+6. **Kolor idzie za KUBEŁKIEM grupy, nie za pozycją w stosie.** Grup w bazie jest 11, slotów
+   palety 8 i zapętlać ich nie wolno (DESIGN §3.4) — grupa spoza listy dostaje neutralny slot
+   „inne", a pełne rozbicie na 11 grup idzie do tabeli pod wykresem, nie do kolejnych kolorów,
+   których i tak nie dałoby się odróżnić.
+
+7. **Tydzień deload ma podkreślenie w `--warning` pod słupkiem i słowo „deload" w tabeli** —
+   kształt i tekst, nie sam kolor (DESIGN §9). „Mniej objętości" i „lekki tydzień z planu" to dwie
+   różne wiadomości i nie wolno ich mylić.
+
+8. **Pulpit pokazuje tylko zakresy 1M/3M/6M.** Przy „1R" byłyby 53 słupki tygodniowe na 390 px,
+   czyli kreski po 4 px. Dłuższy horyzont niosą kalendarz i treningi w miesiącach. `ChartTile`
+   dostał na to opcjonalny podzbiór pigułek, domyślnie nadal pełny.
+
+9. **Kalendarz: tygodnie w kolumnach, dni tygodnia w wierszach.** Klasyczna siatka miesięczna
+   zjadłaby na 390 px sześć ekranów. Siatka jest przewijana do końca (najnowszy tydzień po prawej),
+   a dla czytnika ekranu ma jedno zdanie podsumowania — 180 osobnych komórek do przeklikania byłoby
+   gorsze niż brak szczegółu.
+
+10. **`from`/`to` z odpowiedzi to MOMENTY, i to `to` wyłączne.** Wzięcie z nich pierwszych dziesięciu
+    znaków dawało kalendarz cofnięty o cały tydzień (15.03 to niedziela, a siatka snapuje do
+    poniedziałku) i kafel z zakresem kończącym się jutro. Zamianę na dni kalendarzowe robi
+    `dashboardDates()` przez `warsawCalendarDate` z `lib/metrics.ts`.
+
+Z renderu — nie z lektury kodu — wyszły cztery rzeczy: zakres w kaflach kończył się jutrzejszą datą,
+długa data w kaflu wagi ucinała się w pół słowa, kolumna „Deload" zgniatała tabelę do „0—",
+a pusty zakres rysował ramkę bez zawartości.
 
 ## Struktura
 
@@ -309,7 +365,11 @@ frontend/
     bodyweight/points.ts      # punkty wykresu wagi, domena osi Y (+ testy)
     bodyweight/input.ts       # walidacja pola wagi, dzisiejsza data (+ testy)
     db/body-weight-repository.ts # wpisy wagi w Dexie, upsert po DNIU
-    charts.ts                 # zakresy czasu, sloty palety, skala punktu (+ testy)
+    charts.ts                 # zakresy czasu, sloty palety, skala punktu, kubełki grup (+ testy)
+    dashboard/volume.ts       # wiersze wykresu objętości, dopełnianie pustych tygodni (+ testy)
+    dashboard/calendar.ts     # siatka kalendarza treningów (+ testy)
+    dashboard/range.ts        # zakres pulpitu: ile tygodni, momenty -> dni (+ testy)
+    api/dashboard.ts          # GET /api/dashboard
     api/sync.ts               # POST /api/sync
     workout/
       store.ts                # JEDYNE miejsce zapisu treningu (stan + kolejka + Dexie + migawka)
@@ -329,6 +389,7 @@ frontend/
   components/history/         # lista historii treningów
   components/exercise/        # ekran pojedynczego ćwiczenia: rekordy + 3 wykresy
   components/bodyweight/      # ekran wagi: wpis, kafle, wykres, lista pomiarów
+  components/dashboard/       # pulpit: ekran i kalendarz treningów
   components/charts/chrome.tsx # wspólny chrom wykresów (osie, marginesy, tooltip)
   app/manifest.ts             # manifest PWA (generowany przez Next, nie plik w public/)
   public/sw.js                # service worker: TYLKO powłoka, zero cache'owania API
@@ -338,6 +399,7 @@ frontend/
   e2e/10-offline-sync.spec.ts # cała sesja offline -> serwer po powrocie sieci
   e2e/11-history-and-exercise.spec.ts # historia, wejście w sesję i ćwiczenie, zakres i tabela
   e2e/12-body-weight.spec.ts  # zapis wagi, upsert po dniu, walidacja zakresu
+  e2e/13-dashboard.spec.ts    # kafle zgodne z backendem, zakres bez sieci, przełącznik deloadu
   design/canvas/              # artboardy płótna projektowego (poza buildem apki)
   design/generate-icons.py    # generator ikon PWA (trzymany razem z wynikiem)
 ```
@@ -410,7 +472,16 @@ Service Workers, potem Network → Offline i twarde przeładowanie.
   oba profile) — zielone; ekran obejrzany przy 390 px na koncie z 44 pomiarami z 13 tygodni
   (w tym dwa tygodnie niepełne), a upsert potwierdzony przez API: dwa zapisy tego samego dnia
   zostawiają JEDEN wiersz z poprawioną wartością.
-- [ ] Etap 8 — dashboard (agregaty liczy backend, nie przeglądarka).
+- [x] **Etap 8 — pulpit.** Kafle (treningi, serie robocze, objętość) z zakresu, trend tydzień do
+  tygodnia z przełącznikiem `includeDeload`, wykres objętości tygodniowej per grupa mięśniowa
+  (stacked bar wg DESIGN §10 z własnym kształtem segmentu, zakres 1M/3M/6M, tabela, legenda
+  i rozwijane rozbicie na pełne 11 grup), kalendarz treningów (tygodnie w kolumnach), treningi
+  w miesiącach, ostatnie rekordy prowadzące do ekranu ćwiczenia, skrót wagi ciała. Wszystkie
+  agregaty liczy backend jednym żądaniem; front dokłada tylko zerowe tygodnie, których serwer
+  nie wysyła. Odpalone tutaj: `lint`, `typecheck`, `vitest` (168 testów), `build`,
+  `playwright` (82 testy, oba profile) — zielone; ekran obejrzany na żywym backendzie (:8080)
+  kontem `Demo` (16 treningów z progresją, dwa tygodnie deload) przy 320 / 390 / 430 px
+  w obu motywach, bez poziomego scrolla.
 - [ ] Etap 9 — eksport XLSX (najpierw decyzja: ExcelJS na froncie vs Apache POI w Springu — `PROMPT.md` §7).
 
 ## Konwencje
