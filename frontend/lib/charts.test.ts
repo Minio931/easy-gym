@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  bucketForMuscleGroup,
+  bucketWeeklyVolume,
   filterByRange,
+  MUSCLE_GROUP_BUCKETS,
+  OTHER_MUSCLE_BUCKET,
   pointRadiusForReps,
   POINT_RADIUS_MAX,
   POINT_RADIUS_MIN,
@@ -107,5 +111,52 @@ describe("pointRadiusForReps", () => {
     expect(pointRadiusForReps(100, 3, 12)).toBeCloseTo(POINT_RADIUS_MAX);
     expect(pointRadiusForReps(1, 3, 12)).toBeCloseTo(POINT_RADIUS_MIN);
     expect(pointRadiusForReps(Number.NaN, 3, 12)).toBe(POINT_RADIUS_MIN);
+  });
+});
+
+describe("kubełki grup mięśniowych", () => {
+  it("pokrywa wszystkie 11 grup z seeda i nie gubi żadnej", () => {
+    const covered = MUSCLE_GROUP_BUCKETS.flatMap((bucket) => bucket.groups);
+    expect(new Set(covered).size).toBe(covered.length); // żadna grupa w dwóch kubełkach
+    for (const group of [
+      "klatka piersiowa", "plecy", "nogi", "łydki", "barki",
+      "biceps", "triceps", "przedramiona", "pośladki", "brzuch", "całe ciało",
+    ]) {
+      expect(bucketForMuscleGroup(group)).not.toBe(OTHER_MUSCLE_BUCKET);
+    }
+  });
+
+  it("używa dokładnie 8 slotów, każdego raz -- palety nie wolno zapętlać", () => {
+    const slots = MUSCLE_GROUP_BUCKETS.map((bucket) => bucket.slot);
+    expect(slots).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("grupa spoza listy trafia do 'inne', nie do losowego kubełka", () => {
+    // Własne ćwiczenie może mieć dowolny `muscleGroup` wpisany ręcznie.
+    // Wrzucenie go do „całe ciało" fałszowałoby dane.
+    expect(bucketForMuscleGroup("kark")).toBe(OTHER_MUSCLE_BUCKET);
+    expect(bucketForMuscleGroup("")).toBe(OTHER_MUSCLE_BUCKET);
+  });
+
+  it("nie przejmuje się wielkością liter ani spacjami", () => {
+    expect(bucketForMuscleGroup("  Plecy  ").key).toBe("plecy");
+  });
+
+  it("sumuje grupy wpadające do tego samego kubełka", () => {
+    // nogi + łydki to jeden kubełek „nogi".
+    const result = bucketWeeklyVolume({ nogi: 1000, "łydki": 200, plecy: 500 });
+    expect(result.map((r) => [r.bucket.key, r.kg])).toEqual([
+      ["plecy", 500],
+      ["nogi", 1200],
+    ]);
+  });
+
+  it("sortuje po slocie, nie po wielkości -- stos nie może migać między tygodniami", () => {
+    const result = bucketWeeklyVolume({ brzuch: 5000, "klatka piersiowa": 100 });
+    expect(result.map((r) => r.bucket.slot)).toEqual([1, 7]);
+  });
+
+  it("pomija kubełki z zerem", () => {
+    expect(bucketWeeklyVolume({ plecy: 0, nogi: 300 }).map((r) => r.bucket.key)).toEqual(["nogi"]);
   });
 });

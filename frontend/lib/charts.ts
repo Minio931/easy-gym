@@ -133,3 +133,90 @@ export function pointRadiusForReps(reps: number, minReps: number, maxReps: numbe
   const areaMax = POINT_RADIUS_MAX ** 2;
   return Math.sqrt(areaMin + position * (areaMax - areaMin));
 }
+
+/* ------------------------------------------------------------------ *
+ * Kubełki grup mięśniowych (wykres objętości tygodniowej)
+ * ------------------------------------------------------------------ */
+
+/**
+ * W bazie jest 11 grup mięśniowych, slotów palety jest 8, a zapętlać ich nie
+ * wolno (DESIGN §3.4). Wykres objętości używa więc stałego, **wyłącznie
+ * prezentacyjnego** mapowania — nigdy nie zapisywanego do bazy.
+ *
+ * Kolor idzie za KUBEŁKIEM, nie za jego pozycją w stosie: filtr zmieniający
+ * liczbę widocznych serii nie przemalowuje pozostałych, więc „pomarańczowy"
+ * zawsze znaczy plecy, niezależnie od tego, co jeszcze jest na wykresie.
+ *
+ * Rozbicie na pełne 11 grup pokazujemy w tabeli pod wykresem, nie dokładaniem
+ * kolorów, których i tak nie dałoby się odróżnić.
+ */
+export interface MuscleGroupBucket {
+  key: string;
+  label: string;
+  /** Slot palety, 1-8. */
+  slot: number;
+  /** Grupy z bazy wpadające do tego kubełka. */
+  groups: readonly string[];
+}
+
+export const MUSCLE_GROUP_BUCKETS: readonly MuscleGroupBucket[] = [
+  { key: "klatka", label: "klatka piersiowa", slot: 1, groups: ["klatka piersiowa"] },
+  { key: "plecy", label: "plecy", slot: 2, groups: ["plecy"] },
+  { key: "nogi", label: "nogi", slot: 3, groups: ["nogi", "łydki"] },
+  { key: "barki", label: "barki", slot: 4, groups: ["barki"] },
+  { key: "ramiona", label: "ramiona", slot: 5, groups: ["biceps", "triceps", "przedramiona"] },
+  { key: "posladki", label: "pośladki", slot: 6, groups: ["pośladki"] },
+  { key: "brzuch", label: "brzuch", slot: 7, groups: ["brzuch"] },
+  { key: "cale-cialo", label: "całe ciało", slot: 8, groups: ["całe ciało"] },
+];
+
+/**
+ * Kubełek dla grup spoza listy. Własne ćwiczenie może mieć dowolny
+ * `muscleGroup` wpisany ręcznie — wrzucanie go do „całe ciało" fałszowałoby
+ * dane, a dziewiąty kolor palety nie istnieje. Dostaje więc neutralny
+ * `--ink-3` przez `seriesColor()` (slot 9), czyli ten sam sygnał „tego już nie
+ * rozróżniamy kolorem", co przy dziewiątej serii.
+ */
+export const OTHER_MUSCLE_BUCKET: MuscleGroupBucket = {
+  key: "inne",
+  label: "inne",
+  slot: SERIES_SLOT_COUNT + 1,
+  groups: [],
+};
+
+const BUCKET_BY_GROUP = new Map<string, MuscleGroupBucket>(
+  MUSCLE_GROUP_BUCKETS.flatMap((bucket) => bucket.groups.map((group) => [group, bucket])),
+);
+
+export function bucketForMuscleGroup(muscleGroup: string): MuscleGroupBucket {
+  return BUCKET_BY_GROUP.get(muscleGroup.trim().toLowerCase()) ?? OTHER_MUSCLE_BUCKET;
+}
+
+export interface BucketedVolume {
+  bucket: MuscleGroupBucket;
+  kg: number;
+}
+
+/**
+ * Objętość tygodnia rozbita na kubełki, posortowana po slocie — kolejność
+ * segmentów w stosie musi być stała między tygodniami, inaczej stos „miga"
+ * przy przewijaniu wykresu.
+ *
+ * Kubełki z zerem są POMIJANE: segment o zerowej wysokości i tak nie jest
+ * widoczny, a w legendzie i tabeli byłby szumem.
+ */
+export function bucketWeeklyVolume(byMuscleGroup: Record<string, number>): BucketedVolume[] {
+  const sums = new Map<string, { bucket: MuscleGroupBucket; kg: number }>();
+  for (const [group, kg] of Object.entries(byMuscleGroup)) {
+    const bucket = bucketForMuscleGroup(group);
+    const current = sums.get(bucket.key);
+    if (current === undefined) {
+      sums.set(bucket.key, { bucket, kg });
+    } else {
+      current.kg += kg;
+    }
+  }
+  return [...sums.values()]
+    .filter((entry) => entry.kg > 0)
+    .sort((a, b) => a.bucket.slot - b.bucket.slot);
+}

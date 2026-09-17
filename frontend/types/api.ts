@@ -270,6 +270,70 @@ export interface RoutineResponse {
 }
 
 /* ================================================================== *
+ * Pulpit
+ * ================================================================== */
+
+export interface DashboardTotals {
+  workoutCount: number;
+  workingSetCount: number;
+  volumeKg: number;
+}
+
+export interface WeeklyVolumeResponse {
+  year: number;
+  week: number;
+  from: string;
+  to: string;
+  totalKg: number;
+  /** Klucz = grupa mięśniowa z bazy (jest ich 11). Wykres kubełkuje je do 8 slotów. */
+  byMuscleGroup: Record<string, number>;
+  workoutCount: number;
+  isDeload: boolean;
+}
+
+/** Ostatni tydzień vs poprzedni; `null` gdy nie ma z czym porównać. */
+export interface VolumeTrendResponse {
+  previousKg: number;
+  currentKg: number;
+  deltaPercent: number | null;
+}
+
+export interface WorkoutDayResponse {
+  date: string;
+  workoutCount: number;
+}
+
+export interface MonthlyWorkoutsResponse {
+  /** `YYYY-MM`. */
+  month: string;
+  workoutCount: number;
+}
+
+/** Seria, która W MOMENCIE wykonania pobiła rekord ciężaru danego ćwiczenia. */
+export interface RecentPersonalRecordResponse {
+  setId: string;
+  exerciseId: string;
+  exerciseName: string;
+  weightKg: number;
+  reps: number;
+  achievedAt: string;
+  workoutId: string;
+}
+
+/** GET /api/dashboard?weeks=&includeDeload= */
+export interface DashboardResponse {
+  from: string;
+  to: string;
+  totals: DashboardTotals;
+  weeklyVolume: WeeklyVolumeResponse[];
+  volumeTrend: VolumeTrendResponse | null;
+  workoutDays: WorkoutDayResponse[];
+  workoutsPerMonth: MonthlyWorkoutsResponse[];
+  recentPersonalRecords: RecentPersonalRecordResponse[];
+  bodyWeight: BodyWeightStatsResponse;
+}
+
+/* ================================================================== *
  * Waga ciała
  * ================================================================== */
 

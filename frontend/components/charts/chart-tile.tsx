@@ -30,6 +30,7 @@ export function ChartTile<T>({
   rows,
   rowKey,
   emptyMessage,
+  ranges = CHART_RANGES,
   children,
 }: {
   title: string;
@@ -41,6 +42,11 @@ export function ChartTile<T>({
   rows: readonly T[];
   rowKey: (row: T) => string;
   emptyMessage: string;
+  /**
+   * Podzbiór zakresów. Domyślnie wszystkie; pulpit podaje krótszą listę, bo
+   * 53 słupki tygodniowe na 390 px to nie wykres, tylko szara plama.
+   */
+  ranges?: readonly { key: ChartRange; label: string }[];
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -65,7 +71,7 @@ export function ChartTile<T>({
         aria-label="Zakres czasu"
         className="-mx-1 mt-3 flex gap-1 overflow-x-auto px-1"
       >
-        {CHART_RANGES.map((option) => {
+        {ranges.map((option) => {
           const active = option.key === range;
           return (
             <button
