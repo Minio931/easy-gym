@@ -9,7 +9,6 @@ import {
 import { displayVolumeKg, prEligibleVolumeKg, estimate1RM, type OneRepMaxFormula } from "@/lib/metrics";
 import type {
   Equipment,
-  ExerciseResponse,
   SetResponse,
   WorkoutDetailResponse,
   WorkoutExerciseResponse,
@@ -199,30 +198,6 @@ export async function markWorkoutExerciseDeleted(
       await db.sets.put({ ...set, deletedAt: now, updatedAt: now, dirty: DIRTY });
     }
   });
-}
-
-/** Katalog ćwiczeń z serwera — potrzebny, żeby offline złożyć nazwy w karcie. */
-export async function cacheExercises(
-  db: EasyGymDatabase,
-  exercises: readonly ExerciseResponse[],
-): Promise<void> {
-  for (const exercise of exercises) {
-    const existing = await db.exercises.get(exercise.id);
-    if (existing?.dirty === DIRTY) {
-      continue;
-    }
-    await db.exercises.put({
-      id: exercise.id,
-      name: exercise.name,
-      muscleGroup: exercise.muscleGroup,
-      equipment: exercise.equipment,
-      isArchived: exercise.isArchived,
-      createdAt: exercise.createdAt,
-      updatedAt: exercise.updatedAt,
-      deletedAt: exercise.deletedAt,
-      dirty: CLEAN,
-    });
-  }
 }
 
 /* ------------------------------------------------------------------ *

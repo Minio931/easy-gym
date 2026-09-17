@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { SearchIcon } from "@/components/ui/icons";
-import { createExercise, searchExercises } from "@/lib/api/exercises";
+import { createExercise } from "@/lib/api/exercises";
+import { findExercises } from "@/lib/exercise/catalog";
 import { isAbortError } from "@/lib/api/errors";
 import { useRecentExerciseIds } from "@/lib/workout/recent-exercises";
 import { uuid } from "@/lib/workout/uuid";
@@ -47,7 +48,7 @@ export function ExercisePickerSheet({
 
   useEffect(() => {
     const controller = new AbortController();
-    void searchExercises("", controller.signal)
+    void findExercises("", controller.signal)
       .then(setCatalog)
       .catch(() => {
         /* offline: zostają „Ostatnio używane" z pamięci przeglądarki */
@@ -63,7 +64,7 @@ export function ExercisePickerSheet({
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      void searchExercises(query.trim(), controller.signal)
+      void findExercises(query.trim(), controller.signal)
         .then(setResults)
         .catch((error: unknown) => {
           if (!isAbortError(error)) {

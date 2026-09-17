@@ -30,8 +30,8 @@ import {
 import { clearSnapshot, readSnapshot, writeSnapshot } from "@/lib/workout/persistence";
 import { OfflineError } from "@/lib/api/errors";
 import { getDatabase } from "@/lib/db/database";
+import { cacheExercises } from "@/lib/db/exercise-repository";
 import {
-  cacheExercises,
   markSetDeleted,
   markWorkoutDeleted,
   markWorkoutExerciseDeleted,
