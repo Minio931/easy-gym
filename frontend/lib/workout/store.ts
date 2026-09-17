@@ -223,7 +223,10 @@ function submit(
       const db = getDatabase();
       if (db !== null) {
         await persistServerWorkout(db, detail).catch(() => undefined);
-        void refreshPending();
+        // Czekamy na przeliczenie licznika: kolejka zgłosi „pusto" dopiero po
+        // powrocie z `run()`, więc pigułka nigdy nie zobaczy stanu pośredniego
+        // „nic nie leci, a coś czeka".
+        await refreshPending();
       }
       if (queue.remaining() === 0) {
         commit({ workout: detail });

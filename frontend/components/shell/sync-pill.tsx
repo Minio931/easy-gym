@@ -19,7 +19,7 @@ import { retryFailedMutations, useWorkoutState } from "@/lib/workout/store";
  */
 export function SyncPill() {
   const isOnline = useIsOnline();
-  const { failed } = useWorkoutState();
+  const { failed, pending: inFlight } = useWorkoutState();
   const sync = useSyncState();
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -95,7 +95,14 @@ export function SyncPill() {
   // w tle ma być niewidoczny (spec §4: „Zapis w tle — nic").
   //
   // Online i wszystko wysłane => nie pokazujemy NIC. Cisza jest normą.
-  if (sync.pending > 0) {
+  //
+  // `inFlight === 0` jest tu kluczowe. Zapis, który właśnie leci do API, ma
+  // przez chwilę swój wiersz w Dexie oznaczony jako niewysłany — bez tego
+  // warunku pigułka mrugałaby „⟳ 1 w kolejce" przy KAŻDEJ zatwierdzonej serii,
+  // a zapis w tle ma być niewidoczny (spec §4: „Zapis w tle — nic").
+  // Licznik należy się wyłącznie zaległościom, których w tej chwili nikt nie
+  // wypycha: paczce z sesji bez zasięgu albo zapisowi, który się nie udał.
+  if (sync.pending > 0 && inFlight === 0 && sync.status !== "syncing") {
     return (
       <button
         type="button"
