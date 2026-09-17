@@ -17,8 +17,9 @@ Dokumenty obok tego pliku:
 - `next/font/google`: Archivo (zmienny, oś `wdth`) + Public Sans, oba z `latin-ext` (polska diakrytyka)
 - `date-fns` 4 + `@date-fns/tz` — tydzień ISO i strefa `Europe/Warsaw`
 - Dexie 4 (IndexedDB) — lokalna baza i kolejka synchronizacji; PWA przez `app/manifest.ts` + `public/sw.js`
+- Recharts 3 — wykresy (kolory z tokenów CSS, nigdy z literałów w TS)
 - Vitest — testy czystych funkcji w `lib/`
-- Docelowo (kolejne etapy): Recharts, ExcelJS
+- Docelowo (kolejne etapy): ExcelJS
 
 **Pułapki Next 16 / React 19 w tym projekcie:**
 - `eslint-config-next` włącza regułę `react-hooks/set-state-in-effect` — **`useState` + `useEffect` do czytania `localStorage` jest błędem lintu, nie stylem**. Stan zewnętrzny (sesja, ustawienia) czytamy przez `useSyncExternalStore`, a migawka musi być cache'owana w module (zwracanie nowego obiektu przy każdym wywołaniu = pętla renderów).
@@ -168,6 +169,49 @@ Rzeczy specyficzne dla TS, których nie ma w wersji Javy:
     każdym zapisie i SW potrafi podać stary chunk do nowego HTML-a (biała strona „naprawiana"
     czyszczeniem danych witryny). Konsekwencja: e2e sprawdzają offline na poziomie Dexie, nie SW.
 
+## Decyzje architektoniczne (etap 6 — historia i ekran ćwiczenia)
+
+1. **Historia to lista PODSUMOWAŃ, nie sesji.** Objętość oraz liczby serii i ćwiczeń liczy baza
+   w `GROUP BY` (PROMPT §9). Wejście w wiersz otwiera istniejący ekran podsumowania — drugiego
+   ekranu pokazującego to samo nie budujemy, bo byłby drugą rzeczą do utrzymania w zgodzie.
+
+2. **Paginacja doklejana po `id`, nie po indeksie.** Trening zakończony między stronami przesunąłby
+   offset o jeden i zdublował wiersz.
+
+3. **Kolory wykresów wyłącznie jako tokeny CSS** (`var(--series-N)` z `app/globals.css`). Hexy
+   w TS byłyby drugą paletą, rozjeżdżającą się z pierwszą przy pierwszej korekcie — i wykresem
+   w jasnym motywie z kolorami ciemnego.
+
+4. **Paleta NIE zapętla się na 9. serii.** Kolejność slotów to zabezpieczenie dla daltonizmu
+   (DESIGN §3.4), a dziewiąta seria w kolorze pierwszej to dwie serie nie do odróżnienia.
+   `seriesColor()` oddaje wtedy `--ink-3` — czytelny sygnał „tego nie da się już rozróżnić kolorem".
+
+5. **Rozmiar punktu na wykresie ciężaru skaluje POLE koła, nie promień.** Oko czyta powierzchnię;
+   promień liniowy w liczbie powtórzeń kazałby czytać „10 powtórzeń" jako ponad trzykrotnie większy
+   wysiłek niż „3 powtórzenia".
+
+6. **Sesja bez wartości nie daje punktu — nie daje zera.** Trening z samych rozgrzewek ma
+   `heaviestSet: null`, a zero na wykresie ciężaru wyglądałoby jak załamanie formy, którego nie było.
+   Wyjątkiem jest objętość: tam zero JEST prawdziwą wartością.
+
+7. **Oś X jest liczbowa (ms), nie kategorialna.** Oś kategorialna rysuje miesiąc przerwy tak samo
+   jak dzień i kłamie o tempie progresu.
+
+8. **Jeden przełącznik zakresu na cały ekran**, mimo że pigułki — zgodnie z DESIGN §7.6 — siedzą
+   w każdym kaflu. Trzy niezależne zakresy dałyby trzy wykresy różnych okresów obok siebie.
+
+9. **Tabela pod wykresem to tryb dostępny I sposób odczytania liczby bez celowania w punkt**
+   (DESIGN §10). Kafel ma `aria-label` — bez niego jest nienazwanym regionem, a słowo „Ciężar"
+   występuje na ekranie dwa razy (tytuł kafla i kafelek rekordu).
+
+10. **Moment wczytania trzymany razem z danymi**, nie jako `new Date()` w `useMemo`. Inaczej
+    „teraz" jest liczone poza zależnościami hooka i trzy wykresy mogą dostać trzy różne chwile.
+
+Trzy defekty wyszły dopiero z patrzenia na wyrenderowany ekran, nie z lektury kodu: ujemny margines
+lewy ucinał etykiety osi Y (ucięte „108 kg" → „08 kg" nadal czyta się jak dane), słupki wystawały
+poza domenę i siadały na etykietach osi, a skracanie tylko dużych wartości do ton dawało oś,
+na której „1,6 t" sąsiaduje z „800" — dwie jednostki na jednej skali.
+
 ## Struktura
 
 ```
@@ -180,6 +224,7 @@ frontend/
     (app)/
       layout.tsx              # RequireAuth + AppShell
       pulpit|trening|historia|waga|ustawienia/page.tsx
+      cwiczenie/[id]/page.tsx # ekran ćwiczenia (wejście z podsumowania treningu)
   components/
     shell/                    # app-bar, tab-bar, sync-pill, app-shell, require-auth
     ui/                       # button, screen (Screen/SectionLabel/EmptyState/Skeleton), icons
@@ -208,6 +253,8 @@ frontend/
       engine.ts               # zbierz brudne -> POST /api/sync -> zastosuj; stan dla pigułki
       use-sync.ts             # useSyncState() dla UI
     exercise/catalog.ts       # findExercises(): serwer, a bez sieci lokalny katalog
+    exercise/history.ts       # historia ćwiczenia -> punkty wykresów (+ testy)
+    charts.ts                 # zakresy czasu, sloty palety, skala punktu (+ testy)
     api/sync.ts               # POST /api/sync
     workout/
       store.ts                # JEDYNE miejsce zapisu treningu (stan + kolejka + Dexie + migawka)
@@ -223,12 +270,16 @@ frontend/
       recent-exercises.ts     # "ostatnio uzywane" w localStorage
       uuid.ts
   components/workout/         # ekran treningu: karta, wiersze serii, arkusze, timer, podsumowanie
+  components/charts/          # kafel wykresu (zakres + tabela) i wykresy ćwiczenia
+  components/history/         # lista historii treningów
+  components/exercise/        # ekran pojedynczego ćwiczenia: rekordy + 3 wykresy
   app/manifest.ts             # manifest PWA (generowany przez Next, nie plik w public/)
   public/sw.js                # service worker: TYLKO powłoka, zero cache'owania API
   public/icons/               # ikony PWA (generuje design/generate-icons.py)
   types/api.ts                # kontrakt z backendem
   types/sync.ts               # kontrakt paczki POST /api/sync (mirror SyncRecords.java)
   e2e/10-offline-sync.spec.ts # cała sesja offline -> serwer po powrocie sieci
+  e2e/11-history-and-exercise.spec.ts # historia, wejście w sesję i ćwiczenie, zakres i tabela
   design/canvas/              # artboardy płótna projektowego (poza buildem apki)
   design/generate-icons.py    # generator ikon PWA (trzymany razem z wynikiem)
 ```
@@ -285,7 +336,13 @@ Service Workers, potem Network → Offline i twarde przeładowanie.
   się, precache'uje 6 tras powłoki + 13 zasobów, twarde przeładowanie bez sieci renderuje apkę
   z własnymi fontami i React się hydratuje, a żądanie do API nie jest podawane z cache.
   Przy okazji złapane i naprawione trzy realne błędy — patrz commity `fix(frontend)`.
-- [ ] Etap 6 — historia treningów i ekran ćwiczenia z wykresami.
+- [x] **Etap 6 — historia treningów i ekran ćwiczenia z wykresami.** Lista historii z paginacją
+  („Pokaż starsze"), wejście w sesję przez istniejące podsumowanie i dalej w ćwiczenie, ekran
+  `/cwiczenie/[id]` z rekordami i trzema wykresami (ciężar z punktem skalowanym powtórzeniami,
+  e1RM, objętość sesji), przełącznik zakresu 1M/3M/6M/1R/Całość i tabela pod każdym wykresem.
+  Odpalone tutaj: `lint`, `typecheck`, `vitest` (118 testów), `build`, `playwright` (72 testy,
+  oba profile) — zielone; ekrany obejrzane na żywym backendzie przy 390 px na koncie z realną
+  progresją z czterech miesięcy (stąd trzy poprawki osi opisane wyżej).
 - [ ] Etap 7 — moduł wagi ciała.
 - [ ] Etap 8 — dashboard (agregaty liczy backend, nie przeglądarka).
 - [ ] Etap 9 — eksport XLSX (najpierw decyzja: ExcelJS na froncie vs Apache POI w Springu — `PROMPT.md` §7).
