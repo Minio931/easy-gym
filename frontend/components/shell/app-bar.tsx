@@ -16,7 +16,13 @@ export function AppBar({ title, children }: { title: string; children?: ReactNod
   return (
     <header className="app-bar z-20 border-b border-hairline bg-bg">
       <div className="mx-auto flex h-appbar w-full max-w-[560px] items-center gap-2 px-4">
-        <h1 className="screen-title shrink-0 truncate">{title}</h1>
+        {/* `min-w-0 shrink` (nie `shrink-0`), bo inaczej `truncate` nie ma czego
+            skracać: element, który nie może się zwęzić, nigdy nie utnie tekstu.
+            Przy 320 px z pigułką synchronizacji na ekranie pasek wychodził poza
+            szerokość okna i cała strona dostawała poziomy scroll. Tytuł jest tu
+            najbardziej redundantną informacją — dolna belka i tak pokazuje,
+            na którym ekranie jesteśmy — więc to on ustępuje pierwszy. */}
+        <h1 className="screen-title min-w-0 shrink truncate">{title}</h1>
         {children}
         <span className="flex-1" />
         <SyncPill />
