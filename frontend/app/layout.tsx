@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Public_Sans } from "next/font/google";
 import type { ReactNode } from "react";
+import { ServiceWorkerRegistration } from "@/components/shell/service-worker";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import "./globals.css";
 
@@ -27,6 +28,8 @@ export const metadata: Metadata = {
   description: "Trening siłowy i masa ciała — bez ściemy i bez zasięgu.",
   applicationName: "easy-gym",
   appleWebApp: { capable: true, title: "easy-gym", statusBarStyle: "black-translucent" },
+  // iOS nie czyta manifestu PWA -- ikonę ekranu głównego bierze stąd.
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
@@ -57,6 +60,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="antialiased">
+        <ServiceWorkerRegistration />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
