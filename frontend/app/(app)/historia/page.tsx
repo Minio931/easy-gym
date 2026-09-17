@@ -1,10 +1,5 @@
-import { EmptyState, Screen, SectionLabel } from "@/components/ui/screen";
+import { HistoryScreen } from "@/components/history/history-screen";
 
 export default function HistoryPage() {
-  return (
-    <Screen>
-      <SectionLabel>Historia</SectionLabel>
-      <EmptyState message="Brak zapisanych treningów. Lista sesji i ekran pojedynczego ćwiczenia z wykresami dochodzą w etapie 6." />
-    </Screen>
-  );
+  return <HistoryScreen />;
 }

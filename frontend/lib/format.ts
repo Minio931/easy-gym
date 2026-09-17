@@ -62,6 +62,11 @@ export function setsLabel(count: number): string {
   return `${count} ${pluralPl(count, "seria", "serie", "serii")}`;
 }
 
+/** `3 ćwiczenia`, `1 ćwiczenie`, `5 ćwiczeń`. */
+export function exercisesLabel(count: number): string {
+  return `${count} ${pluralPl(count, "ćwiczenie", "ćwiczenia", "ćwiczeń")}`;
+}
+
 /** Data w podsumowaniu: `wtorek, 15.09.2026`. */
 export function formatLongDate(instant: string | Date): string {
   const date = typeof instant === "string" ? new Date(instant) : instant;
