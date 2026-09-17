@@ -11,6 +11,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  AXIS_PROPS,
+  MARGIN,
+  TooltipBox,
+  Y_AXIS_WIDTH,
+  barTimeAxis,
+  formatFullDate,
+  timeAxis,
+  type TooltipPayload,
+} from "@/components/charts/chrome";
 import { pointRadiusForReps, seriesColor } from "@/lib/charts";
 import { repsExtent, type E1rmPoint, type VolumePoint, type WeightPoint } from "@/lib/exercise/history";
 import { formatVolume, formatWeight } from "@/lib/format";
@@ -31,94 +41,13 @@ import { formatVolume, formatWeight } from "@/lib/format";
 
 const SERIES = seriesColor(1);
 
-/** Wspólny chrom osi — kolory z tokenów motywu, nigdy z koloru serii (DESIGN §10). */
-const AXIS_PROPS = {
-  stroke: "var(--chart-axis)",
-  tick: { fill: "var(--chart-axis)", fontSize: 11 },
-  tickLine: false,
-  axisLine: false,
-} as const;
-
-// Bez ujemnego marginesu z lewej. Podciągnięcie wykresu pod oś Y odzyskuje
-// kilkanaście pikseli szerokości, ale ucina etykiety osi — a ucięta liczba na
-// osi to gorzej niż brak liczby: „108 kg" ucięte do „08 kg" czyta się jak dane.
-const MARGIN = { top: 8, right: 8, bottom: 0, left: 0 } as const;
-
-/** Szerokość osi Y dobrana pod najdłuższą etykietę, jaka się tu pojawia. */
-const Y_AXIS_WIDTH = 56;
-
 /**
  * Objętość na osi: kilogramy z separatorem tysięcy, ZAWSZE w tej samej
  * jednostce. Skracanie tylko dużych wartości do ton dawało oś, na której
- * „1,6 t" sąsiaduje z „800" — dwie jednostki na jednej skali, czyli dokładnie
- * to, przed czym ostrzega DESIGN §10 przy dwóch osiach Y, tylko gorzej, bo
- * niewidoczne na pierwszy rzut oka.
+ * „1,6 t" sąsiaduje z „800" — dwie jednostki na jednej skali.
  */
 function formatVolumeTick(value: number): string {
   return value.toLocaleString("pl-PL");
-}
-
-function formatDayMonth(value: number): string {
-  return new Date(value).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" });
-}
-
-function formatFullDate(value: number): string {
-  return new Date(value).toLocaleDateString("pl-PL", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function timeAxis(points: readonly { t: number }[]) {
-  return {
-    dataKey: "t" as const,
-    type: "number" as const,
-    // Jeden punkt dałby zdegenerowaną domenę [x, x] i Recharts narysowałby oś
-    // bez podziałki -- rozsuwamy ją o dobę w każdą stronę.
-    domain:
-      points.length === 1
-        ? [points[0].t - 86_400_000, points[0].t + 86_400_000]
-        : (["dataMin", "dataMax"] as const),
-    tickFormatter: formatDayMonth,
-    minTickGap: 28,
-  };
-}
-
-/**
- * Oś czasu dla słupków. Słupek jest rysowany wokół swojego punktu, więc
- * pierwszy i ostatni wystają poza domenę i wchodzą na etykiety osi Y.
- * Rozsuwamy domenę o pół odstępu między sesjami z każdej strony.
- */
-function barTimeAxis(points: readonly { t: number }[]) {
-  const axis = timeAxis(points);
-  if (points.length < 2) {
-    return axis;
-  }
-  const min = points[0].t;
-  const max = points[points.length - 1].t;
-  const pad = (max - min) / (points.length - 1) / 1.6;
-  return { ...axis, domain: [min - pad, max + pad] };
-}
-
-function TooltipBox({ title, lines }: { title: string; lines: string[] }) {
-  return (
-    <div className="rounded-control border border-hairline bg-surface-2 px-3 py-2 shadow-lg">
-      <p className="meta">{title}</p>
-      {lines.map((line) => (
-        <p key={line} className="text-[13px] font-semibold tabular-nums text-ink">
-          {line}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/** Kształt, w jakim Recharts woła `content` tooltipa. `payload` jest u nich
- *  `readonly` -- bez tego modyfikatora TS odrzuca całą funkcję. */
-interface TooltipPayload<T> {
-  active?: boolean;
-  payload?: readonly { payload?: T }[];
 }
 
 /* ------------------------------------------------------------------ *
