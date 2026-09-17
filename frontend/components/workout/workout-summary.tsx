@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SaveAsRoutine } from "@/components/routines/save-as-routine";
 import { Screen, SectionLabel, Skeleton } from "@/components/ui/screen";
 import { getWorkout } from "@/lib/api/workouts";
 import { isAbortError } from "@/lib/api/errors";
@@ -142,6 +143,8 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
           ))}
         </ul>
       </section>
+
+      <SaveAsRoutine workout={workout} />
 
       <div className="mt-8">
         <CloseButton onClick={() => router.replace(backTo)} />
