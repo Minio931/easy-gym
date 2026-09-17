@@ -7,7 +7,7 @@ import { VolumeLegend, WeeklyVolumeChart } from "@/components/charts/volume-char
 import { WorkoutCalendar } from "@/components/dashboard/workout-calendar";
 import { EmptyState, Screen, SectionLabel, Skeleton, Tile } from "@/components/ui/screen";
 import { getDashboard } from "@/lib/api/dashboard";
-import { isAbortError, messageForUser } from "@/lib/api/errors";
+import { OfflineError, isAbortError, messageForUser } from "@/lib/api/errors";
 import { DEFAULT_CHART_RANGE, filterByRange, type ChartRange } from "@/lib/charts";
 import { buildCalendar } from "@/lib/dashboard/calendar";
 import { DASHBOARD_RANGES, DASHBOARD_WEEKS, dashboardDates } from "@/lib/dashboard/range";
@@ -53,7 +53,15 @@ export function DashboardScreen() {
         if (isAbortError(cause)) {
           return;
         }
-        setError(messageForUser(cause));
+        // Ogólny komunikat offline („dane zostaną wysłane") jest tu nieprawdą:
+        // pulpit nic nie wysyła, tylko nie ma z czego się złożyć. Agregaty
+        // liczy baza (PROMPT §9), więc bez sieci pulpit zostaje pusty —
+        // w odróżnieniu od treningu, historii i wagi, które chodzą z Dexie.
+        setError(
+          cause instanceof OfflineError
+            ? "Pulpit liczy serwer, więc bez zasięgu nie ma z czego go złożyć. Trening, historia i waga działają dalej."
+            : messageForUser(cause),
+        );
         setLoading(false);
       });
     return () => {
