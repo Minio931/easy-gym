@@ -9,4 +9,6 @@ Kontrakt między nimi: **[`backend/API.md`](backend/API.md)** — wszystkie endp
 
 Uruchamianie (Docker: cały stos jedną komendą; albo lokalnie backend + front osobno), zmienne środowiskowe, testy i deploy: **[`README.md`](README.md)**. Pliki obsługujące stos: `docker-compose.yml` (Postgres + API + PWA), `docker-compose.prod.yml` (API + PWA, baza zewnętrzna), `backend/Dockerfile`, `frontend/Dockerfile`, `.env.example`.
 
+**Backend ustala kontrakt, nie odwrotnie.** Frontend startuje dopiero jak backend ma gotowe API — nie czekaj z decyzjami projektowymi backendu na to, "czego front będzie potrzebował". Projektuj kształt endpointów/DTO na podstawie promptu projektowego i zdrowego rozsądku, buduj, dokumentuj w `backend/CLAUDE.md`. Front dostosuje się do tego, co tu powstanie.
+
 Pełny prompt projektowy (stack, model danych, etapy) został dostarczony przez użytkownika na starcie projektu i jest realizowany etapami — nie w jednej odpowiedzi. Aktualny postęp etapów backendowych: patrz `backend/CLAUDE.md` → sekcja "Postęp etapów".
