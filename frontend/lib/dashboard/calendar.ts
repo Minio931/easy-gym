@@ -10,8 +10,6 @@ import type { WorkoutDayResponse } from "@/types/api";
  * w którym błędy są niewidoczne aż do przełomu roku.
  */
 
-const DAY_MS = 86_400_000;
-
 export interface CalendarCell {
   /** `YYYY-MM-DD`. Komórki dopełniające tydzień też mają datę — o tym, że są
    *  poza zakresem, mówi `outside`, nie brak daty. */
@@ -60,20 +58,26 @@ export function buildCalendar(
 ): CalendarGrid {
   const counts = new Map(days.map((day) => [day.date, day.workoutCount]));
   const start = mondayOf(parseDay(fromIso));
-  const end = parseDay(toIso);
 
   const weeks: CalendarCell[][] = [];
   const monthLabels: { weekIndex: number; label: string }[] = [];
   let maxCount = 0;
   let lastMonth = -1;
 
-  for (let cursor = new Date(start); cursor <= end; ) {
+  // Kursor chodzi po DNIACH kalendarza (`setDate`), a przynależność do zakresu
+  // rozstrzyga porównanie dat jako tekstu — nigdy arytmetyka na milisekundach.
+  // Dodawanie sztywnych 24 h gubi godzinę na zmianie czasu (29 marca), przez co
+  // kursor przesuwał się z południa na 13:00 i OSTATNI dzień zakresu wypadał
+  // „poza nim”: w kalendarzu obejmującym marzec i wrzesień znikał dzisiejszy
+  // dzień razem z treningami, które się na nim odbyły.
+  const cursor = new Date(start);
+  while (toIsoDate(cursor) <= toIso) {
     const cells: CalendarCell[] = [];
     const weekIndex = weeks.length;
 
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
       const iso = toIsoDate(cursor);
-      const outside = cursor > end || iso < fromIso;
+      const outside = iso < fromIso || iso > toIso;
       const count = outside ? 0 : (counts.get(iso) ?? 0);
       maxCount = Math.max(maxCount, count);
       cells.push({ date: iso, workoutCount: count, outside });
@@ -85,7 +89,7 @@ export function buildCalendar(
           label: cursor.toLocaleDateString("pl-PL", { month: "short" }),
         });
       }
-      cursor = new Date(cursor.getTime() + DAY_MS);
+      cursor.setDate(cursor.getDate() + 1);
     }
     weeks.push(cells);
   }
