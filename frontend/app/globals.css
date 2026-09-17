@@ -1,0 +1,338 @@
+/* easy-gym — tokeny systemu projektowego (Tailwind v4, konfiguracja w CSS).
+ * JEDYNE źródło prawdy o kolorach/typografii w kodzie. Specyfikacja: ../DESIGN.md
+ *
+ * Motyw ciemny jest DOMYŚLNY -- komplet tokenów siedzi w :root. Wariant jasny
+ * nadpisuje je w @media (prefers-color-scheme: light) oraz w [data-theme="light"],
+ * żeby ręczny przełącznik wygrywał w obie strony. Żaden kolor nie ma swojej
+ * jedynej definicji wewnątrz bloku motywu.
+ */
+
+@import "tailwindcss";
+
+
+/* ---------------------------------------------------------------- *
+ * 1. Wartości surowe -- motyw ciemny (domyślny)
+ * ---------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* Powierzchnie i atrament */
+  --bg: #0E0F11;
+  --surface: #16181B;
+  --surface-2: #1F2227;
+  --surface-3: #2A2E34;
+  --hairline: rgba(255, 255, 255, 0.09);
+  --ink: #F3F2EE;
+  --ink-2: #B9BCC0;
+  --ink-3: #80858C;
+
+  /* Akcje i stan */
+  --cta: #F3F2EE;
+  --cta-ink: #0E0F11;
+  --accent: #46D5E0;
+  --accent-ink: #06191C;
+  --pr: #F0B429;
+  --pr-wash: rgba(240, 180, 41, 0.12);
+
+  /* Status -- stały, nigdy nie tematyzowany, nigdy jako kolor serii */
+  --good: #0CA30C;
+  --warning: #FAB219;
+  --serious: #EC835A;
+  --critical: #D03B3B;
+
+  /* Serie wykresów -- kolejność slotów jest mechanizmem bezpieczeństwa CVD.
+   * Nie przestawiać, nie zapętlać na 9. serii (patrz DESIGN.md §3.4). */
+  --series-1: #3987E5;
+  --series-2: #D95926;
+  --series-3: #199E70;
+  --series-4: #C98500;
+  --series-5: #D55181;
+  --series-6: #008300;
+  --series-7: #9085E9;
+  --series-8: #E66767;
+
+  /* Chrom wykresu */
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-axis: #80858C;
+
+  /* Talerze IWF -- wyłącznie kalkulator obciążenia */
+  --plate-25: #D42B24;
+  --plate-20: #1C68B3;
+  --plate-15: #E8B517;
+  --plate-10: #2C8C3E;
+  --plate-5: #E9E7E1;
+  --plate-2_5: #D42B24;
+  --plate-1_25: #9AA0A6;
+}
+
+/* ---------------------------------------------------------------- *
+ * 2. Wariant jasny -- kroki dobrane osobno, nie odwrócenie ciemnych
+ * ---------------------------------------------------------------- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --surface-2: #F1F1EE;
+    --surface-3: #E4E4E0;
+    --hairline: rgba(16, 17, 20, 0.10);
+    --ink: #101114;
+    --ink-2: #4A4E55;
+    --ink-3: #767B83;
+    --cta: #101114;
+    --cta-ink: #FAFAF8;
+    --accent: #0E8697;
+    --accent-ink: #FFFFFF;
+    --pr: #B07607;
+    --pr-wash: rgba(176, 118, 7, 0.10);
+    --series-1: #2A78D6;
+    --series-2: #EB6834;
+    --series-3: #1BAF7A;
+    --series-4: #EDA100;
+    --series-5: #E87BA4;
+    --series-6: #008300;
+    --series-7: #4A3AA7;
+    --series-8: #E34948;
+    --chart-grid: rgba(16, 17, 20, 0.08);
+    --chart-axis: #767B83;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAFAF8;
+  --surface: #FFFFFF;
+  --surface-2: #F1F1EE;
+  --surface-3: #E4E4E0;
+  --hairline: rgba(16, 17, 20, 0.10);
+  --ink: #101114;
+  --ink-2: #4A4E55;
+  --ink-3: #767B83;
+  --cta: #101114;
+  --cta-ink: #FAFAF8;
+  --accent: #0E8697;
+  --accent-ink: #FFFFFF;
+  --pr: #B07607;
+  --pr-wash: rgba(176, 118, 7, 0.10);
+  --series-1: #2A78D6;
+  --series-2: #EB6834;
+  --series-3: #1BAF7A;
+  --series-4: #EDA100;
+  --series-5: #E87BA4;
+  --series-6: #008300;
+  --series-7: #4A3AA7;
+  --series-8: #E34948;
+  --chart-grid: rgba(16, 17, 20, 0.08);
+  --chart-axis: #767B83;
+}
+
+/* ---------------------------------------------------------------- *
+ * 3. Most do Tailwinda (@theme inline -- utilities wskazują na var(),
+ *    dzięki czemu przełączenie motywu działa bez rekompilacji klas)
+ * ---------------------------------------------------------------- */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hairline: var(--hairline);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-cta: var(--cta);
+  --color-cta-ink: var(--cta-ink);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-pr: var(--pr);
+  --color-pr-wash: var(--pr-wash);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+
+  /* --font-archivo / --font-public-sans wstrzykuje next/font w app/layout.tsx
+   * (self-hosting, zero requestu do Google przy starcie). Fallback zostaje,
+   * żeby apka wyglądała sensownie zanim font się podepnie. */
+  --font-display: var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-public-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+
+  /* Wysokości celów dotykowych -- h-touch / h-control zamiast magicznych liczb */
+  --spacing-touch: 44px;
+  --spacing-control: 48px;
+  --spacing-appbar: 56px;
+  --spacing-tabbar: 64px;
+}
+
+/* ---------------------------------------------------------------- *
+ * 4. Baza
+ * ---------------------------------------------------------------- */
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+    /* Ekran treningu nigdy nie przewija się w poziomie ani nie gumuje w pionie. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Focus widoczny zawsze -- apka bywa obsługiwana z klawiatury przy
+   * wpisywaniu zaległych treningów na desktopie. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* 16px na inputach to twarde minimum: mniejszy stopień włącza na iOS
+   * auto-zoom przy focusie, co w trakcie serii jest katastrofą. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- *
+ * 5. Typografia numeryczna -- sygnatura apki.
+ *    Archivo zwężone + tabular-nums, ustawiane raz, nie w każdym komponencie.
+ * ---------------------------------------------------------------- */
+@layer components {
+  .num {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-variation-settings: "wdth" 90;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .num-hero {
+    font-size: 40px;
+    line-height: 40px;
+    font-weight: 700;
+    font-variation-settings: "wdth" 88;
+  }
+
+  .num-lg {
+    font-size: 30px;
+    line-height: 32px;
+    font-weight: 700;
+    font-variation-settings: "wdth" 88;
+  }
+
+  .num-md {
+    font-size: 22px;
+    line-height: 24px;
+  }
+
+  .screen-title {
+    font-family: var(--font-display);
+    font-variation-settings: "wdth" 95;
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 650;
+  }
+
+  .label-caps {
+    font-size: 13px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .meta {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--ink-3);
+  }
+
+  /* Bezpieczne strefy -- pasek górny i dolna nawigacja (DESIGN.md §5) */
+  .app-bar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    height: var(--spacing-appbar);
+  }
+
+  .tab-bar {
+    position: fixed;
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(var(--spacing-tabbar) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ---------------------------------------------------------------- *
+ * 6. Ruch i drobiazgi ekranu treningu
+ *    (200 ms na wjazdy paneli, transform/opacity -- DESIGN.md §8;
+ *    prefers-reduced-motion wyłącza je globalną regułą w @layer base)
+ * ---------------------------------------------------------------- */
+@layer components {
+  @keyframes slide-up-in {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .slide-up-in {
+    animation: slide-up-in 200ms ease-out;
+  }
+
+  /* Rzędy pigułek (RPE, znaczniki serii) przewijają się SAME, bez wypychania
+   * layoutu -- ekran nie może przewijać się w poziomie przy 320 px. */
+  .chip-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chip-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Liczba w aktywnym wierszu serii. Jednostka cqi zamiast media query, bo
+   * decyduje szerokość TACY, nie okna.
+   *
+   * Prosta, nie samo `Ncqi`, bo koszty stałe w tacy -- „kg", „×", „powt.",
+   * odstępy, padding -- nie skalują się razem z liczbą. Kalibracja pod
+   * NAJDŁUŻSZĄ realną wartość („102.5" × „12"): 32 px przy 390 px ekranu,
+   * 19 px przy 320 px, pełne 40 px (num-hero) dopiero tam, gdzie taca ma na to
+   * miejsce (≥ 430 px i desktop).
+   *
+   * Dlaczego nie 40 px na sztywno, jak w artboardzie: przy 390 px „102.5"
+   * z jednostkami nie mieści się w tacy, a input wyrównany do prawej pokazałby
+   * wtedy „02.5" -- czyli zły ciężar, nie ucięty tekst.
+   *
+   * Dolna granica 17 px nigdy nie schodzi poniżej 16 px, czyli progu
+   * auto-zoomu na iOS. */
+  .num-input {
+    font-size: clamp(17px, calc(21cqi - 12px), 40px);
+    line-height: 1.1;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    text-align: right;
+  }
+}
