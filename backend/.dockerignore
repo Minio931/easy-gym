@@ -1,6 +1,9 @@
-.gradle/
 build/
+.gradle/
 .idea/
 *.iml
+bin/
 out/
-.git/
+docker-compose*.yml
+CLAUDE.md
+API.md

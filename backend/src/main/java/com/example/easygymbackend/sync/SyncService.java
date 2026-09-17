@@ -1,395 +1,602 @@
 package com.example.easygymbackend.sync;
 
-import com.example.easygymbackend.auth.CurrentUser;
 import com.example.easygymbackend.bodyweight.BodyWeight;
 import com.example.easygymbackend.bodyweight.BodyWeightRepository;
-import com.example.easygymbackend.sync.dto.BodyWeightSyncRecord;
-import com.example.easygymbackend.sync.dto.ExerciseSyncRecord;
-import com.example.easygymbackend.sync.dto.SetSyncRecord;
-import com.example.easygymbackend.sync.dto.SyncBatch;
-import com.example.easygymbackend.sync.dto.SyncPullResponse;
-import com.example.easygymbackend.sync.dto.SyncPushRequest;
-import com.example.easygymbackend.sync.dto.WorkoutExerciseSyncRecord;
-import com.example.easygymbackend.sync.dto.WorkoutSyncRecord;
-import com.example.easygymbackend.workout.Equipment;
-import com.example.easygymbackend.workout.Exercise;
-import com.example.easygymbackend.workout.ExerciseRepository;
+import com.example.easygymbackend.exercise.Equipment;
+import com.example.easygymbackend.exercise.Exercise;
+import com.example.easygymbackend.exercise.ExerciseRepository;
+import com.example.easygymbackend.routine.Routine;
+import com.example.easygymbackend.routine.RoutineItem;
+import com.example.easygymbackend.routine.RoutineItemRepository;
+import com.example.easygymbackend.routine.RoutineRepository;
+import com.example.easygymbackend.sync.dto.SyncPayload;
+import com.example.easygymbackend.sync.dto.SyncRecords;
+import com.example.easygymbackend.sync.dto.SyncRequest;
+import com.example.easygymbackend.sync.dto.SyncResponse;
 import com.example.easygymbackend.workout.Workout;
 import com.example.easygymbackend.workout.WorkoutExercise;
 import com.example.easygymbackend.workout.WorkoutExerciseRepository;
 import com.example.easygymbackend.workout.WorkoutRepository;
 import com.example.easygymbackend.workout.WorkoutSet;
 import com.example.easygymbackend.workout.WorkoutSetRepository;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * Endpoint synchronizacji dla kolejki Dexie (sekcja 1 pkt 4 promptu) --
- * projektowany od razu jako część API, tak jak ustalono w decyzji 4.
+ * Dwukierunkowa synchronizacja kolejki offline (Dexie) -- etap 5.
  *
- * Upsert po SQL wprost (NamedParameterJdbcTemplate), NIE przez encje JPA --
- * @CreationTimestamp/@UpdateTimestamp na encjach z pakietu workout zawsze
- * nadpisałyby updatedAt własnym zegarem serwera, a tu MUSI wygrać wartość od
- * klienta (LWW). To świadomy wyjątek od "encje JPA wszędzie", nie niedopatrzenie.
- *
- * Walidacja własności: cały batch pada (400), jeśli którykolwiek rekord
- * (bezpośrednio przez id, albo przez referencję workoutId/exerciseId/
- * workoutExerciseId) dotyka danych innego usera -- decyzja użytkownika,
- * nie cichy skip. @Transactional gwarantuje że nic się nie zapisze, jeśli
- * walidacja padnie w trakcie.
+ * Reguły, których nie widać z samego kształtu DTO:
+ *  * Rozstrzyganie konfliktu: last-write-wins po `updated_at`, ściśle `>`.
+ *    Remis = wygrywa serwer (klient i tak dostanie jego wersję w `changes`),
+ *    bo dwa różne urządzenia z tym samym znacznikiem czasu to prawie zawsze
+ *    ten sam zapis odbity echem, nie realna edycja.
+ *  * Kolejność stosowania jest wymuszona kluczami obcymi: ćwiczenia ->
+ *    szablony -> pozycje szablonów -> treningi -> ćwiczenia treningu -> serie.
+ *    Każdy etap kończy się flushem, żeby następny widział rodziców.
+ *  * Właściciel ZAWSZE z JWT. Rekord z cudzym user_id jest odrzucany, nie
+ *    "przejmowany" -- to jest ta druga linia obrony zamiast RLS w Postgresie
+ *    (decyzja 2 w CLAUDE.md).
+ *  * Błędny pojedynczy rekord nie wywraca całej paczki: wraca w `rejected`
+ *    z powodem, reszta się zapisuje. Inaczej jedna zepsuta seria blokowałaby
+ *    synchronizację telefonu w nieskończoność.
  */
 @Service
 public class SyncService {
 
-    private final NamedParameterJdbcTemplate jdbc;
     private final ExerciseRepository exerciseRepository;
+    private final RoutineRepository routineRepository;
+    private final RoutineItemRepository routineItemRepository;
     private final WorkoutRepository workoutRepository;
     private final WorkoutExerciseRepository workoutExerciseRepository;
-    private final WorkoutSetRepository workoutSetRepository;
+    private final WorkoutSetRepository setRepository;
     private final BodyWeightRepository bodyWeightRepository;
+    private final Clock clock;
 
     public SyncService(
-            NamedParameterJdbcTemplate jdbc,
             ExerciseRepository exerciseRepository,
+            RoutineRepository routineRepository,
+            RoutineItemRepository routineItemRepository,
             WorkoutRepository workoutRepository,
             WorkoutExerciseRepository workoutExerciseRepository,
-            WorkoutSetRepository workoutSetRepository,
-            BodyWeightRepository bodyWeightRepository
+            WorkoutSetRepository setRepository,
+            BodyWeightRepository bodyWeightRepository,
+            Clock clock
     ) {
-        this.jdbc = jdbc;
         this.exerciseRepository = exerciseRepository;
+        this.routineRepository = routineRepository;
+        this.routineItemRepository = routineItemRepository;
         this.workoutRepository = workoutRepository;
         this.workoutExerciseRepository = workoutExerciseRepository;
-        this.workoutSetRepository = workoutSetRepository;
+        this.setRepository = setRepository;
         this.bodyWeightRepository = bodyWeightRepository;
+        this.clock = clock;
     }
 
     @Transactional
-    public SyncPullResponse push(SyncPushRequest request) {
-        UUID userId = CurrentUser.id();
-        Instant startedAt = Instant.now();
+    public SyncResponse sync(UUID userId, SyncRequest request) {
+        SyncContext context = new SyncContext(userId, clock.instant());
+        SyncPayload push = request.changesOrEmpty();
 
-        List<ExerciseSyncRecord> exercises = nullToEmpty(request.changes() == null ? null : request.changes().exercises());
-        List<WorkoutSyncRecord> workouts = nullToEmpty(request.changes() == null ? null : request.changes().workouts());
-        List<WorkoutExerciseSyncRecord> workoutExercises =
-                nullToEmpty(request.changes() == null ? null : request.changes().workoutExercises());
-        List<SetSyncRecord> sets = nullToEmpty(request.changes() == null ? null : request.changes().sets());
-        List<BodyWeightSyncRecord> bodyWeights =
-                nullToEmpty(request.changes() == null ? null : request.changes().bodyWeights());
+        applyExercises(context, push.exercisesOrEmpty());
+        applyRoutines(context, push.routinesOrEmpty());
+        applyRoutineItems(context, push.routineItemsOrEmpty());
+        applyWorkouts(context, push.workoutsOrEmpty());
+        applyWorkoutExercises(context, push.workoutExercisesOrEmpty());
+        applySets(context, push.setsOrEmpty());
+        applyBodyWeights(context, push.bodyWeightsOrEmpty());
 
-        validateOwnership(userId, exercises, workouts, workoutExercises, sets, bodyWeights);
-
-        for (ExerciseSyncRecord record : exercises) {
-            upsertExercise(userId, record);
-        }
-        for (WorkoutSyncRecord record : workouts) {
-            upsertWorkout(userId, record);
-        }
-        for (WorkoutExerciseSyncRecord record : workoutExercises) {
-            upsertWorkoutExercise(record);
-        }
-        for (SetSyncRecord record : sets) {
-            upsertSet(record);
-        }
-        for (BodyWeightSyncRecord record : bodyWeights) {
-            upsertBodyWeight(userId, record);
-        }
-
-        return pull(userId, request.since());
+        Instant since = request.since() != null ? request.since() : Instant.EPOCH;
+        return new SyncResponse(
+                context.now(),
+                context.appliedCounts(),
+                context.rejections(),
+                pull(context, since));
     }
 
-    // @Transactional(readOnly=true), nie tylko @Transactional na push() --
-    // toRecord(WorkoutExercise)/toRecord(WorkoutSet) nawigują po leniwych
-    // relacjach (workout/exercise), a open-in-view=false zamyka sesję zaraz
-    // po zapytaniu bez otwartej transakcji (patrz identyczny bug w WorkoutService).
-    @Transactional(readOnly = true)
-    public SyncPullResponse pull(UUID userId, Instant since) {
-        Instant syncedAt = Instant.now();
-        // Postgres (extended query protocol) nie potrafi wywnioskować typu dla
-        // gołego "? IS NULL" bez kontekstu kolumny -- stąd JPQL bez gałęzi
-        // "since IS NULL", a null "since" (pierwsza synchronizacja) reprezentowany
-        // jako Instant.EPOCH (i tak starszy niż cokolwiek w bazie).
-        Instant effectiveSince = since == null ? Instant.EPOCH : since;
+    /* ---------------------------------------------------------------- *
+     * PUSH
+     * ---------------------------------------------------------------- */
 
-        SyncBatch batch = new SyncBatch(
-                exerciseRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
-                workoutRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
-                workoutExerciseRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
-                workoutSetRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList(),
-                bodyWeightRepository.findChangedSince(userId, effectiveSince).stream().map(SyncService::toRecord).toList()
-        );
-
-        return new SyncPullResponse(syncedAt, batch);
-    }
-
-    // --- Walidacja własności -----------------------------------------------
-
-    private void validateOwnership(
-            UUID userId,
-            List<ExerciseSyncRecord> exercises,
-            List<WorkoutSyncRecord> workouts,
-            List<WorkoutExerciseSyncRecord> workoutExercises,
-            List<SetSyncRecord> sets,
-            List<BodyWeightSyncRecord> bodyWeights
-    ) {
-        Set<UUID> batchExerciseIds = exercises.stream().map(ExerciseSyncRecord::id).collect(java.util.stream.Collectors.toSet());
-        Set<UUID> batchWorkoutIds = workouts.stream().map(WorkoutSyncRecord::id).collect(java.util.stream.Collectors.toSet());
-        Set<UUID> batchWorkoutExerciseIds =
-                workoutExercises.stream().map(WorkoutExerciseSyncRecord::id).collect(java.util.stream.Collectors.toSet());
-
-        rejectIfExistingRowsOwnedByOther("exercises", batchExerciseIds, userId,
-                "SELECT id FROM exercises WHERE id IN (:ids) AND (user_id IS NULL OR user_id <> :userId)");
-        rejectIfExistingRowsOwnedByOther("workouts", batchWorkoutIds, userId,
-                "SELECT id FROM workouts WHERE id IN (:ids) AND user_id <> :userId");
-        rejectIfExistingRowsOwnedByOther("workout_exercises", batchWorkoutExerciseIds, userId,
-                """
-                SELECT we.id FROM workout_exercises we JOIN workouts w ON w.id = we.workout_id
-                WHERE we.id IN (:ids) AND w.user_id <> :userId
-                """);
-        rejectIfExistingRowsOwnedByOther("sets",
-                sets.stream().map(SetSyncRecord::id).collect(java.util.stream.Collectors.toSet()), userId,
-                """
-                SELECT s.id FROM sets s
-                JOIN workout_exercises we ON we.id = s.workout_exercise_id
-                JOIN workouts w ON w.id = we.workout_id
-                WHERE s.id IN (:ids) AND w.user_id <> :userId
-                """);
-        rejectIfExistingRowsOwnedByOther("body_weights",
-                bodyWeights.stream().map(BodyWeightSyncRecord::id).collect(java.util.stream.Collectors.toSet()), userId,
-                "SELECT id FROM body_weights WHERE id IN (:ids) AND user_id <> :userId");
-
-        // Referencje "w dół" dla NOWYCH rekordów muszą wskazywać na coś widocznego
-        // dla usera -- albo już w bazie na jego koncie, albo w TYM SAMYM batchu
-        // (typowy przypadek: cała sesja treningowa zsynchronizowana za jednym razem).
-        Set<UUID> referencedWorkoutIds = workoutExercises.stream()
-                .map(WorkoutExerciseSyncRecord::workoutId).collect(java.util.stream.Collectors.toSet());
-        rejectIfReferencesInvalid("workout_exercises.workoutId", referencedWorkoutIds, batchWorkoutIds, userId,
-                "SELECT id FROM workouts WHERE id IN (:ids) AND user_id = :userId");
-
-        Set<UUID> referencedExerciseIds = workoutExercises.stream()
-                .map(WorkoutExerciseSyncRecord::exerciseId).collect(java.util.stream.Collectors.toSet());
-        rejectIfReferencesInvalid("workout_exercises.exerciseId", referencedExerciseIds, batchExerciseIds, userId,
-                "SELECT id FROM exercises WHERE id IN (:ids) AND (user_id IS NULL OR user_id = :userId)");
-
-        Set<UUID> referencedWorkoutExerciseIds = sets.stream()
-                .map(SetSyncRecord::workoutExerciseId).collect(java.util.stream.Collectors.toSet());
-        rejectIfReferencesInvalid("sets.workoutExerciseId", referencedWorkoutExerciseIds, batchWorkoutExerciseIds, userId,
-                """
-                SELECT we.id FROM workout_exercises we JOIN workouts w ON w.id = we.workout_id
-                WHERE we.id IN (:ids) AND w.user_id = :userId
-                """);
-    }
-
-    private void rejectIfExistingRowsOwnedByOther(String label, Set<UUID> ids, UUID userId, String sql) {
-        if (ids.isEmpty()) {
+    private void applyExercises(SyncContext context, List<SyncRecords.ExerciseSync> incoming) {
+        if (incoming.isEmpty()) {
             return;
         }
-        MapSqlParameterSource params = new MapSqlParameterSource().addValue("ids", ids).addValue("userId", userId);
-        List<UUID> violating = jdbc.queryForList(sql, params, UUID.class);
-        if (!violating.isEmpty()) {
-            throw new SyncOwnershipViolationException(
-                    "Batch odrzucony: " + label + " zawiera id należące do innego konta");
+        Map<UUID, Exercise> existing = byId(exerciseRepository.findAllById(ids(incoming, SyncRecords.ExerciseSync::id)),
+                Exercise::getId);
+        List<Exercise> toSave = new ArrayList<>();
+
+        for (SyncRecords.ExerciseSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            Exercise entity = existing.get(record.id());
+            if (entity != null) {
+                if (entity.isGlobal()) {
+                    context.reject(SyncContext.EXERCISES, record.id(),
+                            "ćwiczenie z katalogu globalnego jest tylko do odczytu");
+                    continue;
+                }
+                if (!entity.getUserId().equals(context.userId())) {
+                    context.reject(SyncContext.EXERCISES, record.id(), SyncContext.REASON_FOREIGN);
+                    continue;
+                }
+                if (!updatedAt.isAfter(entity.getUpdatedAt())) {
+                    context.reject(SyncContext.EXERCISES, record.id(), SyncContext.REASON_STALE);
+                    continue;
+                }
+            } else {
+                if (isBlank(record.name()) || isBlank(record.muscleGroup())
+                        || !Equipment.ALLOWED.contains(record.equipment())) {
+                    context.reject(SyncContext.EXERCISES, record.id(),
+                            "nowe ćwiczenie wymaga name, muscleGroup i poprawnego equipment");
+                    continue;
+                }
+                entity = new Exercise();
+                entity.setId(record.id());
+                entity.setUserId(context.userId());
+                entity.setCreatedAt(record.createdAt() != null ? record.createdAt() : updatedAt);
+            }
+
+            if (!isBlank(record.name())) {
+                entity.setName(record.name().trim());
+            }
+            if (!isBlank(record.muscleGroup())) {
+                entity.setMuscleGroup(record.muscleGroup().trim());
+            }
+            if (record.equipment() != null) {
+                if (!Equipment.ALLOWED.contains(record.equipment())) {
+                    context.reject(SyncContext.EXERCISES, record.id(),
+                            "nieznany typ sprzętu: " + record.equipment());
+                    continue;
+                }
+                entity.setEquipment(record.equipment());
+            }
+            if (record.isArchived() != null) {
+                entity.setArchived(record.isArchived());
+            }
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            toSave.add(entity);
+            context.applied(SyncContext.EXERCISES);
         }
+        exerciseRepository.saveAllAndFlush(toSave);
     }
 
-    private void rejectIfReferencesInvalid(
-            String label, Set<UUID> referencedIds, Set<UUID> validInBatch, UUID userId, String sql) {
-        Set<UUID> needsDbCheck = new HashSet<>(referencedIds);
-        needsDbCheck.removeAll(validInBatch);
-        if (needsDbCheck.isEmpty()) {
+    private void applyRoutines(SyncContext context, List<SyncRecords.RoutineSync> incoming) {
+        if (incoming.isEmpty()) {
             return;
         }
-        MapSqlParameterSource params = new MapSqlParameterSource().addValue("ids", needsDbCheck).addValue("userId", userId);
-        List<UUID> ownedInDb = jdbc.queryForList(sql, params, UUID.class);
-        if (ownedInDb.size() < needsDbCheck.size()) {
-            throw new SyncOwnershipViolationException(
-                    "Batch odrzucony: " + label + " odwołuje się do rekordu spoza konta lub nieistniejącego");
+        Map<UUID, Routine> existing = byId(routineRepository.findAllById(ids(incoming, SyncRecords.RoutineSync::id)),
+                Routine::getId);
+        List<Routine> toSave = new ArrayList<>();
+
+        for (SyncRecords.RoutineSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            Routine entity = existing.get(record.id());
+            if (entity != null) {
+                if (!entity.getUserId().equals(context.userId())) {
+                    context.reject(SyncContext.ROUTINES, record.id(), SyncContext.REASON_FOREIGN);
+                    continue;
+                }
+                if (!updatedAt.isAfter(entity.getUpdatedAt())) {
+                    context.reject(SyncContext.ROUTINES, record.id(), SyncContext.REASON_STALE);
+                    continue;
+                }
+            } else {
+                if (isBlank(record.name())) {
+                    context.reject(SyncContext.ROUTINES, record.id(), "nowy szablon wymaga name");
+                    continue;
+                }
+                entity = new Routine();
+                entity.setId(record.id());
+                entity.setUserId(context.userId());
+                entity.setCreatedAt(record.createdAt() != null ? record.createdAt() : updatedAt);
+            }
+
+            if (!isBlank(record.name())) {
+                entity.setName(record.name().trim());
+            }
+            entity.setNotes(record.notes());
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            toSave.add(entity);
+            context.applied(SyncContext.ROUTINES);
         }
+        routineRepository.saveAllAndFlush(toSave);
     }
 
-    // --- Upsert z LWW (INSERT ... ON CONFLICT ... WHERE updated_at < EXCLUDED.updated_at) -----
+    private void applyRoutineItems(SyncContext context, List<SyncRecords.RoutineItemSync> incoming) {
+        if (incoming.isEmpty()) {
+            return;
+        }
+        Map<UUID, RoutineItem> existing = byId(
+                routineItemRepository.findAllById(ids(incoming, SyncRecords.RoutineItemSync::id)),
+                RoutineItem::getId);
 
-    private void upsertExercise(UUID userId, ExerciseSyncRecord r) {
-        jdbc.update("""
-                INSERT INTO exercises (id, user_id, name, muscle_group, equipment, is_archived, created_at, updated_at, deleted_at)
-                VALUES (:id, :userId, :name, :muscleGroup, :equipment, :archived, now(), :updatedAt, :deletedAt)
-                ON CONFLICT (id) DO UPDATE SET
-                    name = EXCLUDED.name,
-                    muscle_group = EXCLUDED.muscle_group,
-                    equipment = EXCLUDED.equipment,
-                    is_archived = EXCLUDED.is_archived,
-                    updated_at = EXCLUDED.updated_at,
-                    deleted_at = EXCLUDED.deleted_at
-                WHERE exercises.updated_at < EXCLUDED.updated_at
-                """, new MapSqlParameterSource()
-                .addValue("id", r.id())
-                .addValue("userId", userId)
-                .addValue("name", r.name())
-                .addValue("muscleGroup", r.muscleGroup())
-                .addValue("equipment", r.equipment().toDbValue())
-                .addValue("archived", r.archived())
-                .addValue("updatedAt", toTimestamp(r.updatedAt()))
-                .addValue("deletedAt", toTimestamp(r.deletedAt())));
+        Set<UUID> routineIds = new HashSet<>(ids(incoming, SyncRecords.RoutineItemSync::routineId));
+        existing.values().forEach(item -> routineIds.add(item.getRoutineId()));
+        Set<UUID> ownedRoutines = new HashSet<>(routineRepository.findOwnedIds(context.userId(), routineIds));
+        Set<UUID> visibleExercises = new HashSet<>(exerciseRepository.findVisibleIds(
+                context.userId(), ids(incoming, SyncRecords.RoutineItemSync::exerciseId)));
+
+        List<RoutineItem> toSave = new ArrayList<>();
+        for (SyncRecords.RoutineItemSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            RoutineItem entity = existing.get(record.id());
+            if (entity != null && !ownedRoutines.contains(entity.getRoutineId())) {
+                context.reject(SyncContext.ROUTINE_ITEMS, record.id(), SyncContext.REASON_FOREIGN);
+                continue;
+            }
+            if (!ownedRoutines.contains(record.routineId())) {
+                context.reject(SyncContext.ROUTINE_ITEMS, record.id(),
+                        "szablon nie istnieje albo należy do innego konta: " + record.routineId());
+                continue;
+            }
+            if (!visibleExercises.contains(record.exerciseId())) {
+                context.reject(SyncContext.ROUTINE_ITEMS, record.id(),
+                        "ćwiczenie niedostępne dla tego konta: " + record.exerciseId());
+                continue;
+            }
+            if (entity != null && !updatedAt.isAfter(entity.getUpdatedAt())) {
+                context.reject(SyncContext.ROUTINE_ITEMS, record.id(), SyncContext.REASON_STALE);
+                continue;
+            }
+            if (entity == null) {
+                entity = new RoutineItem();
+                entity.setId(record.id());
+                entity.setCreatedAt(record.createdAt() != null ? record.createdAt() : updatedAt);
+            }
+
+            entity.setRoutineId(record.routineId());
+            entity.setExerciseId(record.exerciseId());
+            entity.setOrderIndex(record.orderIndex());
+            entity.setTargetSets(record.targetSets());
+            entity.setTargetReps(record.targetReps());
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            toSave.add(entity);
+            context.applied(SyncContext.ROUTINE_ITEMS);
+        }
+        routineItemRepository.saveAllAndFlush(toSave);
     }
 
-    private void upsertWorkout(UUID userId, WorkoutSyncRecord r) {
-        jdbc.update("""
-                INSERT INTO workouts (id, user_id, started_at, ended_at, routine_id, notes, is_deload, created_at, updated_at, deleted_at)
-                VALUES (:id, :userId, :startedAt, :endedAt, :routineId, :notes, :deload, now(), :updatedAt, :deletedAt)
-                ON CONFLICT (id) DO UPDATE SET
-                    started_at = EXCLUDED.started_at,
-                    ended_at = EXCLUDED.ended_at,
-                    routine_id = EXCLUDED.routine_id,
-                    notes = EXCLUDED.notes,
-                    is_deload = EXCLUDED.is_deload,
-                    updated_at = EXCLUDED.updated_at,
-                    deleted_at = EXCLUDED.deleted_at
-                WHERE workouts.updated_at < EXCLUDED.updated_at
-                """, new MapSqlParameterSource()
-                .addValue("id", r.id())
-                .addValue("userId", userId)
-                .addValue("startedAt", toTimestamp(r.startedAt()))
-                .addValue("endedAt", toTimestamp(r.endedAt()))
-                .addValue("routineId", r.routineId())
-                .addValue("notes", r.notes())
-                .addValue("deload", r.deload())
-                .addValue("updatedAt", toTimestamp(r.updatedAt()))
-                .addValue("deletedAt", toTimestamp(r.deletedAt())));
+    private void applyWorkouts(SyncContext context, List<SyncRecords.WorkoutSync> incoming) {
+        if (incoming.isEmpty()) {
+            return;
+        }
+        Map<UUID, Workout> existing = byId(workoutRepository.findAllById(ids(incoming, SyncRecords.WorkoutSync::id)),
+                Workout::getId);
+        Set<UUID> ownedRoutines = new HashSet<>(routineRepository.findOwnedIds(
+                context.userId(),
+                incoming.stream().map(SyncRecords.WorkoutSync::routineId).filter(Objects::nonNull).toList()));
+
+        List<Workout> toSave = new ArrayList<>();
+        for (SyncRecords.WorkoutSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            Workout entity = existing.get(record.id());
+            if (entity != null) {
+                if (!entity.getUserId().equals(context.userId())) {
+                    context.reject(SyncContext.WORKOUTS, record.id(), SyncContext.REASON_FOREIGN);
+                    continue;
+                }
+                if (!updatedAt.isAfter(entity.getUpdatedAt())) {
+                    context.reject(SyncContext.WORKOUTS, record.id(), SyncContext.REASON_STALE);
+                    continue;
+                }
+            } else {
+                if (record.startedAt() == null) {
+                    context.reject(SyncContext.WORKOUTS, record.id(), "nowy trening wymaga startedAt");
+                    continue;
+                }
+                entity = new Workout();
+                entity.setId(record.id());
+                entity.setUserId(context.userId());
+                entity.setCreatedAt(record.createdAt() != null ? record.createdAt() : updatedAt);
+            }
+            if (record.routineId() != null && !ownedRoutines.contains(record.routineId())) {
+                context.reject(SyncContext.WORKOUTS, record.id(),
+                        "szablon nie istnieje albo należy do innego konta: " + record.routineId());
+                continue;
+            }
+
+            if (record.startedAt() != null) {
+                entity.setStartedAt(record.startedAt());
+            }
+            entity.setEndedAt(record.endedAt());
+            entity.setRoutineId(record.routineId());
+            entity.setNotes(record.notes());
+            if (record.isDeload() != null) {
+                entity.setDeload(record.isDeload());
+            }
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            toSave.add(entity);
+            context.applied(SyncContext.WORKOUTS);
+        }
+        workoutRepository.saveAllAndFlush(toSave);
     }
 
-    private void upsertWorkoutExercise(WorkoutExerciseSyncRecord r) {
-        jdbc.update("""
-                INSERT INTO workout_exercises (id, workout_id, exercise_id, order_index, notes, created_at, updated_at, deleted_at)
-                VALUES (:id, :workoutId, :exerciseId, :orderIndex, :notes, now(), :updatedAt, :deletedAt)
-                ON CONFLICT (id) DO UPDATE SET
-                    workout_id = EXCLUDED.workout_id,
-                    exercise_id = EXCLUDED.exercise_id,
-                    order_index = EXCLUDED.order_index,
-                    notes = EXCLUDED.notes,
-                    updated_at = EXCLUDED.updated_at,
-                    deleted_at = EXCLUDED.deleted_at
-                WHERE workout_exercises.updated_at < EXCLUDED.updated_at
-                """, new MapSqlParameterSource()
-                .addValue("id", r.id())
-                .addValue("workoutId", r.workoutId())
-                .addValue("exerciseId", r.exerciseId())
-                .addValue("orderIndex", r.orderIndex())
-                .addValue("notes", r.notes())
-                .addValue("updatedAt", toTimestamp(r.updatedAt()))
-                .addValue("deletedAt", toTimestamp(r.deletedAt())));
+    private void applyWorkoutExercises(SyncContext context, List<SyncRecords.WorkoutExerciseSync> incoming) {
+        if (incoming.isEmpty()) {
+            return;
+        }
+        Map<UUID, WorkoutExercise> existing = byId(
+                workoutExerciseRepository.findAllById(ids(incoming, SyncRecords.WorkoutExerciseSync::id)),
+                WorkoutExercise::getId);
+
+        Set<UUID> workoutIds = new HashSet<>(ids(incoming, SyncRecords.WorkoutExerciseSync::workoutId));
+        existing.values().forEach(item -> workoutIds.add(item.getWorkoutId()));
+        Set<UUID> ownedWorkouts = new HashSet<>(workoutRepository.findOwnedIds(context.userId(), workoutIds));
+        Set<UUID> visibleExercises = new HashSet<>(exerciseRepository.findVisibleIds(
+                context.userId(), ids(incoming, SyncRecords.WorkoutExerciseSync::exerciseId)));
+
+        List<WorkoutExercise> toSave = new ArrayList<>();
+        for (SyncRecords.WorkoutExerciseSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            WorkoutExercise entity = existing.get(record.id());
+            if (entity != null && !ownedWorkouts.contains(entity.getWorkoutId())) {
+                context.reject(SyncContext.WORKOUT_EXERCISES, record.id(), SyncContext.REASON_FOREIGN);
+                continue;
+            }
+            if (!ownedWorkouts.contains(record.workoutId())) {
+                context.reject(SyncContext.WORKOUT_EXERCISES, record.id(),
+                        "trening nie istnieje albo należy do innego konta: " + record.workoutId());
+                continue;
+            }
+            if (!visibleExercises.contains(record.exerciseId())) {
+                context.reject(SyncContext.WORKOUT_EXERCISES, record.id(),
+                        "ćwiczenie niedostępne dla tego konta: " + record.exerciseId());
+                continue;
+            }
+            if (entity != null && !updatedAt.isAfter(entity.getUpdatedAt())) {
+                context.reject(SyncContext.WORKOUT_EXERCISES, record.id(), SyncContext.REASON_STALE);
+                continue;
+            }
+            if (entity == null) {
+                entity = new WorkoutExercise();
+                entity.setId(record.id());
+                entity.setCreatedAt(record.createdAt() != null ? record.createdAt() : updatedAt);
+            }
+
+            entity.setWorkoutId(record.workoutId());
+            entity.setExerciseId(record.exerciseId());
+            entity.setOrderIndex(record.orderIndex());
+            entity.setNotes(record.notes());
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            toSave.add(entity);
+            context.applied(SyncContext.WORKOUT_EXERCISES);
+        }
+        workoutExerciseRepository.saveAllAndFlush(toSave);
     }
 
-    private void upsertSet(SetSyncRecord r) {
-        jdbc.update("""
-                INSERT INTO sets (id, workout_exercise_id, set_index, weight_kg, reps, rpe, is_warmup, to_failure, assisted, completed_at, updated_at, deleted_at)
-                VALUES (:id, :workoutExerciseId, :setIndex, :weightKg, :reps, :rpe, :warmup, :toFailure, :assisted, :completedAt, :updatedAt, :deletedAt)
-                ON CONFLICT (id) DO UPDATE SET
-                    workout_exercise_id = EXCLUDED.workout_exercise_id,
-                    set_index = EXCLUDED.set_index,
-                    weight_kg = EXCLUDED.weight_kg,
-                    reps = EXCLUDED.reps,
-                    rpe = EXCLUDED.rpe,
-                    is_warmup = EXCLUDED.is_warmup,
-                    to_failure = EXCLUDED.to_failure,
-                    assisted = EXCLUDED.assisted,
-                    completed_at = EXCLUDED.completed_at,
-                    updated_at = EXCLUDED.updated_at,
-                    deleted_at = EXCLUDED.deleted_at
-                WHERE sets.updated_at < EXCLUDED.updated_at
-                """, new MapSqlParameterSource()
-                .addValue("id", r.id())
-                .addValue("workoutExerciseId", r.workoutExerciseId())
-                .addValue("setIndex", r.setIndex())
-                .addValue("weightKg", r.weightKg())
-                .addValue("reps", r.reps())
-                .addValue("rpe", r.rpe())
-                .addValue("warmup", r.warmup())
-                .addValue("toFailure", r.toFailure())
-                .addValue("assisted", r.assisted())
-                .addValue("completedAt", toTimestamp(r.completedAt()))
-                .addValue("updatedAt", toTimestamp(r.updatedAt()))
-                .addValue("deletedAt", toTimestamp(r.deletedAt())));
+    private void applySets(SyncContext context, List<SyncRecords.SetSync> incoming) {
+        if (incoming.isEmpty()) {
+            return;
+        }
+        Map<UUID, WorkoutSet> existing = byId(setRepository.findAllById(ids(incoming, SyncRecords.SetSync::id)),
+                WorkoutSet::getId);
+
+        Set<UUID> parentIds = new HashSet<>(ids(incoming, SyncRecords.SetSync::workoutExerciseId));
+        existing.values().forEach(set -> parentIds.add(set.getWorkoutExerciseId()));
+        Set<UUID> ownedParents = new HashSet<>(workoutExerciseRepository.findOwnedIds(context.userId(), parentIds));
+
+        List<WorkoutSet> toSave = new ArrayList<>();
+        for (SyncRecords.SetSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            WorkoutSet entity = existing.get(record.id());
+            if (entity != null && !ownedParents.contains(entity.getWorkoutExerciseId())) {
+                context.reject(SyncContext.SETS, record.id(), SyncContext.REASON_FOREIGN);
+                continue;
+            }
+            if (!ownedParents.contains(record.workoutExerciseId())) {
+                context.reject(SyncContext.SETS, record.id(),
+                        "ćwiczenie treningu nie istnieje albo należy do innego konta: "
+                                + record.workoutExerciseId());
+                continue;
+            }
+            if (entity != null && !updatedAt.isAfter(entity.getUpdatedAt())) {
+                context.reject(SyncContext.SETS, record.id(), SyncContext.REASON_STALE);
+                continue;
+            }
+            String violation = validateSet(record);
+            if (violation != null) {
+                context.reject(SyncContext.SETS, record.id(), violation);
+                continue;
+            }
+            if (entity == null) {
+                entity = new WorkoutSet();
+                entity.setId(record.id());
+            }
+
+            entity.setWorkoutExerciseId(record.workoutExerciseId());
+            entity.setSetIndex(record.setIndex());
+            entity.setWeightKg(record.weightKg());
+            entity.setReps(record.reps());
+            entity.setRpe(record.rpe());
+            entity.setWarmup(Boolean.TRUE.equals(record.isWarmup()));
+            entity.setToFailure(Boolean.TRUE.equals(record.toFailure()));
+            entity.setAssisted(Boolean.TRUE.equals(record.assisted()));
+            entity.setCompletedAt(record.completedAt() != null ? record.completedAt() : updatedAt);
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            toSave.add(entity);
+            context.applied(SyncContext.SETS);
+        }
+        setRepository.saveAllAndFlush(toSave);
     }
 
     /**
-     * UWAGA -- znane ograniczenie: `ON CONFLICT (id)` chroni tylko przed
-     * konfliktem na PK. Częściowy unikalny indeks (user_id, measured_on) z V3
-     * ("jeden żywy wpis na dzień") to INNY constraint -- jeśli dwa urządzenia
-     * offline utworzą NOWE wpisy (różne id) na ten sam dzień, drugi upsert w
-     * tym batchu i tak wyleci na tym indeksie jako zwykły DataIntegrityViolationException
-     * (409), nie zostanie rozwiązany przez LWW. Rzadkie przy dwóch userach i
-     * wpisie raz dziennie, ale realne -- nierozwiązane świadomie w tej wersji
-     * (wymagałoby wykrywania kolizji dnia i scalania rekordów, nie tylko id).
+     * Konflikt "jeden żywy wpis na dzień" rozstrzygany tak samo jak każdy inny
+     * konflikt -- po updated_at. Przegrany wpis dostaje tombstone (a nie jest
+     * kasowany), więc drugie urządzenie dowie się, że zniknął.
      */
-    private void upsertBodyWeight(UUID userId, BodyWeightSyncRecord r) {
-        jdbc.update("""
-                INSERT INTO body_weights (id, user_id, measured_on, weight_kg, note, updated_at, deleted_at)
-                VALUES (:id, :userId, :measuredOn, :weightKg, :note, :updatedAt, :deletedAt)
-                ON CONFLICT (id) DO UPDATE SET
-                    measured_on = EXCLUDED.measured_on,
-                    weight_kg = EXCLUDED.weight_kg,
-                    note = EXCLUDED.note,
-                    updated_at = EXCLUDED.updated_at,
-                    deleted_at = EXCLUDED.deleted_at
-                WHERE body_weights.updated_at < EXCLUDED.updated_at
-                """, new MapSqlParameterSource()
-                .addValue("id", r.id())
-                .addValue("userId", userId)
-                .addValue("measuredOn", r.measuredOn())
-                .addValue("weightKg", r.weightKg())
-                .addValue("note", r.note())
-                .addValue("updatedAt", toTimestamp(r.updatedAt()))
-                .addValue("deletedAt", toTimestamp(r.deletedAt())));
+    private void applyBodyWeights(SyncContext context, List<SyncRecords.BodyWeightSync> incoming) {
+        if (incoming.isEmpty()) {
+            return;
+        }
+        Map<UUID, BodyWeight> existing = byId(
+                bodyWeightRepository.findAllById(ids(incoming, SyncRecords.BodyWeightSync::id)),
+                BodyWeight::getId);
+
+        for (SyncRecords.BodyWeightSync record : incoming) {
+            Instant updatedAt = context.clamp(record.updatedAt());
+            BodyWeight entity = existing.get(record.id());
+            if (entity != null) {
+                if (!entity.getUserId().equals(context.userId())) {
+                    context.reject(SyncContext.BODY_WEIGHTS, record.id(), SyncContext.REASON_FOREIGN);
+                    continue;
+                }
+                if (!updatedAt.isAfter(entity.getUpdatedAt())) {
+                    context.reject(SyncContext.BODY_WEIGHTS, record.id(), SyncContext.REASON_STALE);
+                    continue;
+                }
+            } else {
+                if (record.measuredOn() == null || record.weightKg() == null) {
+                    context.reject(SyncContext.BODY_WEIGHTS, record.id(),
+                            "nowy wpis wagi wymaga measuredOn i weightKg");
+                    continue;
+                }
+                entity = new BodyWeight();
+                entity.setId(record.id());
+                entity.setUserId(context.userId());
+                entity.setMeasuredOn(record.measuredOn());
+            }
+            if (record.weightKg() != null && !isValidBodyWeight(record.weightKg())) {
+                context.reject(SyncContext.BODY_WEIGHTS, record.id(), "waga poza zakresem 0-400 kg");
+                continue;
+            }
+
+            LocalDate day = record.measuredOn() != null ? record.measuredOn() : entity.getMeasuredOn();
+            if (record.deletedAt() == null && !resolveDayConflict(context, record.id(), day, updatedAt)) {
+                continue;
+            }
+
+            entity.setMeasuredOn(day);
+            if (record.weightKg() != null) {
+                entity.setWeightKg(record.weightKg());
+            }
+            entity.setNote(record.note());
+            entity.setDeletedAt(record.deletedAt());
+            entity.setUpdatedAt(updatedAt);
+            bodyWeightRepository.saveAndFlush(entity);
+            context.applied(SyncContext.BODY_WEIGHTS);
+        }
     }
 
-    // Sterownik JDBC Postgresa nie potrafi wywnioskować typu SQL dla gołego
-    // java.time.Instant przez NamedParameterJdbcTemplate (w odróżnieniu od
-    // Hibernate/JPA, które ma własny type system) -- java.sql.Timestamp działa.
-    private static java.sql.Timestamp toTimestamp(Instant instant) {
-        return instant == null ? null : java.sql.Timestamp.from(instant);
+    /** @return false, gdy przychodzący wpis przegrał z istniejącym wpisem z tego dnia. */
+    private boolean resolveDayConflict(SyncContext context, UUID incomingId, LocalDate day, Instant updatedAt) {
+        BodyWeight sameDay = bodyWeightRepository
+                .findByUserIdAndMeasuredOnAndDeletedAtIsNull(context.userId(), day)
+                .orElse(null);
+        if (sameDay == null || sameDay.getId().equals(incomingId)) {
+            return true;
+        }
+        if (!updatedAt.isAfter(sameDay.getUpdatedAt())) {
+            context.reject(SyncContext.BODY_WEIGHTS, incomingId,
+                    "nowszy wpis na ten dzień już istnieje: " + sameDay.getId());
+            return false;
+        }
+        sameDay.setDeletedAt(context.now());
+        sameDay.setUpdatedAt(context.now());
+        bodyWeightRepository.saveAndFlush(sameDay);
+        // Przegrany rekord wraca do klienta jako tombstone, nawet gdy jego
+        // updated_at jest starsze niż `since` z zapytania.
+        context.reject(SyncContext.BODY_WEIGHTS, sameDay.getId(),
+                "zastąpiony nowszym wpisem na ten sam dzień: " + incomingId);
+        return true;
     }
 
-    // --- Mapowanie encja -> rekord sync (pull) ------------------------------
+    /* ---------------------------------------------------------------- *
+     * PULL
+     * ---------------------------------------------------------------- */
 
-    private static ExerciseSyncRecord toRecord(Exercise e) {
-        return new ExerciseSyncRecord(
-                e.getId(), e.getName(), e.getMuscleGroup(), e.getEquipment(), e.isArchived(),
-                e.getUpdatedAt(), e.getDeletedAt());
+    private SyncPayload pull(SyncContext context, Instant since) {
+        UUID userId = context.userId();
+        return new SyncPayload(
+                merge(exerciseRepository.findChangedSince(userId, since),
+                        exerciseRepository.findOwnedOrGlobalByIds(userId, context.forced(SyncContext.EXERCISES)),
+                        Exercise::getId, SyncMapper::toSync),
+                merge(routineRepository.findByUserIdAndUpdatedAtAfter(userId, since),
+                        routineRepository.findByUserIdAndIdIn(userId, context.forced(SyncContext.ROUTINES)),
+                        Routine::getId, SyncMapper::toSync),
+                merge(routineItemRepository.findChangedSince(userId, since),
+                        routineItemRepository.findOwnedByIds(userId, context.forced(SyncContext.ROUTINE_ITEMS)),
+                        RoutineItem::getId, SyncMapper::toSync),
+                merge(workoutRepository.findByUserIdAndUpdatedAtAfter(userId, since),
+                        workoutRepository.findByUserIdAndIdIn(userId, context.forced(SyncContext.WORKOUTS)),
+                        Workout::getId, SyncMapper::toSync),
+                merge(workoutExerciseRepository.findChangedSince(userId, since),
+                        workoutExerciseRepository.findOwnedByIds(
+                                userId, context.forced(SyncContext.WORKOUT_EXERCISES)),
+                        WorkoutExercise::getId, SyncMapper::toSync),
+                merge(setRepository.findChangedSince(userId, since),
+                        setRepository.findOwnedByIds(userId, context.forced(SyncContext.SETS)),
+                        WorkoutSet::getId, SyncMapper::toSync),
+                merge(bodyWeightRepository.findByUserIdAndUpdatedAtAfter(userId, since),
+                        bodyWeightRepository.findByUserIdAndIdIn(userId, context.forced(SyncContext.BODY_WEIGHTS)),
+                        BodyWeight::getId, SyncMapper::toSync));
     }
 
-    private static WorkoutSyncRecord toRecord(Workout w) {
-        return new WorkoutSyncRecord(
-                w.getId(), w.getStartedAt(), w.getEndedAt(), w.getRoutineId(), w.getNotes(), w.isDeload(),
-                w.getUpdatedAt(), w.getDeletedAt());
+    /* ---------------------------------------------------------------- *
+     * Narzędzia
+     * ---------------------------------------------------------------- */
+
+    private static <E, D> List<D> merge(
+            List<E> changed, List<E> forced, Function<E, UUID> id, Function<E, D> mapper) {
+        Map<UUID, E> unique = new LinkedHashMap<>();
+        changed.forEach(entity -> unique.put(id.apply(entity), entity));
+        forced.forEach(entity -> unique.putIfAbsent(id.apply(entity), entity));
+        return unique.values().stream().map(mapper).toList();
     }
 
-    private static WorkoutExerciseSyncRecord toRecord(WorkoutExercise we) {
-        return new WorkoutExerciseSyncRecord(
-                we.getId(), we.getWorkout().getId(), we.getExercise().getId(), we.getOrderIndex(), we.getNotes(),
-                we.getUpdatedAt(), we.getDeletedAt());
+    private static <T> List<UUID> ids(Collection<T> records, Function<T, UUID> extractor) {
+        return records.stream().map(extractor).filter(Objects::nonNull).distinct().toList();
     }
 
-    private static SetSyncRecord toRecord(WorkoutSet s) {
-        return new SetSyncRecord(
-                s.getId(), s.getWorkoutExercise().getId(), s.getSetIndex(), s.getWeightKg(), s.getReps(), s.getRpe(),
-                s.isWarmup(), s.isToFailure(), s.isAssisted(), s.getCompletedAt(), s.getUpdatedAt(), s.getDeletedAt());
+    private static <E> Map<UUID, E> byId(List<E> entities, Function<E, UUID> id) {
+        return entities.stream().collect(Collectors.toMap(id, Function.identity(), (a, b) -> a, LinkedHashMap::new));
     }
 
-    private static BodyWeightSyncRecord toRecord(BodyWeight b) {
-        return new BodyWeightSyncRecord(
-                b.getId(), b.getMeasuredOn(), b.getWeightKg(), b.getNote(), b.getUpdatedAt(), b.getDeletedAt());
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
-    private static <T> List<T> nullToEmpty(List<T> list) {
-        return list == null ? List.of() : list;
+    private static boolean isValidBodyWeight(BigDecimal weight) {
+        return weight.compareTo(BigDecimal.ZERO) > 0 && weight.compareTo(BigDecimal.valueOf(400)) < 0;
+    }
+
+    /** Lustro CHECK-ów z V3 -- pojedyncza zła seria ma wrócić w `rejected`, nie wywalić paczki. */
+    private static String validateSet(SyncRecords.SetSync record) {
+        if (record.weightKg() == null) {
+            return "seria wymaga weightKg";
+        }
+        if (record.weightKg().compareTo(BigDecimal.ZERO) < 0
+                || record.weightKg().compareTo(BigDecimal.valueOf(500)) > 0) {
+            return "ciężar poza zakresem 0-500 kg";
+        }
+        if (record.reps() < 1 || record.reps() > 100) {
+            return "liczba powtórzeń poza zakresem 1-100";
+        }
+        if (record.rpe() != null && (record.rpe().compareTo(BigDecimal.ONE) < 0
+                || record.rpe().compareTo(BigDecimal.TEN) > 0)) {
+            return "RPE poza zakresem 1-10";
+        }
+        return null;
     }
 
 }

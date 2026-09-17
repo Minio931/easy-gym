@@ -11,30 +11,6 @@ services:
       - "5432:5432"
     volumes:
       - easy-gym-postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U easy_gym -d easy_gym"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  backend:
-    build: .
-    container_name: easy-gym-backend
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/easy_gym
-      DB_USERNAME: easy_gym
-      DB_PASSWORD: easy_gym
-      # Nadpisz w produkcji -- to są developerskie defaulty z application.yaml,
-      # celowo słabe (patrz backend/CLAUDE.md).
-      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me-please-1234567890}
-      ADMIN_BOOTSTRAP_SECRET: ${ADMIN_BOOTSTRAP_SECRET:-dev-only-bootstrap-secret-change-me}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-    ports:
-      - "8080:8080"
 
 volumes:
   easy-gym-postgres-data:

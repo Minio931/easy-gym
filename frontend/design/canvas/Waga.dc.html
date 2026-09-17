@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,400..800&family=Public+Sans:wght@400..700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #46D5E0; } a:hover { color: #8AE6ED; }
+    .app {
+      --bg:#0E0F11; --surface:#16181B; --surface-2:#1F2227; --surface-3:#2A2E34;
+      --hairline:rgba(255,255,255,.09); --ink:#F3F2EE; --ink-2:#B9BCC0; --ink-3:#80858C;
+      --cta:#F3F2EE; --cta-ink:#0E0F11; --accent:#46D5E0; --accent-ink:#06191C;
+      --good:#0CA30C; --warning:#FAB219; --critical:#D03B3B;
+      --s1:#3987E5; --chart-grid:rgba(255,255,255,.07);
+      font-family:"Public Sans",system-ui,sans-serif; font-size:16px; line-height:1.5;
+    }
+    .app.light {
+      --bg:#FAFAF8; --surface:#FFFFFF; --surface-2:#F1F1EE; --surface-3:#E4E4E0;
+      --hairline:rgba(16,17,20,.10); --ink:#101114; --ink-2:#4A4E55; --ink-3:#767B83;
+      --cta:#101114; --cta-ink:#FAFAF8; --accent:#0E8697; --accent-ink:#FFFFFF;
+      --s1:#2A78D6; --chart-grid:rgba(16,17,20,.08);
+    }
+    .num { font-family:"Archivo",system-ui,sans-serif; font-variant-numeric:tabular-nums;
+           font-variation-settings:"wdth" 90; font-weight:600; letter-spacing:-.01em; }
+    .num-hero { font-size:40px; line-height:40px; font-weight:700; font-variation-settings:"wdth" 88; }
+    .title { font-family:"Archivo",system-ui,sans-serif; font-variation-settings:"wdth" 95;
+             font-size:20px; line-height:26px; font-weight:650; }
+    .label { font-size:13px; line-height:16px; font-weight:600; letter-spacing:.06em;
+             text-transform:uppercase; color:var(--ink-3); }
+    .meta { font-size:12px; line-height:16px; color:var(--ink-3); }
+    .pill { height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--hairline);
+            background:var(--surface-2); color:var(--ink-2);
+            font:600 13px/1 "Public Sans",system-ui,sans-serif; cursor:pointer; }
+    .pill.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+    .cell { font-family:"Archivo",system-ui,sans-serif; font-variant-numeric:tabular-nums;
+            font-size:13px; font-variation-settings:"wdth" 92; }
+  </style>
+</helmet>
+<div class="app {{theme}}" style="width:390px; height:844px; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; box-sizing:border-box; overflow:hidden">
+
+  <header style="height:56px; flex:0 0 56px; border-bottom:1px solid var(--hairline); display:flex; align-items:center; padding:0 16px">
+    <h1 class="title" style="margin:0; flex:1">Waga ciała</h1>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-2)">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.2 7.3l1.9 1.1M17.9 15.6l1.9 1.1M4.2 16.7l1.9-1.1M17.9 8.4l1.9-1.1"></path>
+    </svg>
+  </header>
+
+  <div style="flex:1; display:flex; flex-direction:column; gap:16px; padding:16px; box-sizing:border-box; overflow:hidden">
+
+    <div style="display:flex; align-items:flex-end; gap:12px">
+      <div>
+        <p class="num num-hero" style="margin:0">81.4 <span class="meta" style="font-size:14px">kg</span></p>
+        <p class="label" style="margin:6px 0 0; font-size:11px">Średnia tygodnia 24</p>
+      </div>
+      <span style="flex:1"></span>
+      <div style="text-align:right">
+        <p class="num" style="margin:0; font-size:20px; color:var(--critical)">▼ −0.30 kg</p>
+        <p class="meta" style="margin:2px 0 0">−0.37% tydzień do tygodnia</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; align-items:flex-end">
+      <div style="flex:1">
+        <p class="label" style="margin:0 0 8px">Waga dzisiaj</p>
+        <div style="height:48px; border-radius:10px; border:2px solid var(--accent); background:var(--surface-2); display:flex; align-items:center; justify-content:flex-end; gap:6px; padding:0 14px">
+          <span class="num" style="font-size:22px">81.2</span><span class="meta">kg</span>
+        </div>
+      </div>
+      <button style="height:48px; padding:0 20px; border:0; border-radius:10px; background:var(--cta); color:var(--cta-ink); font:600 15px/1 'Public Sans',system-ui,sans-serif; cursor:pointer">Zapisz</button>
+    </div>
+
+    <div style="background:var(--surface); border:1px solid var(--hairline); border-radius:14px; padding:14px">
+      <div style="display:flex; align-items:center; gap:8px">
+        <p class="label" style="margin:0; flex:1">Pomiary i średnie tygodniowe</p>
+      </div>
+      <div style="display:flex; gap:6px; margin:10px 0 12px">
+        <button class="pill">1M</button>
+        <button class="pill on">3M</button>
+        <button class="pill">6M</button>
+        <button class="pill">1R</button>
+        <button class="pill">Całość</button>
+      </div>
+
+      <!-- Jedna oś Y. Punkty surowe = pomiary dzienne, gruba linia = średnie tygodniowe -->
+      <svg viewBox="0 0 302 160" style="width:100%; height:160px; display:block" role="img" aria-label="Wykres wagi: pomiary dzienne i średnie tygodniowe">
+        <line x1="8" y1="20" x2="294" y2="20" stroke="var(--chart-grid)" stroke-width="1"></line>
+        <line x1="8" y1="68" x2="294" y2="68" stroke="var(--chart-grid)" stroke-width="1"></line>
+        <line x1="8" y1="116" x2="294" y2="116" stroke="var(--chart-grid)" stroke-width="1"></line>
+        <text x="296" y="23" fill="var(--ink-3)" font-size="9" font-family="Archivo, system-ui" text-anchor="end" opacity="0">83</text>
+
+        <g fill="var(--ink-3)" opacity=".85">
+          <circle cx="12" cy="34" r="4"></circle><circle cx="20" cy="44" r="4"></circle><circle cx="28" cy="38" r="4"></circle>
+          <circle cx="49" cy="44" r="4"></circle><circle cx="57" cy="54" r="4"></circle><circle cx="65" cy="47" r="4"></circle>
+          <circle cx="86" cy="62" r="4"></circle><circle cx="94" cy="74" r="4"></circle><circle cx="102" cy="66" r="4"></circle>
+          <circle cx="123" cy="68" r="4"></circle><circle cx="131" cy="78" r="4"></circle><circle cx="139" cy="72" r="4"></circle>
+          <circle cx="161" cy="88" r="4"></circle><circle cx="169" cy="96" r="4"></circle><circle cx="177" cy="90" r="4"></circle>
+          <circle cx="198" cy="92" r="4"></circle><circle cx="206" cy="101" r="4"></circle><circle cx="214" cy="96" r="4"></circle>
+          <circle cx="235" cy="102" r="4"></circle><circle cx="243" cy="110" r="4"></circle><circle cx="251" cy="106" r="4"></circle>
+          <circle cx="276" cy="96" r="4"></circle>
+        </g>
+
+        <polyline points="20,39 57,49 94,68 131,73 169,92 206,97 243,106 280,97"
+                  fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+        <g fill="var(--s1)">
+          <circle cx="20" cy="39" r="4"></circle><circle cx="57" cy="49" r="4"></circle>
+          <circle cx="94" cy="68" r="4"></circle><circle cx="131" cy="73" r="4"></circle>
+          <circle cx="169" cy="92" r="4"></circle><circle cx="206" cy="97" r="4"></circle>
+          <circle cx="243" cy="106" r="4"></circle>
+        </g>
+        <!-- Tydzień niepełny (< 2 pomiary): punkt pusty z obwódką --warning -->
+        <circle cx="280" cy="97" r="4.5" fill="var(--surface)" stroke="var(--warning)" stroke-width="2"></circle>
+
+        <g fill="var(--ink-3)" font-size="9" font-family="Archivo, system-ui" text-anchor="middle">
+          <text x="20" y="152">W17</text><text x="94" y="152">W19</text>
+          <text x="169" y="152">W21</text><text x="243" y="152">W23</text>
+        </g>
+      </svg>
+
+      <div style="display:flex; align-items:center; gap:14px; margin-top:6px">
+        <span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:var(--s1)"></span><span class="meta">średnia tygodniowa</span></span>
+        <span style="display:flex; align-items:center; gap:6px"><span style="width:8px; height:8px; border-radius:999px; background:var(--ink-3)"></span><span class="meta">pomiar dzienny</span></span>
+        <span class="meta" style="margin-left:auto; text-decoration:underline">Tabela</span>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex; padding:0 12px 8px">
+        <span class="label" style="flex:1; font-size:11px">Tydzień</span>
+        <span class="label" style="width:52px; text-align:right; font-size:11px">Pom.</span>
+        <span class="label" style="width:62px; text-align:right; font-size:11px">Średnia</span>
+        <span class="label" style="width:58px; text-align:right; font-size:11px">Δ kg</span>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--hairline); border-radius:14px; overflow:hidden">
+        <div style="display:flex; align-items:center; padding:9px 12px">
+          <span style="flex:1"><span class="cell">24</span> <span class="meta">08–14.06</span></span>
+          <span class="cell" style="width:52px; text-align:right; color:var(--warning)">1 ⚠</span>
+          <span class="cell" style="width:62px; text-align:right">81.40</span>
+          <span class="cell" style="width:58px; text-align:right; color:var(--critical)">−0.30</span>
+        </div>
+        <div style="display:flex; align-items:center; padding:9px 12px; border-top:1px solid var(--hairline)">
+          <span style="flex:1"><span class="cell">23</span> <span class="meta">01–07.06</span></span>
+          <span class="cell" style="width:52px; text-align:right">3</span>
+          <span class="cell" style="width:62px; text-align:right">81.70</span>
+          <span class="cell" style="width:58px; text-align:right; color:var(--critical)">−0.20</span>
+        </div>
+        <div style="display:flex; align-items:center; padding:9px 12px; border-top:1px solid var(--hairline)">
+          <span style="flex:1"><span class="cell">22</span> <span class="meta">25–31.05</span></span>
+          <span class="cell" style="width:52px; text-align:right">4</span>
+          <span class="cell" style="width:62px; text-align:right">81.90</span>
+          <span class="cell" style="width:58px; text-align:right; color:var(--good)">+0.10</span>
+        </div>
+      </div>
+      <p class="meta" style="margin:8px 0 0">Tydzień z jednym pomiarem jest niepełny — pokazujemy go, ale oznaczamy.</p>
+    </div>
+  </div>
+
+  <nav style="flex:0 0 64px; height:64px; background:var(--surface); border-top:1px solid var(--hairline); display:flex">
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--ink-3)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M9.5 19V5M15 19v-6M20.5 19V8"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Pulpit</span>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--ink-3)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Trening</span>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--ink-3)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9A9 9 0 1 1 3 12"></path><path d="M3 4v5h5M12 7.5V12l3 2"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Historia</span>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--accent)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"></rect><path d="M8 9.5 12 13M8.5 7.2h7"></path></svg>
+      <span style="font:600 11px/1 'Public Sans',system-ui,sans-serif">Waga</span>
+    </div>
+  </nav>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>

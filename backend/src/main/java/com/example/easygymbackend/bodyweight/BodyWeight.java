@@ -7,14 +7,16 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** UWAGA: tabela body_weights (V3) nie ma created_at -- tylko measured_on/updated_at/deleted_at. */
+/**
+ * Jeden ŻYWY wpis na (user_id, measured_on) -- pilnuje tego częściowy indeks
+ * unikalny w V3 (WHERE deleted_at IS NULL). Tabela nie ma created_at.
+ */
 @Entity
 @Table(name = "body_weights")
 @Getter
@@ -31,12 +33,12 @@ public class BodyWeight {
     @Column(name = "measured_on", nullable = false)
     private LocalDate measuredOn;
 
-    @Column(name = "weight_kg", nullable = false)
+    @Column(name = "weight_kg", nullable = false, precision = 5, scale = 2)
     private BigDecimal weightKg;
 
+    @Column
     private String note;
 
-    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 

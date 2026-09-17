@@ -5,35 +5,37 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise, UUID> {
 
-    /**
-     * Izolacja przez JOIN do workouts.user_id -- workout_exercises nie ma
-     * własnej kolumny user_id, więc własność zawsze sprawdzana tranzytywnie
-     * przez rodzica (patrz decyzja 2 w CLAUDE.md).
-     */
-    @Query("""
-            SELECT we FROM WorkoutExercise we
-            WHERE we.id = :id AND we.workout.userId = :userId AND we.deletedAt IS NULL
-            """)
-    Optional<WorkoutExercise> findVisibleTo(@Param("id") UUID id, @Param("userId") UUID userId);
+    List<WorkoutExercise> findByWorkoutIdAndDeletedAtIsNullOrderByOrderIndexAsc(UUID workoutId);
 
-    @Query("""
-            SELECT we FROM WorkoutExercise we
-            WHERE we.workout.id = :workoutId AND we.workout.userId = :userId AND we.deletedAt IS NULL
-            ORDER BY we.orderIndex
-            """)
-    List<WorkoutExercise> findAllVisibleTo(@Param("workoutId") UUID workoutId, @Param("userId") UUID userId);
+    Optional<WorkoutExercise> findByIdAndWorkoutId(UUID id, UUID workoutId);
 
-    /** Pod pull synchronizacji -- BEZ filtra deletedAt, tombstone'y muszą się zsynchronizować. */
+    /** Zakres usera przez workout -- ta tabela nie ma własnego user_id. */
     @Query("""
-            SELECT we FROM WorkoutExercise we
-            WHERE we.workout.userId = :userId AND we.updatedAt > :since
+            select we from WorkoutExercise we
+            where we.updatedAt > :since
+              and we.workoutId in (select w.id from Workout w where w.userId = :userId)
             """)
     List<WorkoutExercise> findChangedSince(@Param("userId") UUID userId, @Param("since") Instant since);
+
+    @Query("""
+            select we from WorkoutExercise we
+            where we.id in :ids
+              and we.workoutId in (select w.id from Workout w where w.userId = :userId)
+            """)
+    List<WorkoutExercise> findOwnedByIds(@Param("userId") UUID userId, @Param("ids") Collection<UUID> ids);
+
+    @Query("""
+            select we.id from WorkoutExercise we
+            where we.id in :ids
+              and we.workoutId in (select w.id from Workout w where w.userId = :userId)
+            """)
+    List<UUID> findOwnedIds(@Param("userId") UUID userId, @Param("ids") Collection<UUID> ids);
 
 }

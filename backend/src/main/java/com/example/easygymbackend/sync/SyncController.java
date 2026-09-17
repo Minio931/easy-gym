@@ -1,18 +1,19 @@
 package com.example.easygymbackend.sync;
 
 import com.example.easygymbackend.auth.CurrentUser;
-import com.example.easygymbackend.sync.dto.SyncPullResponse;
-import com.example.easygymbackend.sync.dto.SyncPushRequest;
+import com.example.easygymbackend.sync.dto.SyncRequest;
+import com.example.easygymbackend.sync.dto.SyncResponse;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
-
+/**
+ * Jedno wywołanie = push + pull. Klient wysyła wszystko, co ma w kolejce, i
+ * dostaje z powrotem zmiany od `since` (własne z innego urządzenia oraz
+ * rozstrzygnięcia konfliktów).
+ */
 @RestController
 @RequestMapping("/api/sync")
 public class SyncController {
@@ -23,16 +24,9 @@ public class SyncController {
         this.syncService = syncService;
     }
 
-    /** Push lokalnych zmian + pull wszystkiego zmienionego od `since` w jednym round-tripie. */
     @PostMapping
-    public SyncPullResponse push(@Valid @RequestBody SyncPushRequest request) {
-        return syncService.push(request);
-    }
-
-    /** Pull-only, bez pushowania niczego -- np. świeża instalacja apki na nowym urządzeniu. */
-    @GetMapping
-    public SyncPullResponse pull(@RequestParam(required = false) Instant since) {
-        return syncService.pull(CurrentUser.id(), since);
+    public SyncResponse sync(@Valid @RequestBody SyncRequest request) {
+        return syncService.sync(CurrentUser.id(), request);
     }
 
 }

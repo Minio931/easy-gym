@@ -7,8 +7,6 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -32,21 +30,18 @@ public class Workout {
     @Column(name = "ended_at")
     private Instant endedAt;
 
-    // Routine jeszcze nie ma encji JPA (poza zakresem tego etapu) -- plain UUID,
-    // bez @ManyToOne, dopóki routines/routine_items nie zostaną wpięte.
     @Column(name = "routine_id")
     private UUID routineId;
 
+    @Column
     private String notes;
 
     @Column(name = "is_deload", nullable = false)
     private boolean deload;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 

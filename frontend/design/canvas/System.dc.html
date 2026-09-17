@@ -1,0 +1,221 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,400..800&family=Public+Sans:wght@400..700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #46D5E0; } a:hover { color: #8AE6ED; }
+    .app {
+      --bg:#0E0F11; --surface:#16181B; --surface-2:#1F2227; --surface-3:#2A2E34;
+      --hairline:rgba(255,255,255,.09); --ink:#F3F2EE; --ink-2:#B9BCC0; --ink-3:#80858C;
+      --cta:#F3F2EE; --cta-ink:#0E0F11; --accent:#46D5E0; --accent-ink:#06191C;
+      --pr:#F0B429; --pr-wash:rgba(240,180,41,.12);
+      --good:#0CA30C; --warning:#FAB219; --serious:#EC835A; --critical:#D03B3B;
+      --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
+      --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
+      font-family:"Public Sans",system-ui,sans-serif; font-size:16px; line-height:1.5;
+    }
+    .app.light {
+      --bg:#FAFAF8; --surface:#FFFFFF; --surface-2:#F1F1EE; --surface-3:#E4E4E0;
+      --hairline:rgba(16,17,20,.10); --ink:#101114; --ink-2:#4A4E55; --ink-3:#767B83;
+      --cta:#101114; --cta-ink:#FAFAF8; --accent:#0E8697; --accent-ink:#FFFFFF;
+      --pr:#B07607; --pr-wash:rgba(176,118,7,.10);
+      --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
+      --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;
+    }
+    .num { font-family:"Archivo",system-ui,sans-serif; font-variant-numeric:tabular-nums;
+           font-variation-settings:"wdth" 90; font-weight:600; letter-spacing:-.01em; }
+    .num-hero { font-size:40px; line-height:40px; font-weight:700; font-variation-settings:"wdth" 88; }
+    .num-lg { font-size:30px; line-height:32px; font-weight:700; font-variation-settings:"wdth" 88; }
+    .num-md { font-size:22px; line-height:24px; }
+    .title { font-family:"Archivo",system-ui,sans-serif; font-variation-settings:"wdth" 95;
+             font-size:20px; line-height:26px; font-weight:650; }
+    .label { font-size:13px; line-height:16px; font-weight:600; letter-spacing:.06em;
+             text-transform:uppercase; color:var(--ink-3); }
+    .meta { font-size:12px; line-height:16px; color:var(--ink-3); }
+    .card { background:var(--surface); border:1px solid var(--hairline); border-radius:14px; padding:18px; }
+    .sw { display:flex; align-items:center; gap:12px; padding:5px 0; }
+    .chip { width:46px; height:30px; border-radius:8px; border:1px solid var(--hairline); flex:0 0 46px; }
+    .mono { font-family:"Archivo",system-ui,sans-serif; font-variant-numeric:tabular-nums;
+            font-size:11px; font-variation-settings:"wdth" 92; color:var(--ink-3); }
+    .pill { height:32px; padding:0 14px; border-radius:999px; border:1px solid var(--hairline);
+            background:var(--surface-2); color:var(--ink-2);
+            font:600 13px/1 "Public Sans",system-ui,sans-serif; }
+    .pill.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+    .status { display:inline-flex; align-items:center; gap:6px; background:var(--surface-2);
+              border-radius:999px; padding:5px 11px; font:600 12px/1 "Public Sans",system-ui,sans-serif; }
+    @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.45 } }
+    .skel { background:var(--surface-2); border-radius:10px; animation:pulse 1.5s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .skel { animation:none } }
+  </style>
+</helmet>
+<div class="app {{theme}}" style="width:1180px; min-height:1560px; background:var(--bg); color:var(--ink); padding:32px; box-sizing:border-box">
+
+  <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:6px">
+    <h1 class="title" style="margin:0; font-size:28px">System projektowy — żelazo i kreda</h1>
+    <span class="meta">easy-gym · motyw ciemny jest domyślny, jasny jest wariantem (osobno dobrane kroki, nie odwrócenie)</span>
+  </div>
+  <p class="meta" style="margin:0 0 24px">Interfejs jest z szarości i kredy. Barwa pojawia się wyłącznie jako dana (wykres), stan (sukces/błąd/offline) albo rekord (złoto).</p>
+
+  <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:24px; align-items:start">
+
+    <section class="card">
+      <p class="label" style="margin:0 0 12px">Powierzchnie i atrament</p>
+      <div class="sw"><span class="chip" style="background:#0E0F11"></span><span style="flex:1; font-size:13px">Tło strony<br><span class="mono">--bg</span></span><span class="mono">#0E0F11</span></div>
+      <div class="sw"><span class="chip" style="background:#16181B"></span><span style="flex:1; font-size:13px">Karta / sekcja<br><span class="mono">--surface</span></span><span class="mono">#16181B</span></div>
+      <div class="sw"><span class="chip" style="background:#1F2227"></span><span style="flex:1; font-size:13px">Input, element podniesiony<br><span class="mono">--surface-2</span></span><span class="mono">#1F2227</span></div>
+      <div class="sw"><span class="chip" style="background:#2A2E34"></span><span style="flex:1; font-size:13px">Wciśnięty / hover<br><span class="mono">--surface-3</span></span><span class="mono">#2A2E34</span></div>
+      <div class="sw"><span class="chip" style="background:transparent; border:1px solid rgba(255,255,255,.09)"></span><span style="flex:1; font-size:13px">Włos<br><span class="mono">--hairline</span></span><span class="mono">9% biel</span></div>
+      <div class="sw"><span class="chip" style="background:#F3F2EE"></span><span style="flex:1; font-size:13px">Atrament główny<br><span class="mono">--ink</span></span><span class="mono">#F3F2EE</span></div>
+      <div class="sw"><span class="chip" style="background:#B9BCC0"></span><span style="flex:1; font-size:13px">Drugorzędny<br><span class="mono">--ink-2</span></span><span class="mono">#B9BCC0</span></div>
+      <div class="sw"><span class="chip" style="background:#80858C"></span><span style="flex:1; font-size:13px">Wygaszony<br><span class="mono">--ink-3</span></span><span class="mono">#80858C</span></div>
+      <p class="meta" style="margin:12px 0 0">Szarości mają chłodny odchył ku cyjanowi — czysta neutralna obok kredowej bieli wygląda przypadkowo. Wartości hex w tej tabeli dotyczą motywu ciemnego.</p>
+    </section>
+
+    <section class="card">
+      <p class="label" style="margin:0 0 12px">Akcje i stan</p>
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <button style="height:48px; border:0; border-radius:10px; background:var(--cta); color:var(--cta-ink); font:600 16px/1 'Public Sans',system-ui,sans-serif">Zatwierdź serię</button>
+        <button style="height:48px; border:1px solid var(--hairline); border-radius:10px; background:var(--surface-2); color:var(--ink); font:600 16px/1 'Public Sans',system-ui,sans-serif">Dodaj ćwiczenie</button>
+        <button style="height:48px; border:0; border-radius:10px; background:transparent; color:var(--ink-3); font:400 15px/1 'Public Sans',system-ui,sans-serif">Kopiuj poprzednią serię</button>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:14px">
+        <span class="pill on">3M</span><span class="pill">6M</span><span class="pill">1R</span><span class="pill">Całość</span>
+      </div>
+      <div class="sw" style="margin-top:14px"><span class="chip" style="background:#46D5E0"></span><span style="flex:1; font-size:13px">Akcent stanu<br><span class="mono">--accent / --accent-ink</span></span><span class="mono">#46D5E0</span></div>
+      <div class="sw"><span class="chip" style="background:#F0B429"></span><span style="flex:1; font-size:13px">Rekord<br><span class="mono">--pr / --pr-wash</span></span><span class="mono">#F0B429</span></div>
+      <p class="meta" style="margin:10px 0 0">Cyjan tylko na stan: zaznaczenie, focus, pierścień timera, aktywny input. Złoto tylko przy PR.</p>
+    </section>
+
+    <section class="card">
+      <p class="label" style="margin:0 0 12px">Status — nigdy sam kolor</p>
+      <div style="display:flex; flex-direction:column; gap:12px; align-items:flex-start">
+        <span class="status" style="color:var(--good)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg>Zsynchronizowano</span>
+        <span class="status" style="color:var(--warning)"><span>⟳</span>3 w kolejce</span>
+        <span class="status" style="color:var(--serious)"><span style="width:6px; height:6px; border-radius:999px; background:currentColor"></span>Offline</span>
+        <span class="status" style="color:var(--critical)"><span>▲</span>Błąd sync</span>
+      </div>
+      <div style="margin-top:16px">
+        <div class="sw"><span class="chip" style="background:#0CA30C"></span><span style="flex:1" class="mono">--good · zsynchronizowane, dodatnia delta</span></div>
+        <div class="sw"><span class="chip" style="background:#FAB219"></span><span style="flex:1" class="mono">--warning · tydzień niepełny, kolejka</span></div>
+        <div class="sw"><span class="chip" style="background:#EC835A"></span><span style="flex:1" class="mono">--serious · offline</span></div>
+        <div class="sw"><span class="chip" style="background:#D03B3B"></span><span style="flex:1" class="mono">--critical · błąd, ujemna delta</span></div>
+      </div>
+      <p class="meta" style="margin:10px 0 0">Offline nie jest awarią: kolor ostrzegawczy, nie czerwony, i żadnego modala. Trening działa identycznie.</p>
+    </section>
+
+    <section class="card">
+      <p class="label" style="margin:0 0 4px">Paleta wykresów — 8 slotów</p>
+      <p class="meta" style="margin:0 0 12px">Kolejność slotów to zabezpieczenie dla daltonizmu, nie estetyka. Nie przestawiać, nie zapętlać na 9. serii. Hex dla motywu ciemnego; jasny ma własne warianty.</p>
+      <div class="sw"><span class="chip" style="background:#3987E5"></span><span style="flex:1; font-size:13px">1 · klatka piersiowa</span><span class="mono">#3987E5</span></div>
+      <div class="sw"><span class="chip" style="background:#D95926"></span><span style="flex:1; font-size:13px">2 · plecy</span><span class="mono">#D95926</span></div>
+      <div class="sw"><span class="chip" style="background:#199E70"></span><span style="flex:1; font-size:13px">3 · nogi + łydki</span><span class="mono">#199E70</span></div>
+      <div class="sw"><span class="chip" style="background:#C98500"></span><span style="flex:1; font-size:13px">4 · barki</span><span class="mono">#C98500</span></div>
+      <div class="sw"><span class="chip" style="background:#D55181"></span><span style="flex:1; font-size:13px">5 · ramiona</span><span class="mono">#D55181</span></div>
+      <div class="sw"><span class="chip" style="background:#008300"></span><span style="flex:1; font-size:13px">6 · pośladki</span><span class="mono">#008300</span></div>
+      <div class="sw"><span class="chip" style="background:#9085E9"></span><span style="flex:1; font-size:13px">7 · brzuch</span><span class="mono">#9085E9</span></div>
+      <div class="sw"><span class="chip" style="background:#E66767"></span><span style="flex:1; font-size:13px">8 · całe ciało</span><span class="mono">#E66767</span></div>
+    </section>
+
+    <section class="card">
+      <p class="label" style="margin:0 0 12px">Typografia</p>
+      <p class="num num-hero" style="margin:0">102.5</p>
+      <p class="meta" style="margin:2px 0 14px">num-hero · 40/40 · Archivo wdth 88 — ciężar w aktywnej serii</p>
+      <p class="num num-lg" style="margin:0">8 240 kg</p>
+      <p class="meta" style="margin:2px 0 14px">num-lg · 30/32 — wartość kafla, oś PR</p>
+      <p class="num num-md" style="margin:0">110 kg × 5</p>
+      <p class="meta" style="margin:2px 0 14px">num-md · 22/24 — wiersz serii, historia</p>
+      <p class="title" style="margin:0">Wyciskanie sztangi leżąc</p>
+      <p class="meta" style="margin:2px 0 14px">title · 20/26 · Archivo wdth 95</p>
+      <p style="margin:0; font-size:16px">Tekst interfejsu i każdy input — Public Sans 16/24.</p>
+      <p class="meta" style="margin:2px 0 0">16 px to twarde minimum dla inputu: mniejszy stopień włącza na iOS auto-zoom przy focusie.</p>
+    </section>
+
+    <section class="card">
+      <p class="label" style="margin:0 0 12px">Talerze IWF — kalkulator obciążenia</p>
+      <div style="display:flex; align-items:flex-end; gap:10px; height:96px">
+        <div style="text-align:center"><div style="width:26px; height:90px; border-radius:4px; background:#D42B24; border:1px solid var(--hairline)"></div><span class="mono">25</span></div>
+        <div style="text-align:center"><div style="width:24px; height:82px; border-radius:4px; background:#1C68B3; border:1px solid var(--hairline)"></div><span class="mono">20</span></div>
+        <div style="text-align:center"><div style="width:22px; height:72px; border-radius:4px; background:#E8B517; border:1px solid var(--hairline)"></div><span class="mono">15</span></div>
+        <div style="text-align:center"><div style="width:20px; height:62px; border-radius:4px; background:#2C8C3E; border:1px solid var(--hairline)"></div><span class="mono">10</span></div>
+        <div style="text-align:center"><div style="width:16px; height:48px; border-radius:4px; background:#E9E7E1; border:1px solid var(--hairline)"></div><span class="mono">5</span></div>
+        <div style="text-align:center"><div style="width:14px; height:36px; border-radius:4px; background:#D42B24; border:1px solid var(--hairline)"></div><span class="mono">2.5</span></div>
+        <div style="text-align:center"><div style="width:12px; height:26px; border-radius:4px; background:#9AA0A6; border:1px solid var(--hairline)"></div><span class="mono">1.25</span></div>
+      </div>
+      <p class="meta" style="margin:12px 0 0">Jedyne miejsce, gdzie kolor jest skopiowany z rzeczywistości — użytkownik rozpoznaje go bez legendy. Nie mieszać z paletą wykresów.</p>
+    </section>
+
+    <section class="card" style="grid-column:span 2">
+      <p class="label" style="margin:0 0 12px">Wiersz serii — najważniejszy komponent aplikacji</p>
+      <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px">
+        <div>
+          <p class="meta" style="margin:0 0 8px">Rozgrzewkowa · wykluczona z PR, e1RM i objętości</p>
+          <div style="display:flex; align-items:center; gap:12px; height:48px; opacity:.7">
+            <span style="width:24px; text-align:center"><span style="display:inline-block; background:var(--surface-3); color:var(--ink-2); border-radius:999px; padding:2px 7px; font:600 12px/1.3 'Public Sans',system-ui,sans-serif">R</span></span>
+            <span class="num num-md" style="flex:1">60 <span class="meta">kg</span> × 10</span>
+            <span style="width:48px; height:48px; border-radius:10px; background:var(--cta); color:var(--cta-ink); display:flex; align-items:center; justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></span>
+          </div>
+        </div>
+        <div>
+          <p class="meta" style="margin:0 0 8px">Pobity rekord · tło --pr-wash i plakietka (remis nie świeci)</p>
+          <div style="display:flex; align-items:center; gap:12px; height:48px; background:var(--pr-wash); border-radius:10px; padding:0 8px">
+            <span class="meta" style="width:24px; text-align:center">3</span>
+            <span class="num num-md" style="flex:1">110 <span class="meta">kg</span> × 5</span>
+            <span style="color:var(--pr); border:1px solid var(--pr); border-radius:999px; padding:3px 9px; font:700 11px/1 'Public Sans',system-ui,sans-serif; letter-spacing:.06em">PR</span>
+            <span style="width:48px; height:48px; border-radius:10px; background:var(--cta); color:var(--cta-ink); display:flex; align-items:center; justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></span>
+          </div>
+        </div>
+        <div style="grid-column:span 2">
+          <p class="meta" style="margin:0 0 8px">Aktywna · liczba jest interfejsem, steppery 56 × 48 tylko pod edytowanym wierszem</p>
+          <div style="display:flex; align-items:center; gap:12px">
+            <span class="meta" style="width:24px; text-align:center">2</span>
+            <div style="flex:1; display:flex; align-items:baseline; gap:8px; border:2px solid var(--accent); border-radius:10px; background:var(--surface-2); padding:6px 12px">
+              <span class="num num-hero">102.5</span><span class="meta">kg</span>
+              <span class="meta" style="font-size:16px">×</span>
+              <span class="num num-hero">5</span><span class="meta">powt.</span>
+            </div>
+            <span style="width:48px; height:48px; border-radius:10px; border:1px solid var(--hairline); color:var(--ink-3); display:flex; align-items:center; justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></span>
+          </div>
+          <div style="display:flex; gap:8px; margin:10px 0 0 36px">
+            <span class="pill" style="width:56px; height:48px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; padding:0">−2.5</span>
+            <span class="pill" style="width:56px; height:48px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; padding:0">+2.5</span>
+            <span style="flex:1"></span>
+            <span class="pill" style="width:56px; height:48px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; padding:0">−1</span>
+            <span class="pill" style="width:56px; height:48px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; padding:0">+1</span>
+          </div>
+          <p class="meta" style="margin:10px 0 0 36px">ostatnio: 100 × 5 — punkt odniesienia z poprzedniego treningu, nie ozdoba.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="label" style="margin:0 0 12px">Ładowanie i stan pusty</p>
+      <div style="display:flex; flex-direction:column; gap:8px">
+        <div class="skel" style="height:22px; width:55%"></div>
+        <div class="skel" style="height:64px"></div>
+        <div class="skel" style="height:64px"></div>
+      </div>
+      <div style="border:1px solid var(--hairline); background:var(--surface-2); border-radius:14px; padding:18px; text-align:center; margin-top:16px">
+        <p style="margin:0; color:var(--ink-2); font-size:14px">Brak pomiarów. Wpisz dzisiejszą wagę, a średnie tygodniowe policzą się same.</p>
+        <button style="height:48px; margin-top:14px; padding:0 22px; border:0; border-radius:10px; background:var(--cta); color:var(--cta-ink); font:600 15px/1 'Public Sans',system-ui,sans-serif">Dodaj pomiar</button>
+      </div>
+      <p class="meta" style="margin:12px 0 0">Zero spinnerów przy zapisie: zapis idzie do Dexie, UI od razu pokazuje wynik. Szkielety tylko przy danych historycznych.</p>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1180,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'dark' };
+  }
+}
+</script>
+</body>
+</html>
