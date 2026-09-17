@@ -23,6 +23,8 @@ val jjwtVersion = "0.12.6"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    // /actuator/health -- healthcheck kontenera i probe'y platformy deployowej.
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")
@@ -48,4 +50,10 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Stała nazwa artefaktu -- Dockerfile kopiuje build/libs/app.jar i nie musi
+// zgadywać wersji ani odróżniać boot jara od "-plain.jar".
+tasks.bootJar {
+    archiveFileName = "app.jar"
 }

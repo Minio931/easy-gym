@@ -42,6 +42,10 @@ public class SecurityConfig {
                         // Chroniony osobnym sekretem (X-Bootstrap-Secret) w AdminUserService,
                         // nie przez Spring Security / JWT -- patrz komentarz w tej klasie.
                         .requestMatchers("/api/admin/**").permitAll()
+                        // Healthcheck dockera/platformy -- bez tokenu, bo odpytuje go
+                        // orchestrator, a nie zalogowany user. Szczegóły (details) są
+                        // wyłączone w application.yaml, więc nie wycieka stan bazy.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
