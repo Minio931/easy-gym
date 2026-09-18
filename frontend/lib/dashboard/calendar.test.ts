@@ -53,6 +53,44 @@ describe("buildCalendar", () => {
   });
 });
 
+describe("buildCalendar — zmiana czasu", () => {
+  it("ostatni dzień zakresu przechodzącego przez zmianę czasu NIE wypada poza zakres", () => {
+    // Regresja: kursor szedł po sztywnych 24 h, więc po 29 marca (przejście na
+    // czas letni) przesuwał się z południa na 13:00 i porównanie z końcem
+    // zakresu wyrzucało ostatni dzień. Na pulpicie znikał dzisiejszy dzień
+    // razem z treningami, które się na nim odbyły.
+    const grid = buildCalendar(
+      [{ date: "2026-09-17", workoutCount: 11 }],
+      "2026-03-16",
+      "2026-09-17",
+    );
+    const dzisiaj = grid.weeks.flat().find((cell) => cell.date === "2026-09-17");
+
+    expect(dzisiaj).toBeDefined();
+    expect(dzisiaj?.outside).toBe(false);
+    expect(dzisiaj?.workoutCount).toBe(11);
+    expect(grid.maxCount).toBe(11);
+  });
+
+  it("dni po końcu zakresu zostają poza nim", () => {
+    const grid = buildCalendar([], "2026-03-16", "2026-09-17");
+    const jutro = grid.weeks.flat().find((cell) => cell.date === "2026-09-18");
+    expect(jutro?.outside).toBe(true);
+  });
+
+  it("jesienna zmiana czasu też nie gubi dnia", () => {
+    // 25 października 2026 — przejście z powrotem na czas zimowy.
+    const grid = buildCalendar(
+      [{ date: "2026-11-02", workoutCount: 2 }],
+      "2026-10-05",
+      "2026-11-02",
+    );
+    const ostatni = grid.weeks.flat().find((cell) => cell.date === "2026-11-02");
+    expect(ostatni?.outside).toBe(false);
+    expect(ostatni?.workoutCount).toBe(2);
+  });
+});
+
 describe("cellIntensity", () => {
   it("zero treningów to zero wypełnienia", () => {
     expect(cellIntensity(0, 3)).toBe(0);

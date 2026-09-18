@@ -179,6 +179,51 @@ ustawiasz zmienne z sekcji 3, a `NEXT_PUBLIC_API_URL` jako **build arg** frontu.
 Healthcheck backendu: `GET /actuator/health` (dla probe'ów k8s: `/actuator/health/liveness`
 i `/actuator/health/readiness`).
 
+### Wariant D — deploy po pushu, na własną maszynę w domu
+
+`.github/workflows/deploy.yml` buduje obrazy i podmienia stos **na Twojej maszynie**, przez
+self-hosted runnera. Runner sam wychodzi na zewnątrz i odbiera joby — żadnego portu do domu nie
+trzeba wystawiać, VPN też nie jest do tego potrzebny.
+
+Przygotowanie maszyny (raz):
+
+```bash
+# 1. sekrety zostają na maszynie, nie w GitHub Secrets
+sudo mkdir -p /etc/easy-gym
+sudo install -m 640 -o root -g docker .env.prod /etc/easy-gym/.env.prod
+
+# 2. runner: GitHub -> Settings -> Actions -> Runners -> New self-hosted runner
+mkdir ~/actions-runner && cd ~/actions-runner
+# komendy `curl` + `tar` skopiuj z tamtej strony -- podaje aktualną wersję runnera
+./config.sh --url https://github.com/Minio931/easy-gym --token <TOKEN_Z_GITHUBA> --labels easy-gym
+sudo ./svc.sh install && sudo ./svc.sh start    # usługa systemd, wstaje po reboocie
+
+# 3. runner musi dosięgnąć Dockera
+sudo usermod -aG docker "$USER" && sudo systemctl restart actions.runner.*
+```
+
+Labelka `easy-gym` jest tym, co workflow wybiera w `runs-on` — bez niej job będzie czekał w
+nieskończoność na wolnego runnera.
+
+Co robi pipeline: buduje obrazy otagowane SHA commita, robi `up -d --wait` (czeka na `HEALTHCHECK`,
+nie na sam start procesu), a jak nowa wersja nie wstanie zdrowa — **wraca na poprzednią** i wrzuca
+logi do joba. Na koniec zostawia trzy ostatnie obrazy każdego serwisu, resztę kasuje.
+
+Odpalanie: push na `main` (pushe zmieniające tylko `*.md` są pomijane) albo ręcznie —
+Actions → deploy → Run workflow, z opcjonalnym SHA/gałęzią w polu `ref`. Żeby wdrażać też z gałęzi
+roboczej, dopisz ją w `on.push.branches`.
+
+Ręczny rollback, gdyby trzeba było cofnąć się dalej niż o jeden deploy:
+
+```bash
+docker images easy-gym-backend                  # wybierz tag (SHA commita)
+IMAGE_TAG=<sha> docker compose -f docker-compose.prod.yml \
+  --env-file /etc/easy-gym/.env.prod up -d --wait
+```
+
+Testy backendu i unitowe frontu możesz dołożyć jako osobny workflow na runnerach GitHuba (PR-y).
+**E2E do tego pipeline'u nie wkładaj** — czyszczą dane konta testowego, a tu celują w żywą bazę.
+
 ### Lista kontrolna przed wystawieniem na świat
 
 - [ ] `JWT_SECRET` i `ADMIN_BOOTSTRAP_SECRET` losowe, różne od developerskich z `application.yaml`

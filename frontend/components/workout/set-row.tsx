@@ -65,7 +65,7 @@ export function SetRow({
       </div>
 
       <div
-        className="relative touch-pan-y"
+        className="relative touch-pan-y rounded-control pt-1"
         style={{
           transform: `translateX(${offset}px)`,
           transition: offset === 0 ? "transform 120ms ease-out" : undefined,
@@ -116,7 +116,11 @@ export function SetRow({
       >
         <button
           type="button"
-          className="flex h-control w-full items-center gap-3 rounded-control px-1 text-left opacity-70"
+          // Bez `opacity` na całej treści: przygaszało liczby, czyli zapis
+          // wykonanej pracy, zostawiając jasny kafelek ✓ jako najgłośniejszy
+          // element wiersza. Hierarchię niesie teraz wiersz AKTYWNY (obwódka
+          // akcentem + jasne ✓), a nie wyblakły wiersz zatwierdzony.
+          className="flex h-11 w-full items-center gap-3 rounded-control px-1 text-left"
           onClick={() => {
             if (suppressClickRef.current) {
               suppressClickRef.current = false;
@@ -138,9 +142,14 @@ export function SetRow({
             {formatWeight(set.weightKg)} <span className="meta">kg</span> × {set.reps}{" "}
             <span className="meta">powt.</span>
           </span>
+          {/* 36 px, stonowany: to ZNACZNIK STANU („zrobione"), nie przycisk.
+              Pełne 48 px w kolorze CTA wypełniało wiersz od krawędzi do
+              krawędzi i robiło z listy serii kolumnę jasnych bloków głośniejszą
+              niż same liczby — a jedynym przyciskiem do naciśnięcia jest ✓
+              w wierszu aktywnym. */}
           <span
             aria-hidden="true"
-            className="grid size-control shrink-0 place-items-center rounded-control bg-cta text-cta-ink"
+            className="grid size-9 shrink-0 place-items-center rounded-control border border-hairline bg-surface-2 text-ink-2"
           >
             <CheckIcon strokeWidth={2.2} />
           </span>
@@ -149,7 +158,7 @@ export function SetRow({
 
         {/* Wysokość 16 px jest zarezerwowana ZAWSZE — plakietka PR i znaczniki
             dopisują się do istniejącej linijki, więc autozapis nie przesuwa listy. */}
-        <p className="meta flex h-4 items-center gap-2 pl-9">
+        <p className="meta mt-0.5 flex h-4 items-center gap-2 pb-1.5 pl-9">
           {isRecord && (
             <span
               className="rounded-full border px-2 text-[11px] leading-4 font-bold tracking-[0.06em]"
