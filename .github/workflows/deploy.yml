@@ -3,10 +3,14 @@
 # Runner sam wychodzi na zewnątrz (long-polling do api.github.com) i odbiera
 # joby -- nie trzeba wystawiać żadnego portu ani webhooka do domu.
 #
+# Stos to `docker-compose.yml`, czyli Postgres + API + PWA na jednej maszynie.
+# Baza żyje w wolumenie `easy-gym-postgres-data` i deploy jej NIE dotyka --
+# nigdzie tu nie ma `down`, bo `down -v` skasowałby treningi.
+#
 # Konfiguracja PO STRONIE MASZYNY (raz, patrz README sekcja 4, Wariant D):
 #   - runner zarejestrowany z labelką `easy-gym`, wystawiony jako usługa systemd,
-#   - sekrety w /etc/easy-gym/.env.prod -- NIE w GitHub Secrets, bo compose
-#     i tak czyta je z pliku, a każdy `${VAR:?...}` wypluwałby je do logu builda,
+#   - sekrety w /etc/easy-gym/.env -- NIE w GitHub Secrets, bo compose i tak
+#     czyta je z pliku, a każdy `${VAR:?...}` wypluwałby je do logu builda,
 #   - użytkownik runnera w grupie `docker`.
 
 name: deploy
@@ -37,8 +41,9 @@ jobs:
     timeout-minutes: 30
 
     env:
-      COMPOSE: docker-compose.prod.yml
-      ENV_FILE: /etc/easy-gym/.env.prod
+      COMPOSE: docker-compose.yml
+      ENV_FILE: /etc/easy-gym/.env
+      BACKUP_DIR: /var/lib/easy-gym/backups
       IMAGE_TAG: ${{ github.sha }}
 
     steps:
@@ -50,7 +55,7 @@ jobs:
         run: |
           test -r "$ENV_FILE" || {
             echo "::error::Brak $ENV_FILE albo runner nie ma do niego prawa odczytu."
-            echo "Zrób na maszynie: sudo install -m 640 -o root -g docker .env.prod $ENV_FILE"
+            echo "Zrób na maszynie: sudo -e $ENV_FILE  (zawartość wg .env.example)"
             exit 1
           }
           docker info >/dev/null || {
@@ -69,15 +74,43 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Poprzednia wersja: ${tag:-(brak, pierwszy deploy)}"
 
+      - name: Zrzuć bazę przed migracjami
+        # Flyway aplikuje się sam przy starcie backendu, więc deploy potrafi
+        # zmienić schemat -- a cofnięcie obrazu nie cofa migracji. Dlatego dump
+        # leci PRZED podmianą. Brak miejsca na backup nie może blokować deployu,
+        # więc to tylko ostrzeżenie.
+        continue-on-error: true
+        run: |
+          if [ ! -w "$BACKUP_DIR" ]; then
+            echo "::warning::$BACKUP_DIR niezapisywalny -- pomijam backup."
+            echo "Napraw: sudo install -d -o \"$(id -un)\" $BACKUP_DIR"
+            exit 0
+          fi
+          if [ -z "$(docker compose -f "$COMPOSE" --env-file "$ENV_FILE" ps -q postgres 2>/dev/null)" ]; then
+            echo "::notice::Postgres nie chodzi (pierwszy deploy?) -- nie ma czego zrzucać."
+            exit 0
+          fi
+          set -a; . "$ENV_FILE"; set +a
+          out="$BACKUP_DIR/przed-${IMAGE_TAG:0:7}-$(date +%F-%H%M).sql.gz"
+          # Przez plik tymczasowy, żeby przerwany pg_dump nie zostawił po sobie
+          # obciętego archiwum wyglądającego jak dobry backup.
+          set -o pipefail
+          docker compose -f "$COMPOSE" --env-file "$ENV_FILE" exec -T postgres \
+            pg_dump -U "${POSTGRES_USER:-easy_gym}" "${POSTGRES_DB:-easy_gym}" | gzip > "$out.part"
+          mv "$out.part" "$out"
+          echo "Backup: $out ($(du -h "$out" | cut -f1))"
+          ls -1t "$BACKUP_DIR"/przed-*.sql.gz | tail -n +11 | xargs -r rm --
+
       - name: Zbuduj obrazy
         # IMAGE_TAG ze środowiska wygrywa z wartością z --env-file (tak działa
         # interpolacja w compose), więc każdy build ma własny, cofalny tag.
-        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" build
+        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" build backend frontend
 
       - name: Wstaw nową wersję
-        # --wait czeka na HEALTHCHECK z Dockerfile'ów i wychodzi błędem, jeśli
-        # kontener wstał, ale nie odpowiada -- inaczej "deploy OK" znaczyłoby
-        # tylko tyle, że proces się uruchomił.
+        # --wait czeka na healthchecki (pg_isready dla bazy, HEALTHCHECK z
+        # Dockerfile'ów dla API i frontu) i wychodzi błędem, jeśli kontener
+        # wstał, ale nie odpowiada -- inaczej "deploy OK" znaczyłoby tylko tyle,
+        # że proces się uruchomił. Backend na starcie robi migracje Flyway.
         run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d --wait --wait-timeout 180
 
       - name: Cofnij do poprzedniej wersji
@@ -86,11 +119,12 @@ jobs:
           IMAGE_TAG: ${{ steps.prev.outputs.tag }}
         run: |
           echo "::warning::Deploy nieudany -- wracam na ${IMAGE_TAG}"
+          echo "::warning::Jeśli nowa wersja zdążyła zmigrować bazę, stary backend padnie na walidacji schematu (ddl-auto: validate) -- wtedy odtwórz dump z $BACKUP_DIR."
           docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d --wait --wait-timeout 180
 
       - name: Pokaż logi, jeśli coś padło
         if: failure()
-        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" logs --tail 80
+        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" logs --tail 80 backend frontend
 
       - name: Posprzątaj stare obrazy
         if: always()
