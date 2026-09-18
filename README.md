@@ -183,31 +183,52 @@ i `/actuator/health/readiness`).
 
 `.github/workflows/deploy.yml` buduje obrazy i podmienia stos **na Twojej maszynie**, przez
 self-hosted runnera. Runner sam wychodzi na zewnątrz i odbiera joby — żadnego portu do domu nie
-trzeba wystawiać, VPN też nie jest do tego potrzebny.
+trzeba wystawiać, VPN też nie jest do tego potrzebny. Wdrażany stos to `docker-compose.yml` z
+sekcji 1, czyli **Postgres razem z API i frontem na tej samej maszynie**.
+
+Repozytorium klonuje sobie sam `actions/checkout` (do `~/actions-runner/_work/`), uwierzytelniając
+się tokenem joba — nie trzeba go wcześniej pobierać ani wgrywać klucza SSH. Na maszynie muszą być
+tylko `git`, Docker z pluginem `compose` (`docker compose version`) i runner w grupie `docker`.
 
 Przygotowanie maszyny (raz):
 
 ```bash
-# 1. sekrety zostają na maszynie, nie w GitHub Secrets
+# 1. sekrety -- zostają na maszynie, nie w GitHub Secrets
 sudo mkdir -p /etc/easy-gym
-sudo install -m 640 -o root -g docker .env.prod /etc/easy-gym/.env.prod
+sudo -e /etc/easy-gym/.env                 # zawartość wg .env.example: POSTGRES_PASSWORD,
+                                           # JWT_SECRET, ADMIN_BOOTSTRAP_SECRET,
+                                           # CORS_ALLOWED_ORIGINS, NEXT_PUBLIC_API_URL
+sudo chmod 640 /etc/easy-gym/.env && sudo chgrp docker /etc/easy-gym/.env
 
-# 2. runner: GitHub -> Settings -> Actions -> Runners -> New self-hosted runner
+# 2. katalog na zrzuty bazy sprzed deployu (bez niego deploy działa, tylko bez backupu)
+sudo install -d -o "$USER" /var/lib/easy-gym/backups
+
+# 3. runner: GitHub -> Settings -> Actions -> Runners -> New self-hosted runner
 mkdir ~/actions-runner && cd ~/actions-runner
 # komendy `curl` + `tar` skopiuj z tamtej strony -- podaje aktualną wersję runnera
 ./config.sh --url https://github.com/Minio931/easy-gym --token <TOKEN_Z_GITHUBA> --labels easy-gym
 sudo ./svc.sh install && sudo ./svc.sh start    # usługa systemd, wstaje po reboocie
 
-# 3. runner musi dosięgnąć Dockera
+# 4. runner musi dosięgnąć Dockera
 sudo usermod -aG docker "$USER" && sudo systemctl restart actions.runner.*
 ```
 
-Labelka `easy-gym` jest tym, co workflow wybiera w `runs-on` — bez niej job będzie czekał w
-nieskończoność na wolnego runnera.
+Labelka `easy-gym` jest tym, co workflow wybiera w `runs-on` — bez niej job **czeka w kolejce w
+nieskończoność** zamiast rzucić błędem, co wygląda jak zawieszony GitHub.
 
-Co robi pipeline: buduje obrazy otagowane SHA commita, robi `up -d --wait` (czeka na `HEALTHCHECK`,
-nie na sam start procesu), a jak nowa wersja nie wstanie zdrowa — **wraca na poprzednią** i wrzuca
-logi do joba. Na koniec zostawia trzy ostatnie obrazy każdego serwisu, resztę kasuje.
+`NEXT_PUBLIC_API_URL` musi być adresem API widzianym **z telefonu** (np. `http://100.x.y.z:8080`
+z tailnetu albo domena zza reverse proxy), a adres frontu z tego samego miejsca — w
+`CORS_ALLOWED_ORIGINS`. Inaczej apka wstanie, ale każde żądanie padnie na preflighcie `403`.
+
+Co robi pipeline: zrzuca bazę do `/var/lib/easy-gym/backups` (trzyma 10 ostatnich), buduje obrazy
+otagowane SHA commita, robi `up -d --wait` — czeka na healthchecki, nie na sam start procesu — a
+jak nowa wersja nie wstanie zdrowa, **wraca na poprzednią** i wrzuca logi do joba. Na koniec
+zostawia trzy ostatnie obrazy każdego serwisu. Wolumenu `easy-gym-postgres-data` nie dotyka:
+w workflow nie ma żadnego `down`.
+
+> **Rollback nie cofa migracji.** Flyway aplikuje się przy starcie backendu, a Hibernate ma
+> `ddl-auto: validate` — jeśli nieudany deploy zdążył zmienić schemat, stary obraz padnie przy
+> starcie. Wtedy odtwarzasz dump sprzed deployu, ten z `backups/przed-<sha>-*.sql.gz`.
 
 Odpalanie: push na `main` (pushe zmieniające tylko `*.md` są pomijane) albo ręcznie —
 Actions → deploy → Run workflow, z opcjonalnym SHA/gałęzią w polu `ref`. Żeby wdrażać też z gałęzi
@@ -217,8 +238,7 @@ Ręczny rollback, gdyby trzeba było cofnąć się dalej niż o jeden deploy:
 
 ```bash
 docker images easy-gym-backend                  # wybierz tag (SHA commita)
-IMAGE_TAG=<sha> docker compose -f docker-compose.prod.yml \
-  --env-file /etc/easy-gym/.env.prod up -d --wait
+IMAGE_TAG=<sha> docker compose --env-file /etc/easy-gym/.env up -d --wait
 ```
 
 Testy backendu i unitowe frontu możesz dołożyć jako osobny workflow na runnerach GitHuba (PR-y).
