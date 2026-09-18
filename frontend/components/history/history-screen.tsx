@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { EmptyState, Screen, SectionLabel, Skeleton } from "@/components/ui/screen";
+import { Sheet } from "@/components/ui/sheet";
 import { isAbortError, messageForUser } from "@/lib/api/errors";
 import { listWorkouts } from "@/lib/api/workouts";
+import { deleteWorkoutById } from "@/lib/workout/store";
 import {
   exercisesLabel,
   formatDuration,
@@ -29,6 +32,7 @@ export function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<WorkoutSummaryResponse | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -71,6 +75,34 @@ export function HistoryScreen() {
         setLoadingMore(false);
       });
   }, [items.length]);
+
+  const removeWorkout = useCallback(
+    (workout: WorkoutSummaryResponse) => {
+      setToDelete(null);
+      // Wiersz znika od razu: bez zasięgu kasowanie i tak jest skuteczne
+      // (tombstone w Dexie + paczka sync), więc czekanie na serwer trzymałoby
+      // na ekranie trening, którego z punktu widzenia użytkownika już nie ma.
+      const index = items.findIndex((item) => item.id === workout.id);
+      setItems((current) => current.filter((item) => item.id !== workout.id));
+      setTotal((current) => (current === null ? null : Math.max(0, current - 1)));
+      setError(null);
+      void deleteWorkoutById(workout.id).catch((cause: unknown) => {
+        // Brak zasięgu nie dochodzi tutaj — store go połyka i dowozi synchronizacją.
+        // To jest realna odmowa serwera, więc wiersz wraca na swoje miejsce.
+        setItems((current) => {
+          if (current.some((item) => item.id === workout.id)) {
+            return current;
+          }
+          const restored = [...current];
+          restored.splice(index < 0 ? current.length : index, 0, workout);
+          return restored;
+        });
+        setTotal((current) => (current === null ? null : current + 1));
+        setError(messageForUser(cause));
+      });
+    },
+    [items],
+  );
 
   if (loading) {
     return (
@@ -116,8 +148,21 @@ export function HistoryScreen() {
 
       <ul className="overflow-hidden rounded-card border border-hairline bg-surface">
         {items.map((workout, index) => (
-          <li key={workout.id} className={index === 0 ? "" : "border-t border-hairline"}>
+          <li
+            key={workout.id}
+            className={`flex items-center ${index === 0 ? "" : "border-t border-hairline"}`}
+          >
             <WorkoutRow workout={workout} />
+            <button
+              type="button"
+              onClick={() => {
+                setToDelete(workout);
+              }}
+              aria-label={`Usuń trening ${formatLongDate(workout.startedAt)}`}
+              className="mr-1 flex size-touch shrink-0 items-center justify-center rounded-full text-ink-3 active:bg-surface-2"
+            >
+              ✕
+            </button>
           </li>
         ))}
       </ul>
@@ -134,6 +179,43 @@ export function HistoryScreen() {
           {loadingMore ? "Wczytuję…" : "Pokaż starsze"}
         </button>
       )}
+
+      {toDelete !== null && (
+        <Sheet
+          title="Usunąć trening?"
+          onClose={() => {
+            setToDelete(null);
+          }}
+        >
+          {/* Pytamy, bo tu nie ma „Cofnij" jak przy serii: kasowanie idzie
+              kaskadą na ćwiczenia i serie, a trening sprzed miesiąca odtwarza
+              się z pamięci, nie z ekranu. */}
+          <p className="text-ink-2">
+            {formatLongDate(toDelete.startedAt)} — {setsLabel(toDelete.setCount)} zniknie z historii,
+            z pulpitu i z wykresów. Tego nie da się cofnąć.
+          </p>
+          <div className="mt-5 flex gap-2">
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => {
+                setToDelete(null);
+              }}
+            >
+              Zostaw
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={() => {
+                removeWorkout(toDelete);
+              }}
+            >
+              Usuń
+            </Button>
+          </div>
+        </Sheet>
+      )}
     </Screen>
   );
 }
@@ -145,7 +227,7 @@ function WorkoutRow({ workout }: { workout: WorkoutSummaryResponse }) {
   return (
     <Link
       href={`/trening/${workout.id}/podsumowanie?wroc=historia`}
-      className="flex items-center gap-3 px-4 py-3 active:bg-surface-2"
+      className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 active:bg-surface-2"
     >
       <span className="min-w-0 flex-1">
         {/* Data dostaje całą linię. Plakietka „deload" obok niej ścinała rok
