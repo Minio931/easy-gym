@@ -131,7 +131,7 @@ export function ExercisePickerSheet({
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(24px+env(safe-area-inset-bottom,0px))]">
         {creating ? (
           <CustomExerciseForm
-            name={trimmed}
+            initialName={trimmed}
             muscleGroups={muscleGroups}
             onCancel={() => {
               setCreating(false);
@@ -188,7 +188,23 @@ function SearchResults({
       </div>
     );
   }
-  return <ExerciseGroup label="Wyniki" exercises={results} onPick={onPick} />;
+  // Fuzzy search (pg_trgm) potrafi zwrócić coś podobnego zamiast niczego --
+  // „Wyciskanie francuskie" na frazę „Wyciskanie wojskowe". Bez tego wyjścia
+  // trafienie obok blokowało dodanie własnego ćwiczenia: user widział listę,
+  // której nie chciał, i nie miał czym jej ominąć. Przycisk jest stonowany,
+  // żeby nie konkurował z wynikami, kiedy wyszukiwarka trafiła.
+  return (
+    <>
+      <ExerciseGroup label="Wyniki" exercises={results} onPick={onPick} />
+      <button
+        type="button"
+        onClick={onCreate}
+        className="mt-5 h-control w-full rounded-control border border-hairline px-5 font-semibold text-ink-2 active:bg-surface-2"
+      >
+        Żadne z tych — dodaj „{query}&rdquo;
+      </button>
+    </>
+  );
 }
 
 function ExerciseGroup({
@@ -229,18 +245,24 @@ function ExerciseGroup({
 }
 
 function CustomExerciseForm({
-  name,
+  initialName,
   muscleGroups,
   onCancel,
   onCreated,
 }: {
-  name: string;
+  initialName: string;
   muscleGroups: readonly string[];
   onCancel: () => void;
   onCreated: (exercise: ExerciseResponse) => void;
 }) {
+  // Nazwa jest edytowalna, bo fraza z wyszukiwarki bywa skrótem („wycisk"),
+  // po którym coś się jednak znalazło. Zapisanie ćwiczenia pod taką nazwą
+  // zaśmiecałoby katalog na stałe -- w przeciwieństwie do serii, tego się
+  // potem nie poprawia jednym tapnięciem.
+  const [name, setName] = useState(initialName);
   const [muscleGroup, setMuscleGroup] = useState(muscleGroups[0] ?? "inne");
   const [error, setError] = useState<string | null>(null);
+  const trimmedName = name.trim();
 
   return (
     <form
@@ -250,16 +272,27 @@ function CustomExerciseForm({
         setError(null);
         // `equipment: "other"` domyślnie — user, który właśnie nie znalazł
         // swojego ćwiczenia, nie chce teraz wypełniać metryczki sprzętu.
-        void createExercise({ id: uuid(), name, muscleGroup, equipment: "other" })
+        void createExercise({ id: uuid(), name: trimmedName, muscleGroup, equipment: "other" })
           .then(onCreated)
           .catch(() => {
             setError("Nie udało się dodać ćwiczenia. Spróbuj ponownie.");
           });
       }}
     >
-      <p className="text-ink">
-        Nowe ćwiczenie: <span className="font-semibold">{name}</span>
-      </p>
+      <label htmlFor="nazwa-cwiczenia" className="label-caps mb-2 block">
+        Nazwa ćwiczenia
+      </label>
+      <input
+        id="nazwa-cwiczenia"
+        type="text"
+        autoComplete="off"
+        maxLength={200}
+        className="h-control w-full rounded-control border border-hairline bg-surface-2 px-3 text-ink"
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+        }}
+      />
       <label htmlFor="grupa-miesniowa" className="label-caps mt-5 mb-2 block">
         Grupa mięśniowa
       </label>
@@ -292,7 +325,8 @@ function CustomExerciseForm({
         </button>
         <button
           type="submit"
-          className="h-control flex-1 rounded-control bg-cta font-semibold text-cta-ink"
+          disabled={trimmedName.length === 0}
+          className="h-control flex-1 rounded-control bg-cta font-semibold text-cta-ink disabled:opacity-40"
         >
           Dodaj
         </button>
