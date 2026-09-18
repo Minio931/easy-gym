@@ -1,0 +1,109 @@
+# Deploy na domową maszynę przez self-hosted runnera.
+#
+# Runner sam wychodzi na zewnątrz (long-polling do api.github.com) i odbiera
+# joby -- nie trzeba wystawiać żadnego portu ani webhooka do domu.
+#
+# Konfiguracja PO STRONIE MASZYNY (raz, patrz README sekcja 4, Wariant D):
+#   - runner zarejestrowany z labelką `easy-gym`, wystawiony jako usługa systemd,
+#   - sekrety w /etc/easy-gym/.env.prod -- NIE w GitHub Secrets, bo compose
+#     i tak czyta je z pliku, a każdy `${VAR:?...}` wypluwałby je do logu builda,
+#   - użytkownik runnera w grupie `docker`.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.claude/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Gałąź albo SHA do wdrożenia'
+        required: false
+        default: ''
+
+# Dwa deploye naraz na jednej maszynie to wyścig o te same kontenery.
+# Kolejkujemy zamiast anulować -- przerwany w połowie `up -d` zostawia stos
+# w stanie "połowa nowa, połowa stara".
+concurrency:
+  group: deploy-home
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, easy-gym]
+    timeout-minutes: 30
+
+    env:
+      COMPOSE: docker-compose.prod.yml
+      ENV_FILE: /etc/easy-gym/.env.prod
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Sprawdź, czy maszyna jest przygotowana
+        run: |
+          test -r "$ENV_FILE" || {
+            echo "::error::Brak $ENV_FILE albo runner nie ma do niego prawa odczytu."
+            echo "Zrób na maszynie: sudo install -m 640 -o root -g docker .env.prod $ENV_FILE"
+            exit 1
+          }
+          docker info >/dev/null || {
+            echo "::error::Runner nie dosięga demona Dockera -- dodaj jego użytkownika do grupy docker."
+            exit 1
+          }
+
+      - name: Zapamiętaj wersję, która teraz chodzi
+        id: prev
+        run: |
+          tag=""
+          cid=$(docker compose -f "$COMPOSE" --env-file "$ENV_FILE" ps -q backend 2>/dev/null | head -n1)
+          if [ -n "$cid" ]; then
+            tag=$(docker inspect --format '{{.Config.Image}}' "$cid" | sed 's/.*://')
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Poprzednia wersja: ${tag:-(brak, pierwszy deploy)}"
+
+      - name: Zbuduj obrazy
+        # IMAGE_TAG ze środowiska wygrywa z wartością z --env-file (tak działa
+        # interpolacja w compose), więc każdy build ma własny, cofalny tag.
+        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" build
+
+      - name: Wstaw nową wersję
+        # --wait czeka na HEALTHCHECK z Dockerfile'ów i wychodzi błędem, jeśli
+        # kontener wstał, ale nie odpowiada -- inaczej "deploy OK" znaczyłoby
+        # tylko tyle, że proces się uruchomił.
+        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d --wait --wait-timeout 180
+
+      - name: Cofnij do poprzedniej wersji
+        if: failure() && steps.prev.outputs.tag != ''
+        env:
+          IMAGE_TAG: ${{ steps.prev.outputs.tag }}
+        run: |
+          echo "::warning::Deploy nieudany -- wracam na ${IMAGE_TAG}"
+          docker compose -f "$COMPOSE" --env-file "$ENV_FILE" up -d --wait --wait-timeout 180
+
+      - name: Pokaż logi, jeśli coś padło
+        if: failure()
+        run: docker compose -f "$COMPOSE" --env-file "$ENV_FILE" logs --tail 80
+
+      - name: Posprzątaj stare obrazy
+        if: always()
+        run: |
+          # Zostawiamy trzy ostatnie wersje każdego obrazu (docker images sortuje
+          # od najnowszego) -- tyle wystarczy na ręczny rollback, a dysk w domu
+          # nie jest z gumy.
+          for repo in easy-gym-backend easy-gym-frontend; do
+            docker images "$repo" --format '{{.ID}} {{.Repository}}:{{.Tag}}' \
+              | tail -n +4 \
+              | while read -r id ref; do
+                  echo "usuwam $ref"
+                  docker rmi "$ref" >/dev/null 2>&1 || true
+                done
+          done
+          docker image prune -f >/dev/null
