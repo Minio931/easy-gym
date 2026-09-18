@@ -945,6 +945,36 @@ export async function discardActiveWorkout(): Promise<void> {
   }
 }
 
+/**
+ * Usunięcie treningu z HISTORII (pomyłkowo dodana sesja). Ta sama droga co przy
+ * porzuceniu aktywnego treningu: tombstone w Dexie zawsze, żądanie w miarę
+ * możliwości, brak zasięgu dowozi paczka sync.
+ *
+ * Trening w toku widać na liście historii (`durationSeconds: null`), więc
+ * skasowany stamtąd musi zniknąć także z ekranu treningu — inaczej zostałby
+ * w migawce `localStorage` i wróciłby przy następnym wejściu w zakładkę.
+ *
+ * Błąd inny niż brak zasięgu leci do wywołującego: tombstone i tak czeka
+ * w Dexie, ale użytkownik ma prawo wiedzieć, że serwer tego nie przyjął.
+ */
+export async function deleteWorkoutById(id: string): Promise<void> {
+  if (state.workout !== null && state.workout.id === id) {
+    await discardActiveWorkout();
+    return;
+  }
+  const deletedAt = new Date().toISOString();
+  persistTombstone((db) => markWorkoutDeleted(db, id, deletedAt));
+  try {
+    await discardWorkout(id);
+  } catch (cause) {
+    if (cause instanceof OfflineError) {
+      void requestSync();
+      return;
+    }
+    throw cause;
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * React
  * ------------------------------------------------------------------ */
