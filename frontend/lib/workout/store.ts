@@ -29,6 +29,7 @@ import {
   buildWorkoutExercise,
   withExercise,
   withSet,
+  withSwappedExercise,
   withoutExercise,
   withoutSet,
 } from "@/lib/workout/optimistic";
@@ -582,6 +583,69 @@ export function removeExerciseFromWorkout(workoutExerciseId: string): void {
     `Usunięcie ćwiczenia „${exercise?.exerciseName ?? ""}"`,
     [],
     () => removeWorkoutExercise(workout.id, workoutExerciseId),
+  );
+}
+
+/**
+ * Zmiana ćwiczenia w trakcie treningu — bez usuwania karty i dodawania nowej
+ * na końcu (dawniej jedyna droga). Serie starego ćwiczenia znikają razem z nim:
+ * zostają jako tombstone'y, jak przy zwykłym usunięciu serii.
+ */
+export function swapExercise(
+  workoutExerciseId: string,
+  exercise: ExerciseResponse,
+  formula: OneRepMaxFormula,
+): void {
+  const workout = state.workout;
+  if (workout === null) {
+    return;
+  }
+  const current = workout.exercises.find((candidate) => candidate.id === workoutExerciseId);
+  if (current === undefined || current.exerciseId === exercise.id) {
+    return;
+  }
+  const removedSetIds = current.sets.map((set) => set.id);
+  const now = new Date().toISOString();
+  const swapped = withSwappedExercise(current, exercise, now);
+
+  commit({
+    workout: {
+      ...workout,
+      exercises: workout.exercises.map((candidate) =>
+        candidate.id === workoutExerciseId ? swapped : candidate,
+      ),
+    },
+    drafts: {
+      ...state.drafts,
+      [workoutExerciseId]: emptyDraft(uuid(), workoutExerciseId),
+    },
+  });
+  rememberExercise(exercise.id);
+  const db = getDatabase();
+  if (db !== null) {
+    void cacheExercises(db, [exercise]).catch(() => undefined);
+  }
+  void ensureReference(exercise.id, workout.id, formula);
+
+  const deletedAt = now;
+  for (const setId of removedSetIds) {
+    persistTombstone((db) => markSetDeleted(db, setId, deletedAt));
+  }
+
+  submit(
+    `exercise-swap:${workoutExerciseId}`,
+    `Zmiana ćwiczenia na „${exercise.name}"`,
+    [workoutExerciseId],
+    async () => {
+      for (const setId of removedSetIds) {
+        await removeSet(workout.id, workoutExerciseId, setId);
+      }
+      return updateWorkoutExercise(workout.id, workoutExerciseId, {
+        exerciseId: exercise.id,
+        orderIndex: current.orderIndex,
+        notes: current.notes,
+      });
+    },
   );
 }
 

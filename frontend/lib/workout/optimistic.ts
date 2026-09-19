@@ -158,6 +158,29 @@ export function buildWorkoutExercise(
   };
 }
 
+/**
+ * Podmiana ćwiczenia na inne w tym samym miejscu listy — bez usuwania karty
+ * i dodawania nowej na końcu. Serie zerujemy: ciężary i powtórzenia zapisane
+ * pod starym ćwiczeniem nie mają sensu pod nowym (inna historia, inne PR-y).
+ */
+export function withSwappedExercise(
+  exercise: WorkoutExerciseResponse,
+  target: ExerciseResponse,
+  now: string,
+): WorkoutExerciseResponse {
+  return {
+    ...exercise,
+    exerciseId: target.id,
+    exerciseName: target.name,
+    muscleGroup: target.muscleGroup,
+    equipment: target.equipment,
+    sets: [],
+    displayVolumeKg: 0,
+    prEligibleVolumeKg: 0,
+    updatedAt: now,
+  };
+}
+
 export function withExercise(
   workout: WorkoutDetailResponse,
   exercise: WorkoutExerciseResponse,

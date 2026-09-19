@@ -51,6 +51,7 @@ function formatSigned(value: number, unit: string): string {
 export function BodyWeightScreen() {
   const { status, stats, local, saving, error } = useBodyWeightState();
   const [range, setRange] = useState<ChartRange>(DEFAULT_CHART_RANGE);
+  const [date, setDate] = useState(() => todayIsoDate());
 
   useEffect(() => {
     void loadBodyWeights();
@@ -80,7 +81,7 @@ export function BodyWeightScreen() {
     <Screen>
       <SectionLabel>Waga ciała</SectionLabel>
 
-      <WeightEntryForm entries={entries} saving={saving} />
+      <WeightEntryForm entries={entries} saving={saving} date={date} onDateChange={setDate} />
 
       {error !== null && <p className="meta mt-2">{error}</p>}
       {local && entries.length > 0 && (
@@ -159,7 +160,13 @@ export function BodyWeightScreen() {
               emptyMessage="Brak pomiarów w tym zakresie."
               columns={WEEKLY_COLUMNS}
             >
-              <BodyWeightChart raw={points.raw} weekly={points.weekly} domain={points.domain} />
+              <BodyWeightChart
+                raw={points.raw}
+                weekly={points.weekly}
+                domain={points.domain}
+                selectedDate={date}
+                onSelectDay={setDate}
+              />
             </ChartTile>
             <p className="meta mt-1">
               Jasne punkty to pojedyncze ważenia, linia to średnie tygodniowe. Pusty punkt
@@ -181,11 +188,15 @@ export function BodyWeightScreen() {
 function WeightEntryForm({
   entries,
   saving,
+  date,
+  onDateChange,
 }: {
   entries: readonly BodyWeightResponse[];
   saving: boolean;
+  /** Kontrolowane z zewnątrz — kliknięcie punktu na wykresie też zmienia ten dzień. */
+  date: string;
+  onDateChange: (isoDate: string) => void;
 }) {
-  const [date, setDate] = useState(() => todayIsoDate());
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
 
@@ -218,7 +229,7 @@ function WeightEntryForm({
             value={date}
             max={todayIsoDate()}
             onChange={(event) => {
-              setDate(event.target.value);
+              onDateChange(event.target.value);
             }}
             className="h-control w-full rounded-control border border-hairline bg-surface-2 px-3 text-ink"
           />

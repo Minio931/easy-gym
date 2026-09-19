@@ -1,12 +1,15 @@
 "use client";
 
-import { CheckIcon } from "@/components/ui/icons";
 import type { SetDraft } from "@/lib/workout/draft";
 
 /**
- * Szkic serii, który nie jest w tej chwili edytowany: wartości już są, ale ✓
- * jest pusty — widać na pierwszy rzut oka, że ta seria NIE jest odhaczona.
- * Tap wraca do niej jako do wiersza aktywnego.
+ * Szkic serii, który nie jest w tej chwili edytowany: wartości już są wpisane,
+ * ale seria NIE jest zatwierdzona. Tap wraca do niej jako do wiersza aktywnego.
+ *
+ * Świadomie BEZ `CheckIcon` — ta sama ikona w wierszu zatwierdzonym (`SetRow`)
+ * różniła się tylko odcieniem tła, a przy identycznych liczbach (draft
+ * zaczyna się od skopiowanej poprzedniej serii) dawało to na pierwszy rzut oka
+ * drugi wiersz "zatwierdzony". Etykieta tekstowa nie ma tej dwuznaczności.
  */
 export function PendingSetRow({
   draft,
@@ -36,11 +39,8 @@ export function PendingSetRow({
         {draft.weight === "" ? "—" : draft.weight} <span className="meta">kg</span> ×{" "}
         {draft.reps === "" ? "—" : draft.reps} <span className="meta">powt.</span>
       </span>
-      <span
-        aria-hidden="true"
-        className="grid size-control shrink-0 place-items-center rounded-control border border-hairline text-ink-3"
-      >
-        <CheckIcon strokeWidth={2.2} />
+      <span aria-hidden="true" className="meta shrink-0 whitespace-nowrap">
+        szkic
       </span>
       <span className="sr-only">Niezatwierdzona seria {index + 1}. Wróć do edycji.</span>
     </button>

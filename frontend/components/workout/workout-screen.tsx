@@ -28,6 +28,7 @@ import {
   setActiveExercise,
   setDeload,
   setExerciseNotes,
+  swapExercise,
   updateDraft,
   useWorkoutState,
 } from "@/lib/workout/store";
@@ -48,6 +49,7 @@ export function WorkoutScreen() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuExerciseId, setMenuExerciseId] = useState<string | null>(null);
+  const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
 
   useEffect(() => {
@@ -113,6 +115,13 @@ export function WorkoutScreen() {
         .getElementById(`cwiczenie-${workoutExerciseId}`)
         ?.scrollIntoView({ block: "start", behavior: "smooth" });
     });
+  };
+
+  const pickSwap = (exercise: ExerciseResponse) => {
+    if (swapExerciseId !== null) {
+      swapExercise(swapExerciseId, exercise, settings.oneRepMaxFormula);
+    }
+    setSwapExerciseId(null);
   };
 
   const finish = () => {
@@ -233,6 +242,19 @@ export function WorkoutScreen() {
           }}
           onNotesChange={(notes) => {
             setExerciseNotes(menuExercise.id, notes);
+          }}
+          onSwapRequest={() => {
+            setMenuExerciseId(null);
+            setSwapExerciseId(menuExercise.id);
+          }}
+        />
+      )}
+
+      {swapExerciseId !== null && (
+        <ExercisePickerSheet
+          onPick={pickSwap}
+          onClose={() => {
+            setSwapExerciseId(null);
           }}
         />
       )}

@@ -24,16 +24,20 @@ export function ExerciseMenuSheet({
   onClose,
   onDelete,
   onNotesChange,
+  onSwapRequest,
 }: {
   exercise: WorkoutExerciseResponse;
   onClose: () => void;
   onDelete: () => void;
   onNotesChange: (notes: string) => void;
+  /** Otwiera wyszukiwarkę ćwiczeń w trybie zmiany — zamyka to menu. */
+  onSwapRequest: () => void;
 }) {
   const preferences = useRestPreferences();
   const { settings } = useSettings();
   const [notes, setNotes] = useState(exercise.notes ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmSwap, setConfirmSwap] = useState(false);
   const restSeconds = preferences.perExercise[exercise.exerciseId] ?? settings.defaultRestSeconds;
 
   return (
@@ -83,6 +87,49 @@ export function ExerciseMenuSheet({
         </div>
 
         <div className="mt-6 border-t border-hairline pt-4">
+          {confirmSwap ? (
+            <>
+              <p className="text-ink-2">
+                Zmiana ćwiczenia usunie {setsLabel(exercise.sets.length)} zapisane pod „
+                {exercise.exerciseName}&rdquo;.
+              </p>
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmSwap(false);
+                  }}
+                  className="h-control flex-1 rounded-control border border-hairline font-semibold text-ink-2"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  onClick={onSwapRequest}
+                  className="h-control flex-1 rounded-control border border-hairline bg-surface-2 font-semibold text-ink"
+                >
+                  Zmień
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (exercise.sets.length > 0) {
+                  setConfirmSwap(true);
+                  return;
+                }
+                onSwapRequest();
+              }}
+              className="h-control w-full rounded-control text-left font-semibold text-ink"
+            >
+              Zmień ćwiczenie
+            </button>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-hairline pt-4">
           {confirmDelete ? (
             <>
               <p className="text-ink-2">

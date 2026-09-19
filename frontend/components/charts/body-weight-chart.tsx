@@ -37,15 +37,22 @@ import { formatWeight } from "@/lib/format";
 
 const SERIES = seriesColor(1);
 const RAW_RADIUS = 4; // 8 px średnicy
+const HIT_RADIUS = 16; // 32 px średnicy -- realny cel dotykowy, kółko zostaje małe
 
 export function BodyWeightChart({
   raw,
   weekly,
   domain,
+  selectedDate = null,
+  onSelectDay,
 }: {
   raw: readonly RawWeightPoint[];
   weekly: readonly WeeklyWeightPoint[];
   domain: [number, number] | null;
+  /** Dzień aktualnie wybrany w formularzu wpisu — obrysowany na wykresie. */
+  selectedDate?: string | null;
+  /** Kliknięcie/dotknięcie surowego pomiaru -- ustawia ten dzień w formularzu wpisu. */
+  onSelectDay?: (isoDate: string) => void;
 }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -98,7 +105,13 @@ export function BodyWeightChart({
           }}
         />
 
-        {/* Surowe pomiary: jasne, stonowane — są tłem dla trendu, nie treścią. */}
+        {/* Surowe pomiary: jasne, stonowane — są tłem dla trendu, nie treścią.
+            Klikalne (jeśli `onSelectDay` podany) -- to jedyny sposób zaznaczyć
+            konkretny dzień w środku tygodnia, bez przeklikiwania natywnego
+            `<input type="date">` dzień po dniu. Widoczne kółko zostaje 8 px
+            (RAW_RADIUS), ale hit-area jest większa i niewidzialna -- tak małego
+            celu nie da się trafić palcem, a powiększenie widocznego punktu
+            zamieniłoby chmurę pomiarów w nieczytelną plamę. */}
         <Scatter
           data={[...raw]}
           dataKey="weightKg"
@@ -108,7 +121,28 @@ export function BodyWeightChart({
             if (cx === undefined || cy === undefined || payload === undefined) {
               return <g />;
             }
-            return <circle cx={cx} cy={cy} r={RAW_RADIUS} fill="var(--ink-3)" />;
+            const isSelected = payload.measuredOn === selectedDate;
+            return (
+              <g
+                onClick={() => onSelectDay?.(payload.measuredOn)}
+                style={{ cursor: onSelectDay === undefined ? undefined : "pointer" }}
+              >
+                {onSelectDay !== undefined && (
+                  <circle cx={cx} cy={cy} r={HIT_RADIUS} fill="transparent" />
+                )}
+                {isSelected && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={RAW_RADIUS + 3}
+                    fill="none"
+                    stroke={SERIES}
+                    strokeWidth={2}
+                  />
+                )}
+                <circle cx={cx} cy={cy} r={RAW_RADIUS} fill="var(--ink-3)" />
+              </g>
+            );
           }}
           isAnimationActive={false}
         />
