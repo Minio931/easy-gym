@@ -19,7 +19,7 @@ repositories {
 }
 
 val testcontainersVersion = "1.20.4"
-val jjwtVersion = "0.12.6"
+val jjwtVersion = "0.13.0"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
