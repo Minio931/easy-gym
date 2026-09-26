@@ -36,6 +36,14 @@ export function WorkoutStart() {
           </Button>
         }
       />
+      <p className="mt-3 text-center">
+        <Link
+          href="/trening/nowy-historyczny"
+          className="label-caps text-ink-2 underline underline-offset-4"
+        >
+          Wpisz trening z przeszłości
+        </Link>
+      </p>
 
       <div className="mt-8">
         <div className="flex items-baseline justify-between gap-3">

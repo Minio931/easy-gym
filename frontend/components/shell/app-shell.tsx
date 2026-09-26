@@ -41,7 +41,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isWorkout = pathname === "/trening";
   // Nazwa ćwiczenia jest długa i zmienna, więc w pasku zostaje rodzaj ekranu,
   // a nazwa jest nagłówkiem treści — tak samo jak przy podsumowaniu.
-  const title = pathname.startsWith("/trening/")
+  const title = pathname === "/trening/nowy-historyczny"
+    ? "Trening z przeszłości"
+    : pathname.startsWith("/trening/")
     ? "Podsumowanie"
     : pathname.startsWith("/cwiczenie/")
       ? "Ćwiczenie"
