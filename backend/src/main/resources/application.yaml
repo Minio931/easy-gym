@@ -35,6 +35,14 @@ management:
       show-details: never
       probes:
         enabled: true
+      group:
+        # Sygnal samej bazy dla dashboardu wojtur.ovh -- bez `show-details`,
+        # wiec /actuator/health/database oddaje tylko {"status":"UP"|"DOWN"},
+        # tak jak reszta actuatora, zero wycieku ponad to. Nazwa grupy MUSI
+        # byc inna niz "db" -- to nazwa wlasnego wskaznika, kolizja wywala
+        # start (IllegalStateException: HealthContributor "db" clashes).
+        database:
+          include: db
 
 app:
   jwt:
