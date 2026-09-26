@@ -18,7 +18,7 @@ repositories {
     mavenCentral()
 }
 
-val testcontainersVersion = "1.20.4"
+val testcontainersVersion = "1.21.4"
 val jjwtVersion = "0.12.6"
 
 dependencies {
