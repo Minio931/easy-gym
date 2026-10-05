@@ -1,14 +1,14 @@
 import { round2 } from "@/lib/metrics";
 
 /**
- * Czyste funkcje wokół pól serii: parsowanie tego, co user wklepał, granice
- * z `CHECK`-ów bazy i walidacja. Wyłącznie tutaj — komponent wiersza serii ma
- * układać piksele, nie pilnować, czy 500.001 kg przejdzie przez bazę.
+ * Pure functions around the set fields: parsing what the user typed, bounds
+ * from the database `CHECK`s, and validation. Only here — the set-row
+ * component should arrange pixels, not police whether 500.001 kg passes.
  *
- * Granice są **te same** co w schemacie Postgresa (PROMPT.md §2): ciężar
- * 0–500, powtórzenia 1–100, RPE 1–10 albo `null`. Przekroczenie ich po
- * stronie serwera to `400`, więc front zaciska je zawczasu, a stepper z
- * definicji nie potrafi wyjść poza zakres.
+ * Bounds are **the same** as the Postgres schema (PROMPT.md §2): weight
+ * 0–500, reps 1–100, RPE 1–10 or `null`. Breaching them on the server is a
+ * `400`, so the frontend clamps up front, and the stepper by construction
+ * cannot leave the range.
  */
 
 export const WEIGHT_MIN = 0;
@@ -18,11 +18,11 @@ export const REPS_MAX = 100;
 export const RPE_MIN = 1;
 export const RPE_MAX = 10;
 
-/** Krok steppera ciężaru — najmniejsza para talerzy (2 × 1.25 kg). */
+/** Weight-stepper step — smallest pair of plates (2 × 1.25 kg). */
 export const WEIGHT_STEP = 2.5;
 export const REPS_STEP = 1;
 
-/** Ziarno wpisywanego ciężaru (PROMPT.md §8). 1.25 kg krążek na sztangę = 2.5 kg. */
+/** Grain of the typed weight (PROMPT.md §8). 1.25 kg plate on a bar = 2.5 kg. */
 export const WEIGHT_GRAIN = 0.25;
 
 export const WEIGHT_ERROR = "Ciężar od 0 do 500 kg";
@@ -31,9 +31,10 @@ export const RPE_ERROR = "RPE od 1 do 10";
 export const EMPTY_ERROR = "Podaj ciężar i powtórzenia";
 
 /**
- * Parsowanie wartości z pola tekstowego. Przecinek jest akceptowany na równi
- * z kropką — polska klawiatura numeryczna daje przecinek, a `Number("102,5")`
- * to `NaN`. Pusty string to `null` (pusty input ≠ zero), nie 0.
+ * Parsing a value from a text field. A comma is accepted on equal terms
+ * with a dot — the Polish numeric keyboard produces a comma, and
+ * `Number("102,5")` is `NaN`. An empty string becomes `null` (empty input
+ * ≠ zero), not 0.
  */
 export function parseDecimalInput(raw: string): number | null {
   const normalized = raw.trim().replace(",", ".");
@@ -51,7 +52,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Ciężar do ziarna 0.25 kg — przez round2, bo `Math.round(x*4)/4` zostawia pył. */
+/** Weight to a 0.25 kg grain — via round2, because `Math.round(x*4)/4` leaves dust. */
 export function roundToGrain(weightKg: number): number {
   return round2(Math.round(weightKg / WEIGHT_GRAIN) * WEIGHT_GRAIN);
 }
@@ -69,9 +70,9 @@ export function clampRpe(rpe: number): number {
 }
 
 /**
- * Wynik steppera ciężaru. Puste pole + `+2.5` startuje od wartości
- * referencyjnej (ostatnia seria), a nie od zera — inaczej pierwsze kliknięcie
- * plusa w nowym ćwiczeniu kasuje kontekst.
+ * Weight-stepper result. An empty field + `+2.5` starts from the reference
+ * value (last set), not from zero — otherwise the first plus-click on a new
+ * exercise clears the context.
  */
 export function stepWeight(raw: string, delta: number, fallback: number | null): string {
   const current = parseDecimalInput(raw) ?? fallback ?? 0;
@@ -83,7 +84,7 @@ export function stepReps(raw: string, delta: number, fallback: number | null): s
   return String(clampReps(current + delta));
 }
 
-/** „102.5", „100" — bez zer na końcu, bo `100.00 kg` czyta się jak formularz. */
+/** "102.5", "100" — no trailing zeros, because `100.00 kg` reads like a form. */
 export function formatWeightValue(weightKg: number): string {
   return String(round2(weightKg));
 }
@@ -95,20 +96,20 @@ export interface SetValues {
 }
 
 export interface SetValidation {
-  /** Wypełnione tylko gdy nie ma błędów — wtedy wolno zapisać serię. */
+  /** Populated only when there are no errors — then the set may be saved. */
   values: SetValues | null;
   weightError: string | null;
   repsError: string | null;
   rpeError: string | null;
-  /** Pola są puste (nie: błędne). Komunikat pokazujemy dopiero przy próbie ✓. */
+  /** The fields are empty (not: invalid). We show the message only on a ✓ attempt. */
   incomplete: boolean;
-  /** Komunikat pod wierszem; `null` gdy wiersz jest w porządku. */
+  /** Message under the row; `null` when the row is fine. */
   message: string | null;
 }
 
 /**
- * Walidacja na żywo, nieblokująca: pole poza zakresem dostaje komunikat od
- * razu, ale wpisywanie nie jest przerywane. Zablokowane jest wyłącznie ✓.
+ * Non-blocking live validation: a field out of range gets a message
+ * immediately, but typing is not interrupted. Only ✓ is blocked.
  */
 export function validateSetInput(
   weightRaw: string,

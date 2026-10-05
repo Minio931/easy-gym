@@ -13,10 +13,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Refresh tokeny trzymane jako hash (SHA-256), nie surowa wartość -- analogicznie
- * do password_hash. Rotacja przy każdym /refresh: stary rekord dostaje revokedAt,
- * powstaje nowy -- ponowne użycie starego refresh tokenu (np. po kradzieży) jest
- * wykrywalne i blokowane.
+ * Refresh tokens are stored as a hash (SHA-256), not the raw value -- analogous
+ * to password_hash. Rotated on every /refresh: the old record gets revokedAt
+ * and a new one is created -- reusing the old refresh token (e.g. after theft)
+ * is detectable and blocked.
  */
 @Entity
 @Table(name = "refresh_tokens")

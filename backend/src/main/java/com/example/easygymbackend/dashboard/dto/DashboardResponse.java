@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Komplet danych pulpitu (sekcja 6 promptu): objętość tygodniowa per grupa
- * mięśniowa (stacked bar), kalendarz treningów, ostatnie PR i waga ciała.
+ * Full dashboard data (section 6 of the prompt): weekly volume per muscle
+ * group (stacked bar), workout calendar, recent PRs and body weight.
  */
 public record DashboardResponse(
         Instant from,
@@ -40,7 +40,7 @@ public record DashboardResponse(
     ) {
     }
 
-    /** Porównanie ostatniego tygodnia do poprzedniego; null gdy nie ma z czym. */
+    /** Comparison of the latest week to the previous one; null when there is nothing to compare against. */
     public record Trend(BigDecimal previousKg, BigDecimal currentKg, BigDecimal deltaPercent) {
     }
 
@@ -51,8 +51,9 @@ public record DashboardResponse(
     }
 
     /**
-     * Seria, która w momencie wykonania pobiła dotychczasowy rekord ciężaru
-     * danego ćwiczenia -- wyliczane funkcją okna w SQL, nie pętlą po historii.
+     * A set that at the moment of execution beat the previous weight record of
+     * the given exercise -- computed with a window function in SQL, not a loop
+     * over history.
      */
     public record RecentPersonalRecord(
             UUID setId,

@@ -3,13 +3,14 @@
 import type { SetDraft } from "@/lib/workout/draft";
 
 /**
- * Szkic serii, który nie jest w tej chwili edytowany: wartości już są wpisane,
- * ale seria NIE jest zatwierdzona. Tap wraca do niej jako do wiersza aktywnego.
+ * A set draft not currently being edited: the values are filled in but
+ * the set is NOT confirmed. A tap returns to it as the active row.
  *
- * Świadomie BEZ `CheckIcon` — ta sama ikona w wierszu zatwierdzonym (`SetRow`)
- * różniła się tylko odcieniem tła, a przy identycznych liczbach (draft
- * zaczyna się od skopiowanej poprzedniej serii) dawało to na pierwszy rzut oka
- * drugi wiersz "zatwierdzony". Etykieta tekstowa nie ma tej dwuznaczności.
+ * Deliberately WITHOUT `CheckIcon` — the same icon on the confirmed row
+ * (`SetRow`) differed only by background tint, and with identical numbers
+ * (a draft starts from a copy of the previous set) it looked at first
+ * glance like a second "confirmed" row. A text label removes that
+ * ambiguity.
  */
 export function PendingSetRow({
   draft,

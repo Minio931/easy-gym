@@ -31,9 +31,10 @@ public class ProfileController {
     }
 
     /**
-     * Formuła e1RM celowo NIE jest tutaj -- liczy się ją na żywo z parametru
-     * ?formula= przy każdym zapytaniu, żeby zmiana ustawienia nie fałszowała
-     * historii (patrz metrics w CLAUDE.md). Motyw zostaje po stronie klienta.
+     * The e1RM formula deliberately does NOT live here -- it is computed on
+     * the fly from the ?formula= parameter on each request, so that changing
+     * the setting does not falsify history (see metrics in CLAUDE.md). The
+     * theme stays on the client side.
      */
     public record UpdateProfileRequest(@NotBlank @Size(max = 100) String displayName) {
     }

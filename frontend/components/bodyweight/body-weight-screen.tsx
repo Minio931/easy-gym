@@ -22,12 +22,12 @@ import { formatWeight } from "@/lib/format";
 import type { BodyWeightResponse } from "@/types/api";
 
 /**
- * Ekran wagi ciała (PROMPT §5, DESIGN §10).
+ * Body-weight screen (PROMPT §5, DESIGN §10).
  *
- * Wpis jest jeden na dzień i jest EDYTOWALNY — drugie ważenie tego samego dnia
- * poprawia pierwsze, nie dokłada drugiego. Ekran mówi to wprost, zanim user
- * kliknie zapis, bo inaczej „zapisz" przy już zważonym dniu wygląda jak
- * dodawanie, a jest nadpisaniem.
+ * One entry per day, EDITABLE — a second weigh-in on the same day fixes
+ * the first, it does not add another. The screen says so explicitly
+ * before the user hits save, otherwise "save" on an already-weighed day
+ * looks like adding when it is in fact overwriting.
  */
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = {
@@ -41,7 +41,7 @@ function formatDay(isoDate: string): string {
   return new Date(year, month - 1, day).toLocaleDateString("pl-PL", DATE_FORMAT);
 }
 
-/** `unit` puste = sama liczba ze znakiem (kafle, gdzie jednostkę niesie podpis). */
+/** empty `unit` = signed number only (tiles where the unit is in the caption). */
 function formatSigned(value: number, unit: string): string {
   const sign = value > 0 ? "+" : "";
   const suffix = unit === "" ? "" : ` ${unit}`;
@@ -118,10 +118,10 @@ export function BodyWeightScreen() {
               }
             />
             <Tile
-              // Etykiety i wartości muszą się zmieścić w jednej trzeciej
-              // szerokości 390 px przy stopniu pisma 30 px. „Tydz. do tyg."
-              // i „-0.37 kg" ucinały się na wielokropek — a ucięta liczba to
-              // gorzej niż krótsza etykieta. Jednostkę niesie podpis kafla.
+              // Labels and values must fit in one third of 390 px width
+              // at a 30 px font size. "Tydz. do tyg." and "-0.37 kg" used
+              // to clip with an ellipsis — a clipped number is worse than
+              // a shorter label. The unit is in the tile caption.
               label="Zmiana tyg."
               value={
                 latestWeek?.deltaKg === null || latestWeek?.deltaKg === undefined
@@ -193,7 +193,7 @@ function WeightEntryForm({
 }: {
   entries: readonly BodyWeightResponse[];
   saving: boolean;
-  /** Kontrolowane z zewnątrz — kliknięcie punktu na wykresie też zmienia ten dzień. */
+  /** Controlled externally — clicking a point on the chart also changes this day. */
   date: string;
   onDateChange: (isoDate: string) => void;
 }) {
@@ -237,8 +237,8 @@ function WeightEntryForm({
         <label className="min-w-0 flex-1">
           <span className="label-caps mb-1 block">Waga (kg)</span>
           <input
-            // `decimal`, nie `numeric`: klawiatura numeryczna bez separatora
-            // nie pozwala wpisać 80,4, a waga rzadko bywa okrągła.
+            // `decimal`, not `numeric`: a numeric keyboard without a
+            // separator cannot type 80.4, and weight is rarely a round number.
             inputMode="decimal"
             value={value}
             placeholder={existing === null ? "80,0" : formatWeight(existing.weightKg)}
@@ -256,8 +256,8 @@ function WeightEntryForm({
       </div>
 
       {existing !== null && (
-        // Bez tego „Zapisz" przy już zważonym dniu wygląda jak dodawanie
-        // drugiego wpisu, a jest nadpisaniem pierwszego.
+        // Without this, "Zapisz" on an already-weighed day looks like
+        // adding a second entry, when it is overwriting the first.
         <p className="meta mt-2">
           Ten dzień ma już wpis {formatWeight(existing.weightKg)} kg — zapis go nadpisze.
         </p>
@@ -280,7 +280,7 @@ function WeightEntryForm({
 }
 
 /* ------------------------------------------------------------------ *
- * Lista pomiarów
+ * Measurement list
  * ------------------------------------------------------------------ */
 
 const RECENT_LIMIT = 14;

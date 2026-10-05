@@ -19,15 +19,15 @@ import {
 import { formatVolume } from "@/lib/format";
 
 /**
- * Objętość tygodniowa per grupa mięśniowa — stacked bar wg DESIGN §10:
- * 2 px przerwy w kolorze powierzchni między segmentami, końce słupka
- * zaokrąglone 4 px. Oba wymagają własnego kształtu: `radius` Rechartsa
- * zaokrągla każdy segment osobno (stos rozpada się na łańcuch pigułek),
- * a przerwy nie umie w ogóle.
+ * Weekly volume per muscle group — stacked bar per DESIGN §10:
+ * 2 px gaps in the surface color between segments, bar ends rounded 4 px.
+ * Both require a custom shape: Recharts' `radius` rounds each segment
+ * separately (the stack falls apart into a chain of pills), and it cannot
+ * do gaps at all.
  *
- * Tydzień deload dostaje podkreślenie w `--warning` pod słupkiem — kształt,
- * nie sam kolor (DESIGN §9), bo „mniej objętości" i „lekki tydzień z planu"
- * to dwie różne wiadomości i nie wolno ich mylić.
+ * A deload week gets an underline in `--warning` below the bar — shape,
+ * not color alone (DESIGN §9), because "less volume" and "a light week
+ * from the plan" are two different messages and must not be confused.
  */
 
 const DELOAD_UNDERLINE_OFFSET = 3;
@@ -83,7 +83,7 @@ export function WeeklyVolumeChart({
         {buckets.map((bucket) => (
           <Bar
             key={bucket.key}
-            stackId="objetosc"
+            stackId="volume"
             name={bucket.label}
             dataKey={(row: VolumeRow) => row.kg[bucket.key] ?? 0}
             isAnimationActive={false}
@@ -118,10 +118,10 @@ function Segment({
   }
 
   const { first, last } = segmentEnds(payload, bucket.key, buckets);
-  // Przerwa idzie NAD segmentem, więc najwyższy jej nie dostaje — inaczej cały
-  // słupek byłby o 2 px niższy, niż mówi oś. Przy segmencie cieńszym niż
-  // przerwa zostawiamy 1 px danych zamiast przerwy: kreska jest prawdziwa,
-  // pusta przestrzeń kłamie.
+  // The gap sits ABOVE a segment, so the top one does not get it —
+  // otherwise the whole bar would be 2 px shorter than the axis says. For
+  // a segment thinner than the gap we keep 1 px of data instead of the
+  // gap: the stroke is real, the empty space lies.
   const gap = last ? 0 : Math.min(SEGMENT_GAP, Math.max(0, height - 1));
 
   return (
@@ -158,8 +158,8 @@ function formatRange(row: VolumeRow): string {
 }
 
 /**
- * Legenda. Przy stosie jest obowiązkowa (DESIGN §10: ≥ 2 serie), a etykiet
- * bezpośrednich na segmentach 12 px wysokości nie da się postawić.
+ * Legend. Mandatory with a stack (DESIGN §10: ≥ 2 series), and direct
+ * labels on 12 px tall segments are not placeable.
  */
 export function VolumeLegend({ buckets }: { buckets: readonly MuscleGroupBucket[] }) {
   if (buckets.length === 0) {

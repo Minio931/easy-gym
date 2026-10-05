@@ -5,9 +5,8 @@ import jakarta.validation.Valid;
 import java.time.Instant;
 
 /**
- * `since` = serverTime z poprzedniej udanej synchronizacji; null przy
- * pierwszym uruchomieniu (pełny zaciąg). `changes` może być puste -- sam
- * pull też jest poprawnym wywołaniem.
+ * `since` = serverTime from the previous successful sync; null on first run
+ * (full pull). `changes` may be empty -- a pure pull is also a valid call.
  */
 public record SyncRequest(Instant since, @Valid SyncPayload changes) {
 

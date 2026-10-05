@@ -12,17 +12,17 @@ import { requestSync } from "@/lib/sync/engine";
 import type { OneRepMaxFormula } from "@/lib/metrics";
 
 /**
- * Uruchomienie eksportu: Dexie → zestaw danych → skoroszyt → plik.
+ * Running the export: Dexie → dataset → workbook → file.
  *
- * Źródłem jest LOKALNA baza, bo po pierwszej synchronizacji leży w niej komplet
- * historii (`since: null` = pełny zaciąg). Zanim jednak zbudujemy plik,
- * próbujemy się zsynchronizować: bez tego eksport zrobiony zaraz po treningu
- * na drugim urządzeniu pominąłby tamtą sesję i nikt by tego nie zauważył —
- * plik wyglądałby na kompletny.
+ * The source is the LOCAL database, because after the first sync it holds
+ * the full history (`since: null` = full pull). Before we build the file,
+ * though, we try to sync: without that, an export run right after a workout
+ * from another device would miss that session and nobody would notice —
+ * the file would look complete.
  *
- * Nieudana synchronizacja (brak zasięgu) NIE przerywa eksportu. To jest cała
- * przewaga wariantu lokalnego: plik powstaje też w piwnicy bez sieci, tylko
- * z danymi, które są na urządzeniu.
+ * A failed sync (no signal) does NOT abort the export. That is the whole
+ * advantage of the local variant: the file is produced in a basement
+ * without network too, using only the data on the device.
  */
 
 export interface ExportResult {
@@ -75,7 +75,7 @@ export async function runExport(
   };
 }
 
-/** Oddaje plik przeglądarce. Osobno od budowania, żeby `runExport` dało się testować. */
+/** Hands the file to the browser. Separate from building so `runExport` is testable. */
 export function downloadBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -84,8 +84,8 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   document.body.append(link);
   link.click();
   link.remove();
-  // Zwolnienie od razu po kliknięciu potrafi uciąć pobieranie w Safari —
-  // stąd odroczenie o jedną klatkę zdarzeń.
+  // Revoking right after the click can cut off the download in Safari —
+  // hence the one-event-frame deferral.
   setTimeout(() => {
     URL.revokeObjectURL(url);
   }, 0);

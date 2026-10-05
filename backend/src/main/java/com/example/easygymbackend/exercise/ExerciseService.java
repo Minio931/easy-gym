@@ -70,7 +70,7 @@ public class ExerciseService {
         return ExerciseResponse.from(exerciseRepository.save(exercise));
     }
 
-    /** Soft delete -- inaczej skasowanie nie zsynchronizowałoby się na drugie urządzenie. */
+    /** Soft delete -- otherwise the deletion would not sync to another device. */
     @Transactional
     public void delete(UUID userId, UUID id) {
         Exercise exercise = loadOwnEditable(userId, id);
@@ -82,10 +82,10 @@ public class ExerciseService {
 
     private Exercise loadVisible(UUID userId, UUID id) {
         Exercise exercise = exerciseRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new NotFoundException("Ćwiczenie nie istnieje: " + id));
+                .orElseThrow(() -> new NotFoundException("Exercise does not exist: " + id));
         if (!exercise.isGlobal() && !exercise.getUserId().equals(userId)) {
-            // 404, nie 403 -- nie zdradzamy, że ten UUID istnieje na innym koncie.
-            throw new NotFoundException("Ćwiczenie nie istnieje: " + id);
+            // 404, not 403 -- we do not reveal that this UUID exists on another account.
+            throw new NotFoundException("Exercise does not exist: " + id);
         }
         return exercise;
     }
@@ -94,12 +94,12 @@ public class ExerciseService {
         Exercise exercise = loadVisible(userId, id);
         if (exercise.isGlobal()) {
             throw new ForbiddenOperationException(
-                    "Ćwiczenie z katalogu globalnego jest tylko do odczytu -- dodaj własne");
+                    "An exercise from the global catalog is read-only -- add your own");
         }
         return exercise;
     }
 
-    /** W ILIKE '%' || :query || '%' znaki % i _ z inputu usera byłyby wildcardami. */
+    /** In ILIKE '%' || :query || '%' the % and _ characters from user input would act as wildcards. */
     private static String escapeLikeWildcards(String query) {
         return query.replace("%", "").replace("_", " ");
     }

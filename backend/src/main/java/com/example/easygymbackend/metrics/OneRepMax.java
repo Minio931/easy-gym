@@ -5,16 +5,16 @@ import java.math.RoundingMode;
 import java.util.Optional;
 
 /**
- * e1RM wg Epleya lub Brzyckiego (sekcja 4 promptu). Dla reps=1 obie formuły
- * matematycznie zwracają ~wagę (Epley naturalnie ~1.033x, Brzycki dokładnie
- * 1x) -- promptu wprost każe dla reps=1 zwracać samą wagę, więc robimy to
- * jednym warunkiem niezależnym od formuły zamiast liczyć i zaokrąglać przez
- * ułamek, który i tak wyjdzie ~tym samym.
+ * e1RM per Epley or Brzycki (section 4 of the prompt). For reps=1 both formulas
+ * mathematically return ~the weight (Epley naturally ~1.033x, Brzycki exactly
+ * 1x) -- the prompt explicitly says to return the raw weight for reps=1, so we
+ * do that with a single formula-independent branch instead of computing and
+ * rounding through a fraction that would come out ~the same anyway.
  *
- * Brzycki (weight * 36 / (37 - reps)) dzieli przez zero przy reps=37 i daje
- * ujemny, bezsensowny wynik powyżej -- nieprzewidziane w prompt, ale realne:
- * equipment 'bodyweight' + seria do odmowy (to_failure) mogą łatwo dać 40+
- * powtórzeń (np. pompki). Zwracamy Optional.empty() zamiast fałszywej liczby.
+ * Brzycki (weight * 36 / (37 - reps)) divides by zero at reps=37 and yields a
+ * negative, meaningless result above that -- unanticipated in the prompt but
+ * real: equipment 'bodyweight' + a to_failure set can easily reach 40+ reps
+ * (e.g. push-ups). We return Optional.empty() instead of a false number.
  */
 public final class OneRepMax {
 

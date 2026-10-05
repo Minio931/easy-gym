@@ -1,12 +1,12 @@
--- Wszystkie tabele poniżej to encje synchronizowane z klienta offline (Dexie).
--- Konwencje wspólne dla sync (last-write-wins po updated_at), nieobecne
--- literalnie w specyfikacji, ale wymagane żeby sync w ogóle działał:
---   * id UUID -- generowany po stronie klienta, PK nie ma DEFAULT (poza
---     wyjątkami tworzonymi tylko po stronie serwera, np. seed ćwiczeń)
---   * updated_at TIMESTAMPTZ -- bump przy każdej zmianie, klucz do LWW
---   * deleted_at TIMESTAMPTZ NULL -- soft delete / tombstone; usunięcie
---     offline też musi się zsynchronizować, więc nie robimy DELETE FROM,
---     tylko ustawiamy deleted_at (i bumpujemy updated_at)
+-- All tables below are entities synchronized from the offline client (Dexie).
+-- Conventions common to sync (last-write-wins by updated_at), absent from the
+-- spec literally but required for sync to work at all:
+--   * id UUID -- generated on the client side, PK has no DEFAULT (except for
+--     records created only on the server, e.g. the exercise seed)
+--   * updated_at TIMESTAMPTZ -- bumped on every change, LWW key
+--   * deleted_at TIMESTAMPTZ NULL -- soft delete / tombstone; an offline
+--     delete also has to sync, so we don't DELETE FROM; we only set
+--     deleted_at (and bump updated_at)
 
 CREATE TABLE exercises (
     id            UUID PRIMARY KEY,
@@ -23,7 +23,7 @@ CREATE TABLE exercises (
     )
 );
 
--- user_id IS NULL = ćwiczenie globalne (seed), widoczne dla każdego usera.
+-- user_id IS NULL = global exercise (seed), visible to every user.
 CREATE INDEX idx_exercises_user_id ON exercises (user_id);
 CREATE INDEX idx_exercises_name_trgm ON exercises USING gin (name gin_trgm_ops);
 
@@ -112,9 +112,9 @@ CREATE TABLE body_weights (
     CONSTRAINT chk_body_weights_weight_kg CHECK (weight_kg > 0 AND weight_kg < 400)
 );
 
--- Unikalność "jeden wpis na dzień" tylko wśród żywych rekordów -- zwykły
--- UNIQUE(user_id, measured_on) zablokowałby dodanie nowego wpisu po
--- usunięciu starego z tego samego dnia (soft-deleted wiersz nadal by "zajmował" datę).
+-- "One entry per day" uniqueness only across live records -- a plain
+-- UNIQUE(user_id, measured_on) would block adding a new entry after deleting
+-- the old one on the same day (a soft-deleted row would still "occupy" the date).
 CREATE UNIQUE INDEX uq_body_weights_user_measured_on
     ON body_weights (user_id, measured_on) WHERE deleted_at IS NULL;
 

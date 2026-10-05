@@ -13,9 +13,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Stan jednego wywołania /api/sync: licznik zastosowanych zmian, lista
- * odrzuceń i zbiór rekordów, które trzeba dociągnąć do odpowiedzi mimo
- * filtra `since` (bo klient ma ich nieaktualną wersję).
+ * State of a single /api/sync call: counter of applied changes, list of
+ * rejections and a set of records to force into the response despite the
+ * `since` filter (because the client has an outdated version of them).
  */
 final class SyncContext {
 
@@ -27,8 +27,8 @@ final class SyncContext {
     static final String SETS = "sets";
     static final String BODY_WEIGHTS = "bodyWeights";
 
-    static final String REASON_STALE = "starsza wersja niż na serwerze (last-write-wins)";
-    static final String REASON_FOREIGN = "rekord należy do innego konta";
+    static final String REASON_STALE = "older version than on the server (last-write-wins)";
+    static final String REASON_FOREIGN = "record belongs to a different account";
 
     private final UUID userId;
     private final Instant now;
@@ -50,8 +50,8 @@ final class SyncContext {
     }
 
     /**
-     * Zegar klienta bywa przestawiony do przodu; bez tego jeden telefon z
-     * datą w 2030 wygrywałby każdy kolejny konflikt LWW na zawsze.
+     * Client clocks sometimes run ahead; without this one phone with a date
+     * set to 2030 would win every subsequent LWW conflict forever.
      */
     Instant clamp(Instant clientUpdatedAt) {
         return clientUpdatedAt.isAfter(now) ? now : clientUpdatedAt;

@@ -1,34 +1,34 @@
 /**
- * lib/metrics.ts — mirror pakietu `metrics` z backendu (Java, ../backend/src/
- * main/java/com/example/easygymbackend/metrics). Te same reguły, te same
- * granice, te same przypadki brzegowe. Rozjazd = front pokaże inny PR niż
- * eksport XLSX z serwera, więc każda zmiana reguły tutaj wymaga tej samej
- * zmiany po stronie Javy (i odwrotnie).
+ * lib/metrics.ts — mirror of the `metrics` package from the backend (Java,
+ * ../backend/src/main/java/com/example/easygymbackend/metrics). Same rules,
+ * same bounds, same edge cases. A divergence = the frontend shows a different
+ * PR than the server's XLSX export, so every change here requires the same
+ * change on the Java side (and vice versa).
  *
- * Wszystko poniżej to czyste funkcje: zero zależności od React/Dexie/API.
+ * Everything below is pure functions: zero dependency on React/Dexie/API.
  */
 
 import { addWeeks, getISOWeek, getISOWeekYear, startOfISOWeek } from "date-fns";
 import { TZDate } from "@date-fns/tz";
 
-/** Strefa, w której liczymy doby i tygodnie. Backend: IsoWeek.WARSAW. */
+/** Time zone in which we compute days and weeks. Backend: IsoWeek.WARSAW. */
 export const APP_TIME_ZONE = "Europe/Warsaw";
 
-/** Data kalendarzowa `YYYY-MM-DD` — odpowiednik java.time.LocalDate. */
+/** Calendar date `YYYY-MM-DD` — equivalent of java.time.LocalDate. */
 export type IsoDate = string;
 
 /* ------------------------------------------------------------------ *
- * Precyzja
+ * Precision
  *
- * weight_kg to numeric(6,2) w bazie. W TS liczymy na double, więc bez
- * jawnego zaokrąglania 102.5 z API i 102.50000000000001 z lokalnej sumy
- * dałyby fałszywy "nowy rekord" (PROMPT.md §9). Wszystko, co trafia do
- * porównania PR albo na ekran, przechodzi przez round2.
+ * weight_kg is numeric(6,2) in the database. In TS we compute on double,
+ * so without explicit rounding, 102.5 from the API and 102.50000000000001
+ * from a local sum would produce a false "new record" (PROMPT.md §9).
+ * Anything that goes into a PR comparison or on screen passes through round2.
  *
- * Java używa RoundingMode.HALF_UP, czyli połówki w GÓRĘ CO DO MODUŁU
- * (-0.005 -> -0.01). Math.round robi połówki w stronę +∞ (-0.5 -> -0),
- * a mnożenie przez 100 gubi dokładność (1.005 * 100 = 100.49999999999999),
- * stąd przesuwanie przecinka po stronie wykładnika, nie mnożeniem.
+ * Java uses RoundingMode.HALF_UP, i.e. halves rounded AWAY FROM ZERO
+ * (-0.005 -> -0.01). Math.round rounds halves toward +∞ (-0.5 -> -0),
+ * and multiplication by 100 loses precision (1.005 * 100 = 100.49999999999999),
+ * hence shifting the decimal point via the exponent, not by multiplication.
  * ------------------------------------------------------------------ */
 
 function shiftDecimalPoint(value: number, places: number): number {
@@ -46,15 +46,15 @@ export function round2(value: number): number {
 }
 
 /* ------------------------------------------------------------------ *
- * Seria i e1RM
+ * Set and e1RM
  * ------------------------------------------------------------------ */
 
 export type OneRepMaxFormula = "epley" | "brzycki";
 
-/** Wejście do wszystkich funkcji w tym pliku. Mirror rekordu ExerciseSet z Javy. */
+/** Input to every function in this file. Mirror of the ExerciseSet record in Java. */
 export interface ExerciseSet {
   setId: string;
-  /** ISO 8601 z offsetem/Z — moment zatwierdzenia serii. */
+  /** ISO 8601 with offset/Z — the moment the set was confirmed. */
   completedAt: string;
   weightKg: number;
   reps: number;
@@ -66,12 +66,12 @@ export interface ExerciseSet {
 const BRZYCKI_MAX_VALID_REPS = 36;
 
 /**
- * e1RM wg Epleya (`weight × (1 + reps/30)`) albo Brzyckiego
- * (`weight × 36 / (37 − reps)`). Dla reps = 1 obie zwracają samą wagę.
+ * e1RM by Epley (`weight × (1 + reps/30)`) or Brzycki
+ * (`weight × 36 / (37 − reps)`). For reps = 1 both return the weight itself.
  *
- * Brzycki dzieli przez zero przy reps = 37 i zwraca ujemne bzdury powyżej —
- * realne przy bodyweight + to_failure (40 pompek). Zwracamy `null`, nigdy
- * liczby; backend zwraca w tym miejscu Optional.empty().
+ * Brzycki divides by zero at reps = 37 and returns negative nonsense above —
+ * realistic with bodyweight + to_failure (40 push-ups). We return `null`,
+ * never a number; the backend returns Optional.empty() here.
  */
 export function estimate1RM(
   weightKg: number,
@@ -91,7 +91,7 @@ export function estimate1RM(
 }
 
 /* ------------------------------------------------------------------ *
- * Zakresy powtórzeń
+ * Rep ranges
  * ------------------------------------------------------------------ */
 
 export const REP_RANGE_BUCKETS = ["1", "2-3", "4-6", "7-10", "11-15", "15+"] as const;
@@ -108,7 +108,7 @@ export function repRangeBucket(reps: number): RepRangeBucket {
 }
 
 /* ------------------------------------------------------------------ *
- * Metryki sesji
+ * Session metrics
  * ------------------------------------------------------------------ */
 
 function workingSets(sets: readonly ExerciseSet[]): ExerciseSet[] {
@@ -120,24 +120,24 @@ function sumVolume(sets: readonly ExerciseSet[]): number {
 }
 
 /**
- * Objętość sesji DO POKAZANIA użytkownikowi: serie robocze, **wliczając
- * assisted** (praca fizycznie wykonana). To inna liczba niż
- * {@link prEligibleVolumeKg} — i to jest celowe, patrz komentarz tam.
+ * Session volume FOR DISPLAY to the user: working sets, **including
+ * assisted** (work physically performed). This is a different number than
+ * {@link prEligibleVolumeKg} — and that is intentional, see the comment there.
  */
 export function displayVolumeKg(sets: readonly ExerciseSet[]): number {
   return sumVolume(workingSets(sets));
 }
 
 /**
- * Objętość do PR "największa objętość w sesji": serie robocze **bez
- * assisted**. Dwie osobne nazwane funkcje zamiast jednej z flagą, żeby nie
- * dało się po cichu pomylić jednej z drugą.
+ * Volume for the PR "largest session volume": working sets **excluding
+ * assisted**. Two separate named functions instead of one with a flag, so
+ * that one cannot be silently confused with the other.
  */
 export function prEligibleVolumeKg(sets: readonly ExerciseSet[]): number {
   return sumVolume(workingSets(sets).filter((set) => !set.assisted));
 }
 
-/** Najcięższa seria: max ciężar wśród roboczych nie-assisted, remis → więcej powtórzeń. */
+/** Heaviest set: max weight among working non-assisted sets, tie → more reps. */
 export function heaviestSet(sets: readonly ExerciseSet[]): ExerciseSet | null {
   const candidates = workingSets(sets).filter((set) => !set.assisted);
   let best: ExerciseSet | null = null;
@@ -155,7 +155,7 @@ export function heaviestSet(sets: readonly ExerciseSet[]): ExerciseSet | null {
 }
 
 /* ------------------------------------------------------------------ *
- * Rekordy życiowe (PR)
+ * Personal records (PR)
  * ------------------------------------------------------------------ */
 
 export interface PersonalRecordEntry {
@@ -175,7 +175,7 @@ export interface PersonalRecords {
   byRepRange: Partial<Record<RepRangeBucket, PersonalRecordEntry>>;
 }
 
-/** Jedna sesja treningowa dla jednego ćwiczenia, w kolejności chronologicznej. */
+/** One workout session for one exercise, in chronological order. */
 export interface WorkoutSession {
   workoutId: string;
   sets: ExerciseSet[];
@@ -186,9 +186,9 @@ export function emptyPersonalRecords(): PersonalRecords {
 }
 
 /**
- * Stan rekordów po przejściu wszystkich sesji. Sesje MUSZĄ być
- * chronologiczne: przy remisie rekord zostaje przy pierwszym wystąpieniu,
- * bo pobicie to ściśle `>`, nigdy `>=`.
+ * The state of records after walking through all sessions. Sessions MUST be
+ * in chronological order: on a tie the record stays with the first occurrence,
+ * because beating is strictly `>`, never `>=`.
  */
 export function computePersonalRecords(
   chronologicalSessions: readonly WorkoutSession[],
@@ -229,11 +229,12 @@ export function computePersonalRecords(
 }
 
 /**
- * Rekordy pobite przez OSTATNIĄ sesję z listy — pod baner „PR pobity" w
- * podsumowaniu treningu i kolumnę „czy PR" w eksporcie. To nie to samo co
- * „czy to globalne maksimum": liczy się, czy rekord padł W MOMENCIE
- * wykonania. Ten sam algorytm co {@link computePersonalRecords}, więc reguły
- * nie mogą się rozjechać między ekranem a eksportem.
+ * Records broken by the LAST session in the list — feeds the "PR broken"
+ * banner on the workout summary and the "is PR" column in the export. This
+ * is not the same as "is a global maximum": what matters is whether the
+ * record fell AT THE MOMENT it was performed. Same algorithm as
+ * {@link computePersonalRecords}, so the rules cannot diverge between the
+ * screen and the export.
  */
 export function personalRecordsBrokenIn(
   chronologicalSessions: readonly WorkoutSession[],
@@ -269,11 +270,11 @@ export function personalRecordsBrokenIn(
 }
 
 /* ------------------------------------------------------------------ *
- * Tydzień ISO-8601
+ * ISO-8601 week
  *
- * Poniedziałek → niedziela, strefa Europe/Warsaw. Liczone przez date-fns
- * (getISOWeek / startOfISOWeek), nigdy ręczną arytmetyką na getDay() —
- * tydzień 53 i przełomy roku wysypują każdą wersję „na piechotę".
+ * Monday → Sunday, zone Europe/Warsaw. Computed via date-fns
+ * (getISOWeek / startOfISOWeek), never by hand-rolled arithmetic on getDay()
+ * — week 53 and year boundaries break every "by hand" version.
  * ------------------------------------------------------------------ */
 
 export interface IsoWeek {
@@ -282,10 +283,10 @@ export interface IsoWeek {
 }
 
 /**
- * Data kalendarzowa jako Date w strefie *przeglądarki*. Numer tygodnia ISO
- * zależy tylko od dnia kalendarzowego, więc dopóki nie przekraczamy granicy
- * doby (a tu nie przekraczamy — budujemy z gotowych y/m/d), strefa hosta jest
- * bez znaczenia. Instanty przechodzą wcześniej przez warsawCalendarDate.
+ * Calendar date as a Date in the *browser's* time zone. The ISO week number
+ * depends only on the calendar day, so as long as we don't cross a day
+ * boundary (and we don't — we build from ready y/m/d), the host time zone is
+ * irrelevant. Instants pass through warsawCalendarDate first.
  */
 function calendarDate(year: number, month: number, day: number): Date {
   return new Date(year, month - 1, day, 12, 0, 0, 0);
@@ -303,7 +304,7 @@ export function formatIsoDate(date: Date): IsoDate {
   return `${year}-${month}-${day}`;
 }
 
-/** Dzień kalendarzowy, w którym dany moment wypadł w Warszawie. */
+/** The calendar day on which the given instant fell in Warsaw. */
 export function warsawCalendarDate(instant: Date | string | number): IsoDate {
   const zoned = new TZDate(new Date(instant).getTime(), APP_TIME_ZONE);
   return formatIsoDate(calendarDate(zoned.getFullYear(), zoned.getMonth() + 1, zoned.getDate()));
@@ -315,15 +316,15 @@ export function isoWeekOfDate(date: IsoDate): IsoWeek {
 }
 
 /**
- * Tydzień ISO dla momentu w czasie (np. `workouts.started_at`) — zawsze po
- * dacie warszawskiej, nie UTC. Sesja kończąca się po północy nie może
- * rozjechać się na dwa tygodnie.
+ * ISO week for an instant in time (e.g. `workouts.started_at`) — always by
+ * Warsaw date, not UTC. A session ending after midnight must not straddle
+ * two weeks.
  */
 export function isoWeekOfInstant(instant: Date | string | number): IsoWeek {
   return isoWeekOfDate(warsawCalendarDate(instant));
 }
 
-/** Poniedziałek danego tygodnia. Kotwica ISO-8601: 4 stycznia zawsze leży w tygodniu 1. */
+/** Monday of the given week. ISO-8601 anchor: January 4 always lies in week 1. */
 export function isoWeekMondayStart(week: IsoWeek): IsoDate {
   const anchor = startOfISOWeek(calendarDate(week.year, 1, 4));
   return formatIsoDate(addWeeks(anchor, week.week - 1));
@@ -348,7 +349,7 @@ export function isoWeekKey(week: IsoWeek): string {
 }
 
 /* ------------------------------------------------------------------ *
- * Waga ciała
+ * Body weight
  * ------------------------------------------------------------------ */
 
 export interface BodyWeightEntry {
@@ -360,7 +361,7 @@ export interface WeeklyBodyWeightAverage {
   week: IsoWeek;
   measurementCount: number;
   averageKg: number;
-  /** Mniej niż 2 pomiary — pokazujemy, ale wizualnie wyróżniamy. */
+  /** Fewer than 2 measurements — we show it, but mark it visually. */
   incomplete: boolean;
 }
 
@@ -421,16 +422,16 @@ export function weekOverWeekDeltaPercent(
 }
 
 /**
- * Krocząca średnia 7-dniowa per dzień pomiaru — osobna seria na wykresie,
- * obok grubej linii średnich tygodniowych. Okno liczy się po pomiarach, które
- * realnie są (dni bez ważenia nie są zerami).
+ * 7-day rolling average per measurement day — a separate series on the chart,
+ * next to the thick line of weekly averages. The window is computed over
+ * measurements that actually exist (days without a weigh-in are not zeros).
  */
 export function sevenDayRollingAverage(
   entries: readonly BodyWeightEntry[],
 ): Map<IsoDate, number> {
   const byDate = new Map<IsoDate, number>();
   for (const entry of entries) {
-    // Duplikat dnia: wygrywa ostatni wpis (baza i tak trzyma jeden żywy na dzień).
+    // Duplicate day: last entry wins (the database keeps one live row per day anyway).
     byDate.set(entry.measuredOn, entry.weightKg);
   }
 
@@ -450,7 +451,7 @@ export function sevenDayRollingAverage(
 }
 
 /* ------------------------------------------------------------------ *
- * Trend tydzień do tygodnia
+ * Week-over-week trend
  * ------------------------------------------------------------------ */
 
 export interface WeeklyValue {
@@ -466,10 +467,10 @@ export interface TrendResult {
 }
 
 /**
- * Porównanie tygodnia do poprzedniego. Domyślnie (`includeDeload = false`)
- * tygodnie deload znikają z łańcucha całkowicie — tydzień po deloadzie
- * porównuje się do ostatniego tygodnia nie-deload PRZED nim, nie do samego
- * deloadu (inaczej powrót do normy wygląda jak +162% formy).
+ * Compare a week to its predecessor. By default (`includeDeload = false`)
+ * deload weeks disappear from the chain entirely — the week after a deload
+ * is compared to the last non-deload week BEFORE it, not to the deload
+ * itself (otherwise the return to normal looks like +162% form).
  */
 export function compareToPreviousWeek(
   chronologicalWeeks: readonly WeeklyValue[],

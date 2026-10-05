@@ -16,8 +16,8 @@ interface Tab {
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
-/** Cztery zakładki, polskie etykiety. Ustawienia i eksport wchodzą przez
- * górny pasek, nie jako piąta zakładka (DESIGN.md §11). */
+/** Four tabs, Polish labels. Settings and export enter via the top bar,
+ * not as a fifth tab (DESIGN.md §11). */
 const TABS: Tab[] = [
   { href: "/pulpit", label: "Pulpit", Icon: DashboardIcon },
   { href: "/trening", label: "Trening", Icon: BarbellIcon },

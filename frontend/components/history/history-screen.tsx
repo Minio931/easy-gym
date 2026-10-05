@@ -18,10 +18,11 @@ import {
 import type { WorkoutSummaryResponse } from "@/types/api";
 
 /**
- * Historia treningów. Lista podsumowań, nie pełnych sesji — liczby (objętość,
- * liczba serii i ćwiczeń) liczy baza w `GROUP BY`, a nie przeglądarka pętlą po
- * tysiącach serii (PROMPT §9). Szczegóły sesji otwiera ekran podsumowania,
- * który już istnieje; drugiego takiego ekranu nie budujemy.
+ * Workout history. A list of summaries, not full sessions — numbers
+ * (volume, sets and exercises count) are computed by the database with
+ * `GROUP BY`, not by the browser iterating thousands of sets (PROMPT §9).
+ * Session details open the existing summary screen; we do not build a
+ * second screen for the same thing.
  */
 
 const PAGE_SIZE = 20;
@@ -36,8 +37,8 @@ export function HistoryScreen() {
 
   useEffect(() => {
     const controller = new AbortController();
-    // `loading` startuje jako true, więc nie ustawiamy go tu ponownie —
-    // synchroniczne setState w efekcie to kaskada renderów (i błąd lintu).
+    // `loading` starts as true, so we do not set it here again —
+    // synchronous setState in an effect is a render cascade (and a lint error).
     void listWorkouts({ limit: PAGE_SIZE, offset: 0, signal: controller.signal })
       .then((page) => {
         setItems(page.items);
@@ -61,8 +62,9 @@ export function HistoryScreen() {
     setLoadingMore(true);
     void listWorkouts({ limit: PAGE_SIZE, offset: items.length })
       .then((page) => {
-        // Doklejamy po `id`, nie po indeksie: między stronami mógł dojść nowy
-        // trening i offset przesunąłby wszystko o jeden, dublując wiersz.
+        // Append by `id`, not by index: a new workout could have landed
+        // between pages and the offset would shift everything by one,
+        // duplicating a row.
         setItems((current) => {
           const known = new Set(current.map((item) => item.id));
           return [...current, ...page.items.filter((item) => !known.has(item.id))];
@@ -79,16 +81,18 @@ export function HistoryScreen() {
   const removeWorkout = useCallback(
     (workout: WorkoutSummaryResponse) => {
       setToDelete(null);
-      // Wiersz znika od razu: bez zasięgu kasowanie i tak jest skuteczne
-      // (tombstone w Dexie + paczka sync), więc czekanie na serwer trzymałoby
-      // na ekranie trening, którego z punktu widzenia użytkownika już nie ma.
+      // The row disappears right away: offline the deletion is still
+      // effective (tombstone in Dexie + sync batch), so waiting for the
+      // server would keep on screen a workout the user already thinks
+      // is gone.
       const index = items.findIndex((item) => item.id === workout.id);
       setItems((current) => current.filter((item) => item.id !== workout.id));
       setTotal((current) => (current === null ? null : Math.max(0, current - 1)));
       setError(null);
       void deleteWorkoutById(workout.id).catch((cause: unknown) => {
-        // Brak zasięgu nie dochodzi tutaj — store go połyka i dowozi synchronizacją.
-        // To jest realna odmowa serwera, więc wiersz wraca na swoje miejsce.
+        // No-signal does not reach here — the store swallows it and
+        // delivers via sync. This is a real server refusal, so the row
+        // returns to its place.
         setItems((current) => {
           if (current.some((item) => item.id === workout.id)) {
             return current;
@@ -221,9 +225,10 @@ export function HistoryScreen() {
 }
 
 function WorkoutRow({ workout }: { workout: WorkoutSummaryResponse }) {
-  // `wroc=historia` sprawia, że „Zamknij podsumowanie" wraca na listę, a nie na
-  // pulpit. Po zakończeniu treningu jest odwrotnie i słusznie -- tam nie ma
-  // dokąd wracać, bo sesja już nie żyje.
+  // `wroc=historia` makes "Zamknij podsumowanie" return to the list, not
+  // the dashboard. After finishing a workout it is the other way around
+  // and rightly so — there is nowhere to go back to, because the session
+  // is dead.
   return (
     <Link
       href={`/trening/${workout.id}/podsumowanie?wroc=historia`}

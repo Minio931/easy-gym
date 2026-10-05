@@ -9,30 +9,30 @@ import {
 } from "@/lib/workout/rest-signals";
 
 /**
- * Timer przerwy. Żyje w module, nie w komponencie karty ćwiczenia — dzięki
- * temu przetrwa nawigację między zakładkami i jest widoczny również poza
- * `/trening` (spec §5).
+ * Rest timer. Lives in the module, not in the exercise-card component —
+ * this way it survives tab navigation and is visible outside `/trening`
+ * (spec §5).
  *
- * **Odliczanie liczy się z `endsAt` (timestamp absolutny), nigdy przez
- * dekrementację licznika w `setInterval`.** Uśpiona zakładka i wygaszony ekran
- * zatrzymują `setInterval`, ale nie zatrzymują czasu; licznik dekrementowany
- * co tick spóźniłby się o całą przerwę. Tick tylko przelicza różnicę zegarów.
+ * **The countdown is derived from `endsAt` (absolute timestamp), never by
+ * decrementing a counter in `setInterval`.** A sleeping tab and a dark
+ * screen pause `setInterval`, but not time; a per-tick decrement would lag
+ * by the whole rest. The tick only recomputes the clock difference.
  */
 
-/** Ile pasek zostaje na ekranie po dojściu do zera (spec §5). */
+/** How long the bar stays on screen after hitting zero (spec §5). */
 const LINGER_MS = 5_000;
 const TICK_MS = 250;
 
 export interface RestTimerSnapshot {
-  /** Odliczanie trwa. */
+  /** Countdown is running. */
   running: boolean;
-  /** Doszło do zera; pasek jeszcze widać z napisem „Przerwa skończona". */
+  /** Reached zero; the bar is still visible with "Przerwa skończona". */
   finished: boolean;
   remainingSeconds: number;
   totalSeconds: number;
-  /** 1 → pełna przerwa przed nami, 0 → koniec. */
+  /** 1 → full rest ahead, 0 → the end. */
   progress: number;
-  /** Ćwiczenie, od którego timer ruszył — tap w pasek przewija do jego karty. */
+  /** The exercise the timer started from — tapping the bar scrolls to its card. */
   workoutExerciseId: string | null;
 }
 
@@ -147,7 +147,7 @@ function ensureInterval(): void {
   interval = setInterval(tick, TICK_MS);
 }
 
-/** Zatwierdzenie kolejnej serii w trakcie trwania przerwy RESTARTUJE timer. */
+/** Confirming another set while a rest is running RESTARTS the timer. */
 export function startRest(options: {
   seconds: number;
   workoutExerciseId: string | null;
@@ -166,7 +166,7 @@ export function startRest(options: {
   maybeRequestNotificationPermission();
 }
 
-/** `+30 s` kumuluje się bez limitu — user wie lepiej, ile potrzebuje. */
+/** `+30 s` accumulates without limit — the user knows better how much they need. */
 export function addRestSeconds(seconds: number): void {
   if (core === null) {
     return;
@@ -208,7 +208,7 @@ export function useRestTimer(): RestTimerSnapshot {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/** Sam fakt widoczności paska — primitive, więc reszta apki nie re-renderuje się co tick. */
+/** The mere visibility of the bar — a primitive, so the rest of the app does not re-render every tick. */
 export function useRestTimerVisible(): boolean {
   return useSyncExternalStore(
     subscribe,
@@ -218,8 +218,9 @@ export function useRestTimerVisible(): boolean {
 }
 
 if (typeof document !== "undefined") {
-  // Powrót z uśpienia: setInterval był wstrzymany, ale zegar nie. Jeden tick
-  // z różnicy timestampów naprawia licznik bez żadnej korekty „na piechotę".
+  // Wake from sleep: setInterval was paused, but the clock was not. One
+  // tick from the timestamp delta fixes the counter without any manual
+  // adjustment.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       tick();

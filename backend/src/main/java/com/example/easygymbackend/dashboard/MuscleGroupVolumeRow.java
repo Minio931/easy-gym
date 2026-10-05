@@ -5,10 +5,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Objętość serii roboczych zgrupowana w bazie po (trening, grupa mięśniowa).
- * Bucketowanie na tygodnie ISO robi dopiero Java, po started_at CAŁEJ sesji --
- * sesja kończąca się po północy nie może rozjechać się na dwa tygodnie
- * (decyzja z etapu 3, CLAUDE.md).
+ * Working-set volume grouped in the database by (workout, muscle group).
+ * ISO-week bucketing happens only in Java, by the started_at of the WHOLE session --
+ * a session ending after midnight must not spread across two weeks
+ * (decision from stage 3, CLAUDE.md).
  */
 public record MuscleGroupVolumeRow(
         UUID workoutId,

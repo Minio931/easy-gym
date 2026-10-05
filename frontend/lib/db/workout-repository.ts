@@ -15,28 +15,29 @@ import type {
 } from "@/types/api";
 
 /**
- * Most między `WorkoutDetailResponse` (kształt ekranu) a wierszami Dexie
- * (kształt paczki sync). Rozkład w jedną stronę, złożenie w drugą.
+ * The bridge between `WorkoutDetailResponse` (screen shape) and Dexie rows
+ * (sync-batch shape). Decomposition one way, composition the other.
  *
- * Złożenie liczy objętości i e1RM przez `lib/metrics.ts` — te same funkcje,
- * których używa łatka optymistyczna i które są mirrorem backendu. Gdyby liczyło
- * je tutaj po swojemu, trening wznowiony bez zasięgu pokazywałby inną objętość
- * niż ten sam trening otwarty online.
+ * Composition computes volumes and e1RM through `lib/metrics.ts` — the same
+ * functions the optimistic patch uses, which mirror the backend. If this
+ * computed them on its own, a workout resumed offline would show a
+ * different volume than the same workout opened online.
  *
- * Czego złożenie **nie** odtwarza: `personalRecordsBrokenIn`. Rekord zależy od
- * całej historii ćwiczenia, której lokalna baza w trakcie sesji nie ma — tak
- * samo jak łatka optymistyczna, plakietka „PR" zapala się z odpowiedzi serwera.
+ * What composition does **not** reconstruct: `personalRecordsBrokenIn`.
+ * A record depends on the full exercise history, which the local DB does
+ * not have mid-session — same as the optimistic patch, the "PR" badge
+ * lights up from the server response.
  */
 
 /* ------------------------------------------------------------------ *
- * Zapis
+ * Write
  * ------------------------------------------------------------------ */
 
 /**
- * Zapisuje trening jako wiersze. `dirtyIds` to id-y wierszy, które zmienił
- * user i które mają pojechać na serwer; pozostałe **zachowują swój dotychczasowy
- * znacznik** — nadpisanie go zerem skasowałoby z kolejki serię, która wciąż
- * czeka na wysłanie.
+ * Writes the workout as rows. `dirtyIds` are the ids of rows the user
+ * changed and which should ship to the server; the rest **keep their
+ * previous flag** — overwriting it with zero would wipe from the queue a
+ * set still waiting to send.
  */
 export async function persistWorkout(
   db: EasyGymDatabase,
@@ -113,9 +114,10 @@ async function putPreservingDirty<T extends DirtyAware>(
 }
 
 /**
- * Trening potwierdzony przez serwer: wszystkie jego wiersze są już na serwerze,
- * więc przestają czekać w kolejce. Wierszy, których w odpowiedzi nie ma
- * (tombstone'y skasowanych serii), świadomie nie ruszamy — o nie zadba sync.
+ * A workout confirmed by the server: all its rows are already on the
+ * server, so they stop waiting in the queue. Rows absent from the response
+ * (tombstones of deleted sets) are intentionally not touched — sync will
+ * take care of them.
  */
 export async function persistServerWorkout(
   db: EasyGymDatabase,
@@ -148,8 +150,9 @@ async function clearDirty<T extends DirtyAware>(
 }
 
 /**
- * Tombstone, nie `DELETE` — skasowanie musi dojechać na drugie urządzenie
- * (PROMPT §2). Kaskada jest jawna, bo Dexie nie zna kluczy obcych.
+ * Tombstone, not `DELETE` — a deletion must reach the other device
+ * (PROMPT §2). The cascade is explicit, because Dexie does not know
+ * foreign keys.
  */
 export async function markWorkoutDeleted(
   db: EasyGymDatabase,
@@ -201,17 +204,18 @@ export async function markWorkoutExerciseDeleted(
 }
 
 /* ------------------------------------------------------------------ *
- * Odczyt
+ * Read
  * ------------------------------------------------------------------ */
 
-/** Trening w toku: bez `endedAt`, bez tombstone'u. Najwyżej jeden na konto. */
+/** Workout in progress: no `endedAt`, no tombstone. At most one per account. */
 export async function readActiveWorkout(
   db: EasyGymDatabase,
   formula: OneRepMaxFormula,
 ): Promise<WorkoutDetailResponse | null> {
-  // IndexedDB nie indeksuje `null`, więc wierszy z `endedAt: null` NIE MA w
-  // indeksie `endedAt` i żadne `where(...)` ich nie znajdzie -- to cichy błąd,
-  // nie wyjątek. Filtrujemy w pamięci; treningów na koncie są setki, nie miliony.
+  // IndexedDB does not index `null`, so rows with `endedAt: null` are
+  // ABSENT from the `endedAt` index and no `where(...)` will find them —
+  // a silent bug, not an exception. We filter in memory; a user has
+  // hundreds of workouts, not millions.
   const open = (await db.workouts.toArray())
     .filter((workout) => workout.endedAt === null && workout.deletedAt === null)
     .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
@@ -268,9 +272,10 @@ async function composeWorkout(
       id: row.id,
       workoutId: workout.id,
       exerciseId: row.exerciseId,
-      // Ćwiczenia spoza katalogu w tej bazie (dodane na innym urządzeniu i
-      // jeszcze nie zaciągnięte) nie mogą wywrócić ekranu — karta pokaże
-      // znak zapytania zamiast nazwy i naprawi się przy pierwszej synchronizacji.
+      // Exercises outside this database's catalog (added on another
+      // device and not yet pulled) must not break the screen — the card
+      // shows a fallback instead of a name and fixes itself at the first
+      // sync.
       exerciseName: catalog?.name ?? "Ćwiczenie",
       muscleGroup: catalog?.muscleGroup ?? "",
       equipment: (catalog?.equipment ?? "other") as Equipment,

@@ -12,9 +12,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Pozycja szablonu treningu. Właściciela dziedziczy po routine -- izolacja
- * per-user jest egzekwowana przy ładowaniu rodzica, nigdy przez user_id
- * przysłane w body (tej kolumny tu w ogóle nie ma).
+ * Routine template item. Inherits its owner from the routine -- per-user
+ * isolation is enforced when loading the parent, never via a user_id sent
+ * in the body (that column does not exist here at all).
  */
 @Entity
 @Table(name = "routine_items")

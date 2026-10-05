@@ -11,10 +11,10 @@ import { loadRoutines, removeRoutine, useRoutinesState } from "@/lib/routines/st
 import type { RoutineResponse } from "@/types/api";
 
 /**
- * Lista szablonów — ekran zarządzania, nie startu. Trening odpala się
- * z `/trening`, tutaj szablony się układa i poprawia, więc tap w wiersz
- * otwiera edytor, a nie sesję. Dwa różne skutki tego samego gestu na dwóch
- * ekranach byłyby gorsze niż jedno dodatkowe kliknięcie.
+ * Template list — a management screen, not a start screen. A workout
+ * starts from `/trening`; here templates are composed and tweaked, so a
+ * tap on a row opens the editor, not a session. Two different effects of
+ * the same gesture on two screens would be worse than one extra click.
  */
 export function RoutineListScreen() {
   const { status, routines, local, error } = useRoutinesState();

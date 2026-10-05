@@ -7,9 +7,9 @@ import { useRestTimerVisible } from "@/lib/workout/rest-timer";
 import { useActiveWorkoutStartedAt } from "@/lib/workout/store";
 
 /**
- * Trwały pasek „Trening trwa · 42:15" nad dolną nawigacją, widoczny z każdego
- * ekranu poza samym treningiem (DESIGN §11). Powrót do sesji jednym tapem,
- * bez cofania się przez historię nawigacji.
+ * Persistent "Trening trwa · 42:15" bar above the bottom nav, visible from
+ * every screen except the workout itself (DESIGN §11). One-tap return to
+ * the session, without stepping back through history.
  */
 export function ActiveWorkoutBar() {
   const startedAt = useActiveWorkoutStartedAt();

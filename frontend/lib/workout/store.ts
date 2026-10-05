@@ -58,31 +58,33 @@ import type {
 } from "@/types/api";
 
 /* ================================================================== *
- * JEDYNE MIEJSCE, KTÓRE ZAPISUJE TRENING.
+ * SINGLE PLACE THAT WRITES THE WORKOUT.
  *
- * Każda zmiana idzie tą samą drogą: (1) łatka optymistyczna na lokalnej
- * migawce, (2) zapis migawki do localStorage, (3) zadanie w szeregowej
- * kolejce, które woła API i podmienia migawkę odpowiedzią serwera.
+ * Every change goes through the same path: (1) optimistic patch on the
+ * local snapshot, (2) snapshot write to localStorage, (3) task on the
+ * serial queue that calls the API and swaps the snapshot for the server
+ * response.
  *
- * Etap 5 dołożył do tej drogi Dexie: zapis idzie NAJPIERW do lokalnej bazy
- * (z `dirty = 1`), dopiero potem do API — wymóg PROMPT §3.5. Zamknięta karta,
- * padnięta bateria i brak zasięgu przez cały trening kończą się tak samo:
- * zmiany czekają w Dexie i jadą przy pierwszej okazji przez `POST /api/sync`.
+ * Stage 5 added Dexie to this path: the write goes FIRST to the local DB
+ * (with `dirty = 1`), only then to the API — requirement from PROMPT §3.5.
+ * A closed tab, dead battery and lost signal through the whole workout all
+ * end the same way: changes wait in Dexie and go out at the first chance via
+ * `POST /api/sync`.
  *
- * REST **nie** został zastąpiony synchronizacją. Online zapis dalej leci przez
- * REST, bo tylko on oddaje policzone `personalRecordsBrokenIn` i objętości —
- * paczka sync zwraca surowe rekordy. Backend projektował te dwie drogi razem
- * (backend/CLAUDE.md, „Dwie drogi zapisu tych samych danych"); różnią się tym,
- * kto ustawia `updatedAt`, a nie tym, co zapisują.
+ * REST was **not** replaced by sync. The online write still goes through
+ * REST, because only it returns the computed `personalRecordsBrokenIn` and
+ * volumes — the sync batch returns raw records. The backend designed these
+ * two paths together (backend/CLAUDE.md, "Two write paths for the same data");
+ * they differ in who sets `updatedAt`, not in what they write.
  *
- * Żaden komponent nie wie, dokąd leci zapis.
+ * No component knows where the write goes.
  * ================================================================== */
 
 export type WorkoutStatus = "idle" | "loading" | "empty" | "ready";
 
 export interface ExerciseReference {
   status: "loading" | "ready";
-  /** Serie z ostatniej sesji tego ćwiczenia PRZED bieżącą — linijka „ostatnio:". */
+  /** Sets from the last session of this exercise BEFORE the current one — the "last:" line. */
   sets: { weightKg: number; reps: number }[];
 }
 
@@ -95,24 +97,24 @@ export interface PendingUndo {
 export interface WorkoutState {
   status: WorkoutStatus;
   workout: WorkoutDetailResponse | null;
-  /** Najwyżej jeden szkic na ćwiczenie; klucz = `workoutExerciseId`. */
+  /** At most one draft per exercise; key = `workoutExerciseId`. */
   drafts: Record<string, SetDraft>;
-  /** Rozwinięty (edytowany) wiersz serii — jedyny taki na ekranie. */
+  /** Expanded (edited) set row — the only one on screen. */
   activeExerciseId: string | null;
-  /** Klucz = `exerciseId` z katalogu. */
+  /** Key = `exerciseId` from the catalog. */
   references: Record<string, ExerciseReference>;
-  /** `exerciseId` → `targetSets` z szablonu, do licznika `0/3`. */
+  /** `exerciseId` → `targetSets` from the template, for the `0/3` counter. */
   routineTargets: Record<string, number>;
-  /** Nazwa szablonu do paska kontekstu; `null` gdy trening zaczęty od pustego. */
+  /** Template name for the context bar; `null` when the workout starts empty. */
   routineName: string | null;
   pending: number;
   failed: FailedMutation[];
   undo: PendingUndo | null;
-  /** Arkusz zakończenia otwierają DWA miejsca (przycisk na końcu listy i ⋮
-   * sesji w górnym pasku), które nie mają wspólnego rodzica — stąd flaga tutaj
-   * zamiast przepychania propsów przez powłokę aplikacji. */
+  /** The finish sheet is opened by TWO places (the button at the end of the list
+   * and the session ⋮ in the top bar), which have no common parent — hence the
+   * flag here instead of threading props through the app shell. */
   finishSheetOpen: boolean;
-  /** Ostatni błąd operacji, której nie da się ponowić po cichu (np. start treningu). */
+  /** Last error from an operation that cannot be retried silently (e.g. workout start). */
   error: string | null;
 }
 
@@ -150,23 +152,23 @@ function currentUserId(): string {
 }
 
 /**
- * Migawka w `localStorage` ZOSTAJE obok Dexie i nie jest duplikatem przez
- * niedopatrzenie: jest synchroniczna, więc ekran wznowionego treningu jest
- * pełny w pierwszej klatce, zanim asynchroniczny odczyt z IndexedDB zdąży
- * wrócić. Obie kopie pochodzą z tego samego `state.workout` zapisywanego w
- * `commit()`, więc nie mają jak się rozjechać. Dexie jest zapisem trwałym
- * i źródłem dla synchronizacji; `localStorage` jest wyłącznie cache'em ekranu.
+ * The `localStorage` snapshot STAYS alongside Dexie and is not a duplicate by
+ * oversight: it is synchronous, so the resumed-workout screen is complete on
+ * the first frame, before the async read from IndexedDB has time to return.
+ * Both copies come from the same `state.workout` written by `commit()`, so
+ * they cannot diverge. Dexie is the durable store and the source for sync;
+ * `localStorage` is strictly a screen cache.
  */
 function persist(): void {
   writeSnapshot(currentUserId(), state.workout);
 }
 
 /**
- * Zapis lokalny treningu. `dirtyIds` to wiersze, które user właśnie zmienił —
- * tylko one trafiają do kolejki wysyłki; reszta zachowuje swój znacznik.
+ * Local workout write. `dirtyIds` are rows the user just changed —
+ * only they go into the outgoing queue; the rest keep their flag.
  *
- * Brak IndexedDB (tryb prywatny w części przeglądarek) nie może wywrócić
- * treningu: apka działa dalej online, traci tylko odporność na brak sieci.
+ * Missing IndexedDB (private mode in some browsers) must not break the
+ * workout: the app keeps working online, it only loses offline resilience.
  */
 function persistLocal(dirtyIds: readonly string[]): void {
   const db = getDatabase();
@@ -179,7 +181,7 @@ function persistLocal(dirtyIds: readonly string[]): void {
     .catch(() => undefined);
 }
 
-/** Tombstone lokalny — skasowanie musi dojechać na drugie urządzenie. */
+/** Local tombstone — a deletion must reach the other device. */
 function persistTombstone(run: (db: NonNullable<ReturnType<typeof getDatabase>>) => Promise<void>): void {
   const db = getDatabase();
   if (db === null) {
@@ -190,7 +192,7 @@ function persistTombstone(run: (db: NonNullable<ReturnType<typeof getDatabase>>)
     .catch(() => undefined);
 }
 
-/** Migawka + szkice w jednym kroku, żeby nie dało się zapisać połowy. */
+/** Snapshot + drafts in one step so half of it can never be written. */
 function commit(patch: Partial<WorkoutState>): void {
   setState(patch);
   persist();
@@ -201,10 +203,10 @@ const queue = new MutationQueue((status) => {
 });
 
 /**
- * Wysyłka pojedynczej zmiany. Odpowiedź serwera (cały `WorkoutDetailResponse`)
- * podmienia migawkę, ale **tylko gdy nic więcej nie czeka w kolejce** — inaczej
- * odpowiedź na serię nr 2 cofnęłaby na ekranie serię nr 3, którą user właśnie
- * zatwierdził. Ostatnia odpowiedź w serii i tak zawiera komplet.
+ * Sending a single change. The server response (the whole `WorkoutDetailResponse`)
+ * replaces the snapshot, but **only when nothing else is waiting in the queue** —
+ * otherwise the response to set no. 2 would rewind on screen set no. 3, which the
+ * user just confirmed. The last response in a series contains the complete state anyway.
  */
 function submit(
   id: string,
@@ -212,8 +214,8 @@ function submit(
   dirtyIds: readonly string[],
   run: () => Promise<WorkoutDetailResponse | void>,
 ): void {
-  // Dexie PRZED siecią. Gdyby kolejność była odwrotna, zamknięcie karty w
-  // trakcie lotu żądania gubiłoby serię, którą user widzi już na ekranie.
+  // Dexie BEFORE the network. If the order were reversed, closing the tab
+  // while a request is in flight would lose the set the user already sees on screen.
   persistLocal(dirtyIds);
 
   queue.submit({
@@ -224,14 +226,14 @@ function submit(
       if (detail === undefined) {
         return;
       }
-      // Odpowiedź serwera to stan, który serwer ma u siebie — te wiersze
-      // przestają czekać w kolejce wysyłki.
+      // The server response is the state the server holds — these rows
+      // stop waiting in the outgoing queue.
       const db = getDatabase();
       if (db !== null) {
         await persistServerWorkout(db, detail).catch(() => undefined);
-        // Czekamy na przeliczenie licznika: kolejka zgłosi „pusto" dopiero po
-        // powrocie z `run()`, więc pigułka nigdy nie zobaczy stanu pośredniego
-        // „nic nie leci, a coś czeka".
+        // Wait for the counter to recompute: the queue reports "empty" only
+        // after returning from `run()`, so the pill never sees the intermediate
+        // "nothing in flight, but something pending" state.
         await refreshPending();
       }
       if (queue.remaining() === 0) {
@@ -254,28 +256,27 @@ export function retryFailedMutations(): void {
 }
 
 if (typeof window !== "undefined") {
-  // Powrót sieci ponawia zaległe zapisy sam. Kazanie użytkownikowi klikać
-  // „Ponów", gdy przeglądarka właśnie powiedziała „mam zasięg", jest pracą
-  // domową za aplikację.
+  // Network coming back retries pending writes on its own. Making the user click
+  // "Retry" when the browser just said "I have signal" is doing the app's homework.
   window.addEventListener("online", () => {
     queue.retryAll();
-    // Kolejka w pamięci ponawia to, co pamięta ta zakładka. Wiersze z Dexie
-    // (np. z sesji sprzed zamknięcia karty) zabiera synchronizacja.
+    // The in-memory queue retries what this tab remembers. Rows in Dexie
+    // (e.g. from a session before the tab closed) are picked up by sync.
     void requestSync();
   });
 }
 
 /* ------------------------------------------------------------------ *
- * Wejście na ekran
+ * Screen entry
  * ------------------------------------------------------------------ */
 
 let loadToken = 0;
 
 /**
- * Wejście na `/trening`. Najpierw lokalna migawka (ekran jest pełny od razu,
- * także bez sieci), potem `GET /api/workouts/active` jako uzgodnienie.
- * `204` = nie ma otwartego treningu → stan pusty. Bez pytania „czy wznowić?" —
- * sesja po prostu trwa (spec §2).
+ * Entering `/trening`. First the local snapshot (the screen is complete right
+ * away, even without network), then `GET /api/workouts/active` as reconciliation.
+ * `204` = no open workout → empty state. No "resume?" prompt — the session simply
+ * continues (spec §2).
  */
 export async function loadActiveWorkout(formula: OneRepMaxFormula): Promise<void> {
   const token = (loadToken += 1);
@@ -286,8 +287,8 @@ export async function loadActiveWorkout(formula: OneRepMaxFormula): Promise<void
     setState({ status: "loading" });
   }
 
-  // Trwały stan lokalny. Migawka w `localStorage` ginie przy czyszczeniu danych
-  // strony i nie ma jej w świeżo otwartej zakładce -- Dexie przeżywa jedno i drugie.
+  // Durable local state. The `localStorage` snapshot is lost when site data
+  // is cleared and is absent in a freshly opened tab — Dexie survives both.
   if (cached === null) {
     const db = getDatabase();
     if (db !== null) {
@@ -304,9 +305,9 @@ export async function loadActiveWorkout(formula: OneRepMaxFormula): Promise<void
       return;
     }
     if (detail === null) {
-      // UWAGA: bez `else` niżej ta gałąź wracała `return`-em i pomijała
-      // `requestSync()` na końcu funkcji — czyli w najczęstszym przypadku
-      // (brak otwartego treningu) synchronizacja nie startowała wcale.
+      // NOTE: without an `else` below, this branch used to `return` and skip
+      // the `requestSync()` at the end of the function — meaning in the most
+      // common case (no open workout) sync did not start at all.
       await handleNoActiveWorkoutOnServer(token, formula);
     } else {
       commit({ status: "ready", workout: detail, error: null });
@@ -321,23 +322,23 @@ export async function loadActiveWorkout(formula: OneRepMaxFormula): Promise<void
     if (token !== loadToken) {
       return;
     }
-    // Brak sieci: jeśli mamy migawkę albo wiersze w Dexie, ekran działa dalej;
-    // jeśli nie — stan pusty z możliwością rozpoczęcia treningu offline.
+    // No network: if we have a snapshot or rows in Dexie, the screen keeps working;
+    // otherwise — empty state with the option to start a workout offline.
     setState({ status: state.workout === null ? "empty" : "ready" });
   }
 
-  // Wejście na ekran to dobry moment, żeby dogonić zaległości.
+  // Entering the screen is a good moment to catch up on arrears.
   void requestSync();
 }
 
 /**
- * Serwer mówi „brak otwartego treningu" (204). To NIE znaczy automatycznie, że
- * trzeba czyścić ekran: trening rozpoczęty bez zasięgu istnieje tylko lokalnie,
- * więc serwer o nim nie wie i nie ma prawa go skasować. Zwykłe wyczyszczenie
- * stanu w tym miejscu kasowałoby całą sesję z siłowni bez zasięgu.
+ * The server says "no open workout" (204). This does NOT automatically mean the
+ * screen should be cleared: a workout started without signal exists only locally,
+ * so the server does not know about it and has no right to erase it. A naive
+ * state clear here would wipe out the whole offline gym session.
  *
- * Jeśli więc w Dexie jest otwarty trening, zostawiamy go na ekranie i wypychamy
- * na serwer. Jeśli nie ma — 204 znaczy dokładnie to, co mówi.
+ * So if Dexie has an open workout, we leave it on screen and push it to the
+ * server. If not — 204 means exactly what it says.
  */
 async function handleNoActiveWorkoutOnServer(
   token: number,
@@ -357,16 +358,16 @@ async function handleNoActiveWorkoutOnServer(
   setState({ status: "empty", workout: null, drafts: {}, activeExerciseId: null });
 }
 
-/** Wejście na dowolny ekran apki: trening ładujemy raz, bo powłoka pokazuje
- * pasek „Trening trwa" także poza `/trening`. */
+/** Entering any app screen: the workout loads once, because the shell shows
+ * the "Workout in progress" bar outside `/trening` too. */
 export function ensureActiveWorkoutLoaded(formula: OneRepMaxFormula): void {
   if (state.status === "idle") {
     void loadActiveWorkout(formula);
   }
 }
 
-/** Szablon niesie `targetSets`, których `WorkoutExerciseResponse` nie zawiera —
- * stąd dociągnięcie rutyny, żeby nagłówek karty pokazał `0/3`. */
+/** The template carries `targetSets`, which `WorkoutExerciseResponse` does not —
+ * hence fetching the routine so the card header can show `0/3`. */
 async function loadRoutineTargets(workout: WorkoutDetailResponse): Promise<void> {
   if (workout.routineId === null) {
     return;
@@ -381,7 +382,7 @@ async function loadRoutineTargets(workout: WorkoutDetailResponse): Promise<void>
     }
     setState({ routineTargets: targets, routineName: routine.name });
   } catch {
-    /* licznik 0/3 to ozdoba, jego brak nie może psuć ekranu */
+    /* the 0/3 counter is decoration, missing it must not break the screen */
   }
 }
 
@@ -397,8 +398,9 @@ async function loadReferences(
 }
 
 /**
- * Linijka „ostatnio: 100 × 5". Bieżąca sesja jest z historii wycięta — inaczej
- * po odświeżeniu strony referencją stałaby się seria zrobiona pięć minut temu.
+ * The "last: 100 × 5" line. The current session is cut out of history —
+ * otherwise, after a page refresh, a set done five minutes ago would become
+ * the reference.
  */
 export async function ensureReference(
   exerciseId: string,
@@ -425,9 +427,9 @@ export async function ensureReference(
         ...state.references,
         [exerciseId]: { status: "ready", sets },
       },
-      // Historia dociera po tym, jak wiersz serii już stoi na ekranie, więc
-      // podpowiedź ciężaru wchodzi dopiero TERAZ — i tylko do szkiców, których
-      // nikt w międzyczasie nie tknął.
+      // History arrives after the set row is already on screen, so the weight
+      // suggestion kicks in only NOW — and only on drafts nobody touched in
+      // the meantime.
       drafts: suggestWeights(state.drafts, exerciseId, sets),
     });
   } catch {
@@ -438,9 +440,10 @@ export async function ensureReference(
 }
 
 /**
- * Wstawia podpowiedź ciężaru do szkiców tego ćwiczenia. Numer serii bierze się
- * z liczby serii już zrobionych w tej sesji — druga seria patrzy na drugą
- * serię poprzedniego treningu, tak samo jak linijka „ostatnio: 100 × 5".
+ * Inserts a weight suggestion into this exercise's drafts. The set number comes
+ * from the number of sets already done in this session — the second set looks
+ * at the second set of the previous workout, the same way the "last: 100 × 5"
+ * line does.
  */
 function suggestWeights(
   drafts: Record<string, SetDraft>,
@@ -474,7 +477,7 @@ function suggestWeights(
 }
 
 /* ------------------------------------------------------------------ *
- * Start treningu
+ * Workout start
  * ------------------------------------------------------------------ */
 
 function startWorkout(routineId: string | null, applyRoutine: boolean): void {
@@ -517,7 +520,7 @@ export function startWorkoutFromRoutine(routine: RoutineResponse): void {
 }
 
 /* ------------------------------------------------------------------ *
- * Ćwiczenia
+ * Exercises
  * ------------------------------------------------------------------ */
 
 export function addExerciseToWorkout(
@@ -537,8 +540,9 @@ export function addExerciseToWorkout(
   const reference = state.references[exercise.id];
   commit({
     workout: withExercise(workout, local),
-    // Gdy historia tego ćwiczenia jest już w pamięci (drugie podejście w tej
-    // samej sesji), podpowiedź wchodzi od razu, bez czekania na sieć.
+    // When the history for this exercise is already in memory (a second attempt
+    // in the same session), the suggestion kicks in immediately, no waiting
+    // for the network.
     drafts: {
       ...state.drafts,
       [id]:
@@ -551,8 +555,8 @@ export function addExerciseToWorkout(
   rememberExercise(exercise.id);
   const db = getDatabase();
   if (db !== null) {
-    // Bez tego wznowiony bez zasięgu trening pokazałby ćwiczenie bez nazwy:
-    // `workout_exercises` niesie tylko `exerciseId`.
+    // Without this, a workout resumed offline would show an exercise with no
+    // name: `workout_exercises` only carries `exerciseId`.
     void cacheExercises(db, [exercise]).catch(() => undefined);
   }
   void ensureReference(exercise.id, workout.id, formula);
@@ -574,8 +578,9 @@ export function removeExerciseFromWorkout(workoutExerciseId: string): void {
     drafts: withoutDraft(state.drafts, workoutExerciseId),
     activeExerciseId: state.activeExerciseId === workoutExerciseId ? null : state.activeExerciseId,
   });
-  // Migawka już nie zawiera tego ćwiczenia, więc `persistWorkout` by go nie
-  // dotknęło -- tombstone zapisujemy wprost, razem z kaskadą na serie.
+  // The snapshot no longer contains this exercise, so `persistWorkout` would
+  // not touch it — we write the tombstone directly, together with the cascade
+  // onto the sets.
   const deletedAt = new Date().toISOString();
   persistTombstone((db) => markWorkoutExerciseDeleted(db, workoutExerciseId, deletedAt));
   submit(
@@ -587,9 +592,9 @@ export function removeExerciseFromWorkout(workoutExerciseId: string): void {
 }
 
 /**
- * Zmiana ćwiczenia w trakcie treningu — bez usuwania karty i dodawania nowej
- * na końcu (dawniej jedyna droga). Serie starego ćwiczenia znikają razem z nim:
- * zostają jako tombstone'y, jak przy zwykłym usunięciu serii.
+ * Swapping an exercise mid-workout — without removing the card and adding
+ * a new one at the end (the former only path). The old exercise's sets go
+ * away with it: they stay as tombstones, like with a normal set deletion.
  */
 export function swapExercise(
   workoutExerciseId: string,
@@ -676,7 +681,7 @@ export function setExerciseNotes(workoutExerciseId: string, notes: string): void
 }
 
 /* ------------------------------------------------------------------ *
- * Szkice serii
+ * Set drafts
  * ------------------------------------------------------------------ */
 
 function withoutDraft(
@@ -696,7 +701,7 @@ export function setActiveExercise(workoutExerciseId: string | null): void {
   setState({ activeExerciseId: workoutExerciseId });
 }
 
-/** Nowy pusty wiersz, opcjonalnie wstępnie wypełniony poprzednią serią. */
+/** A new empty row, optionally pre-filled with the previous set. */
 export function beginNewSet(
   workoutExerciseId: string,
   seed?: { weight: string; reps: string; isWarmup?: boolean },
@@ -713,7 +718,7 @@ export function beginNewSet(
   });
 }
 
-/** Tap w zatwierdzony wiersz — ten sam `id`, więc ✓ zrobi upsert, nie duplikat. */
+/** Tap on a confirmed row — same `id`, so ✓ does an upsert, not a duplicate. */
 export function editSet(workoutExerciseId: string, set: SetResponse): void {
   const draft: SetDraft = {
     id: set.id,
@@ -750,14 +755,14 @@ export function discardDraft(workoutExerciseId: string): void {
 
 export interface ConfirmResult {
   set: SetResponse;
-  /** `exerciseId` z katalogu — potrzebny do czasu przerwy per ćwiczenie. */
+  /** `exerciseId` from the catalog — needed for per-exercise rest time. */
   exerciseId: string;
 }
 
 /**
- * ✓ Zatwierdź. Zapis + wygaszenie wiersza + kolejny pusty wiersz wstępnie
- * wypełniony tymi samymi wartościami. Timer startuje wołający (komponent zna
- * preferencje przerwy), bo magazyn nie powinien znać ustawień urządzenia.
+ * ✓ Confirm. Write + collapse the row + a next empty row pre-filled with the
+ * same values. The timer is started by the caller (the component knows the
+ * rest preferences), because the store should not know device settings.
  */
 export function confirmDraft(
   workoutExerciseId: string,
@@ -797,9 +802,9 @@ export function confirmDraft(
     now,
   );
 
-  // Kolejny wiersz od razu gotowy z tymi samymi wartościami: 5×5 to pięć
-  // tapnięć w ✓, nie pięć wypełnień formularza. Nie dostaje autofocusu —
-  // klawiatura w trakcie przerwy zasłania połowę ekranu.
+  // The next row ready immediately with the same values: 5×5 is five taps on ✓,
+  // not five form fills. It does not get autofocus — the keyboard during the
+  // rest would cover half the screen.
   const next: SetDraft = {
     ...emptyDraft(uuid(), workoutExerciseId),
     weight: String(set.weightKg),
@@ -829,7 +834,7 @@ export function confirmDraft(
 }
 
 /* ------------------------------------------------------------------ *
- * Usuwanie serii (soft delete + Cofnij)
+ * Deleting a set (soft delete + Undo)
  * ------------------------------------------------------------------ */
 
 let undoToken = 0;
@@ -861,7 +866,7 @@ export function deleteSet(workoutExerciseId: string, setId: string): void {
   }, 8_000);
 }
 
-/** `PUT` tym samym `id` zdejmuje tombstone (sprawdzone na żywym API). */
+/** `PUT` with the same `id` clears the tombstone (verified against the live API). */
 export function undoDeleteSet(): void {
   const workout = state.workout;
   const undo = state.undo;
@@ -900,7 +905,7 @@ export function dismissUndo(): void {
 }
 
 /* ------------------------------------------------------------------ *
- * Trening jako całość
+ * Workout as a whole
  * ------------------------------------------------------------------ */
 
 export function setDeload(isDeload: boolean): void {
@@ -926,9 +931,9 @@ export function setWorkoutNotes(notes: string): void {
 }
 
 /**
- * Zakończenie czeka na serwer — inaczej podsumowanie musiałoby zgadywać
- * `personalRecordsBrokenIn`, a to jedyna liczba na tym ekranie, której
- * przeglądarka nie potrafi policzyć bez całej historii.
+ * Finishing waits for the server — otherwise the summary would have to guess
+ * `personalRecordsBrokenIn`, and that is the one number on this screen the
+ * browser cannot compute without the full history.
  */
 export async function finishActiveWorkout(): Promise<WorkoutDetailResponse | null> {
   const workout = state.workout;
@@ -950,14 +955,14 @@ export async function finishActiveWorkout(): Promise<WorkoutDetailResponse | nul
       });
       return null;
     }
-    // Bez zasięgu trening i tak trzeba dać zamknąć — to najczęstszy moment
-    // całej sesji na siłowni w suterenie. Kończymy lokalnie: `endedAt` ląduje
-    // w Dexie z `dirty = 1` i pojedzie synchronizacją.
+    // Offline, the workout must be closeable anyway — this is the most common
+    // moment of the whole gym-in-the-basement session. We finish locally:
+    // `endedAt` lands in Dexie with `dirty = 1` and will be delivered by sync.
     //
-    // Podsumowanie pokaże wtedy wszystko poza plakietkami rekordów:
-    // `personalRecordsBrokenIn` zależy od całej historii ćwiczenia, której
-    // przeglądarka nie ma. Zgadywanie ich lokalnie dałoby „PR", który po
-    // synchronizacji znika — lepiej pokazać je z opóźnieniem niż fałszywie.
+    // The summary will then show everything except the record badges:
+    // `personalRecordsBrokenIn` depends on the whole exercise history, which
+    // the browser does not have. Guessing locally would give a "PR" that
+    // disappears after sync — better to show them late than falsely.
     const endedAt = new Date().toISOString();
     const finished: WorkoutDetailResponse = {
       ...workout,
@@ -974,7 +979,7 @@ export async function finishActiveWorkout(): Promise<WorkoutDetailResponse | nul
   }
 }
 
-/** Ekran wraca do stanu „brak treningu". Sam stan, bez żadnego zapisu. */
+/** The screen returns to the "no workout" state. State only, no write. */
 function clearActiveWorkoutState(): void {
   clearSnapshot();
   setState({
@@ -996,30 +1001,32 @@ export async function discardActiveWorkout(): Promise<void> {
   if (workout === null) {
     return;
   }
-  // Tombstone lokalnie ZAWSZE, niezależnie od tego, czy żądanie przejdzie.
-  // Bez niego porzucony bez zasięgu trening wróciłby na ekran przy pierwszej
-  // synchronizacji, bo serwer dalej miałby go za otwarty.
+  // The local tombstone ALWAYS, regardless of whether the request goes through.
+  // Without it, a workout discarded offline would come back on screen at the
+  // first sync, because the server would still consider it open.
   const deletedAt = new Date().toISOString();
   persistTombstone((db) => markWorkoutDeleted(db, workout.id, deletedAt));
   try {
     await discardWorkout(workout.id);
   } catch {
-    // Kasowanie dojedzie paczką sync — tombstone czeka w Dexie.
+    // The deletion will be delivered by the sync batch — the tombstone waits in Dexie.
     void requestSync();
   }
 }
 
 /**
- * Usunięcie treningu z HISTORII (pomyłkowo dodana sesja). Ta sama droga co przy
- * porzuceniu aktywnego treningu: tombstone w Dexie zawsze, żądanie w miarę
- * możliwości, brak zasięgu dowozi paczka sync.
+ * Deleting a workout from HISTORY (session added by mistake). Same path as
+ * discarding the active workout: a tombstone in Dexie always, request if
+ * possible, lack of signal delivered by the sync batch.
  *
- * Trening w toku widać na liście historii (`durationSeconds: null`), więc
- * skasowany stamtąd musi zniknąć także z ekranu treningu — inaczej zostałby
- * w migawce `localStorage` i wróciłby przy następnym wejściu w zakładkę.
+ * A workout in progress shows up in the history list (`durationSeconds: null`),
+ * so a workout deleted from there must also disappear from the workout screen —
+ * otherwise it would stay in the `localStorage` snapshot and come back on the
+ * next entry to the tab.
  *
- * Błąd inny niż brak zasięgu leci do wywołującego: tombstone i tak czeka
- * w Dexie, ale użytkownik ma prawo wiedzieć, że serwer tego nie przyjął.
+ * An error other than no-signal propagates to the caller: the tombstone waits
+ * in Dexie anyway, but the user has the right to know the server did not
+ * accept it.
  */
 export async function deleteWorkoutById(id: string): Promise<void> {
   if (state.workout !== null && state.workout.id === id) {
@@ -1062,7 +1069,7 @@ export function useWorkoutState(): WorkoutState {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/** Sam fakt trwania treningu — primitive, żeby belka nawigacji nie re-renderowała się przy każdej serii. */
+/** The mere fact that a workout is in progress — primitive, so the nav bar does not re-render on every set. */
 export function useHasActiveWorkout(): boolean {
   return useSyncExternalStore(
     subscribe,
@@ -1079,7 +1086,7 @@ export function useActiveWorkoutStartedAt(): string | null {
   );
 }
 
-/** Wyczyszczenie przy wylogowaniu — cudzy trening nie może zostać na urządzeniu. */
+/** Clearing on logout — someone else's workout must not stay on the device. */
 export function resetWorkoutStore(): void {
   clearSnapshot();
   state = INITIAL;

@@ -12,10 +12,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * user_id NULL = ćwiczenie globalne z seeda (V4), widoczne dla każdego konta
- * i nieedytowalne przez usera. Relacja do User celowo jako goły UUID, nie
- * @ManyToOne -- encje synchronizowane z klienta nigdy nie potrzebują ładować
- * właściciela, a goła kolumna nie kusi do lazy loadingu w pętli.
+ * user_id NULL = global exercise from the seed (V4), visible to every account
+ * and not editable by users. The relation to User is deliberately a bare UUID,
+ * not @ManyToOne -- client-synchronized entities never need to load the owner,
+ * and a bare column does not tempt lazy loading in a loop.
  */
 @Entity
 @Table(name = "exercises")

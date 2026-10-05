@@ -3,17 +3,17 @@
 import { useEffect } from "react";
 
 /**
- * Rejestracja service workera. Nic nie renderuje.
+ * Service worker registration. Renders nothing.
  *
- * **Tylko w buildzie produkcyjnym.** W `next dev` chunki nie mają stabilnych
- * nazw i zmieniają się przy każdym zapisie pliku; SW trzymający je w cache
- * potrafi podać stary chunk do nowego HTML-a i wywołać białą stronę, którą
- * „naprawia" dopiero ręczne czyszczenie danych witryny. To jest ten rodzaj
- * błędu, który zjada godzinę, zanim ktokolwiek pomyśli o service workerze.
+ * **Production build only.** In `next dev` chunks have unstable names and
+ * change on every file save; an SW holding them in cache may serve an old
+ * chunk to new HTML and produce a white page that is "fixed" only by
+ * manually clearing site data. That is the kind of bug that eats an hour
+ * before anyone thinks of the service worker.
  *
- * Konsekwencja: testy e2e (chodzą po `next dev`) sprawdzają warstwę offline
- * na poziomie Dexie, nie SW. Powłokę offline weryfikuje się na `npm run build
- * && npm start` — patrz frontend/CLAUDE.md.
+ * Consequence: e2e tests (which run on `next dev`) verify the offline
+ * layer at the Dexie level, not the SW. The offline shell is verified on
+ * `npm run build && npm start` — see frontend/CLAUDE.md.
  */
 export function ServiceWorkerRegistration() {
   useEffect(() => {
@@ -22,12 +22,12 @@ export function ServiceWorkerRegistration() {
     }
     const register = () => {
       void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-        // Brak SW (prywatne okno, wyłączony w ustawieniach) odbiera offline
-        // powłokę, ale nie apkę: dane i tak żyją w Dexie.
+        // No SW (private window, disabled in settings) takes away the
+        // offline shell but not the app: data still lives in Dexie.
       });
     };
 
-    // Rejestracja po `load` nie konkuruje o pasmo z pierwszym renderem.
+    // Registering after `load` does not compete for bandwidth with the first render.
     if (document.readyState === "complete") {
       register();
       return;

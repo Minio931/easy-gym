@@ -7,7 +7,7 @@ import type { ExerciseReference } from "@/lib/workout/store";
 import { CheckIcon } from "@/components/ui/icons";
 import type { SetResponse } from "@/types/api";
 
-/** Próg swipe'a i czas long-pressa — obie drogi prowadzą do tego samego usunięcia. */
+/** Swipe threshold and long-press time — both paths lead to the same deletion. */
 const SWIPE_THRESHOLD_PX = 96;
 const SWIPE_MAX_PX = 120;
 const LONG_PRESS_MS = 500;
@@ -16,9 +16,9 @@ const LONG_PRESS_MS = 500;
  * Wiersz zatwierdzonej serii: stan spoczynkowy listy. Tap w dowolne miejsce
  * wraca do edycji, swipe w lewo albo long-press usuwa.
  *
- * Gest NIE jest jedyną drogą do usunięcia — pigułka „Usuń serię" siedzi w
- * wierszu aktywnym (DESIGN §9, spec §3). To jest wymóg dostępności, nie
- * podwójna funkcja z rozpędu.
+ * The gesture is NOT the only deletion path — the "Usuń serię" pill sits
+ * in the active row (DESIGN §9, spec §3). An accessibility requirement,
+ * not a duplicate feature.
  */
 export function SetRow({
   set,
@@ -116,10 +116,11 @@ export function SetRow({
       >
         <button
           type="button"
-          // Bez `opacity` na całej treści: przygaszało liczby, czyli zapis
-          // wykonanej pracy, zostawiając jasny kafelek ✓ jako najgłośniejszy
-          // element wiersza. Hierarchię niesie teraz wiersz AKTYWNY (obwódka
-          // akcentem + jasne ✓), a nie wyblakły wiersz zatwierdzony.
+          // No `opacity` on the whole content: it muted the numbers — the
+          // record of work done — while leaving the bright ✓ tile as the
+          // loudest element in the row. Hierarchy is now carried by the
+          // ACTIVE row (accent outline + bright ✓), not by a washed-out
+          // confirmed one.
           className="flex h-11 w-full items-center gap-3 rounded-control px-1 text-left"
           onClick={() => {
             if (suppressClickRef.current) {

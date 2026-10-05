@@ -3,9 +3,9 @@ package com.example.easygymbackend.metrics;
 import com.example.easygymbackend.workout.WorkoutSet;
 
 /**
- * Jedyny most między encjami JPA a czystym pakietem metrics. Trzymany tutaj,
- * a nie w metrics/*.java "obliczeniowych", żeby te dalej nie wiedziały nic o
- * bazie (patrz decyzje etapu 3 w CLAUDE.md).
+ * The only bridge between JPA entities and the pure metrics package. Kept
+ * here, not in the "computational" metrics/*.java, so those still know
+ * nothing about the database (see stage 3 decisions in CLAUDE.md).
  */
 public final class MetricsMapper {
 
@@ -23,7 +23,7 @@ public final class MetricsMapper {
                 set.isAssisted());
     }
 
-    /** Parsowanie parametru ?formula=epley|brzycki; domyślnie Epley. */
+    /** Parsing of ?formula=epley|brzycki; defaults to Epley. */
     public static OneRepMaxFormula formula(String raw) {
         if (raw == null || raw.isBlank()) {
             return OneRepMaxFormula.EPLEY;
@@ -32,7 +32,7 @@ public final class MetricsMapper {
             case "epley" -> OneRepMaxFormula.EPLEY;
             case "brzycki" -> OneRepMaxFormula.BRZYCKI;
             default -> throw new com.example.easygymbackend.common.InvalidRequestException(
-                    "Nieznana formuła e1RM: " + raw + " (dozwolone: epley, brzycki)");
+                    "Unknown e1RM formula: " + raw + " (allowed: epley, brzycki)");
         };
     }
 

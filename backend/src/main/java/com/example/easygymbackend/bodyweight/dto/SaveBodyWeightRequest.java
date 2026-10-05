@@ -10,9 +10,9 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Upsert po (user, measuredOn): drugi wpis tego samego dnia edytuje istniejący,
- * nie tworzy nowego (sekcja 5 promptu + częściowy indeks unikalny z V3).
- * Granice 0-400 kg to lustro CHECK-a chk_body_weights_weight_kg.
+ * Upsert by (user, measuredOn): a second entry on the same day edits the existing
+ * one, not creating a new one (section 5 of the prompt + partial unique index from V3).
+ * The 0-400 kg bounds mirror the CHECK chk_body_weights_weight_kg.
  */
 public record SaveBodyWeightRequest(
         UUID id,

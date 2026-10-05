@@ -16,7 +16,7 @@ public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise
 
     Optional<WorkoutExercise> findByIdAndWorkoutId(UUID id, UUID workoutId);
 
-    /** Zakres usera przez workout -- ta tabela nie ma własnego user_id. */
+    /** User scope through workout -- this table has no user_id of its own. */
     @Query("""
             select we from WorkoutExercise we
             where we.updatedAt > :since

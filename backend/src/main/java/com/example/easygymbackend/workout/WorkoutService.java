@@ -111,7 +111,7 @@ public class WorkoutService {
         if (request.routineId() != null) {
             routineRepository.findByIdAndUserIdAndDeletedAtIsNull(request.routineId(), userId)
                     .orElseThrow(() -> new InvalidRequestException(
-                            "Szablon nie istnieje albo należy do innego konta: " + request.routineId()));
+                            "Routine does not exist or belongs to a different account: " + request.routineId()));
             workout.setRoutineId(request.routineId());
         }
         workoutRepository.save(workout);
@@ -140,7 +140,7 @@ public class WorkoutService {
         return toDetail(userId, workout, formula);
     }
 
-    /** "Zakończ trening" -- osobny endpoint, żeby front nie musiał odsyłać całego obiektu. */
+    /** "Finish workout" -- a separate endpoint so the front end does not have to resend the whole object. */
     @Transactional
     public WorkoutDetailResponse finish(UUID userId, UUID id, OneRepMaxFormula formula) {
         Workout workout = loadOwn(userId, id);
@@ -153,7 +153,7 @@ public class WorkoutService {
         return toDetail(userId, workout, formula);
     }
 
-    /** Soft delete kaskadą po ćwiczeniach i seriach -- tombstone musi dojechać do klienta. */
+    /** Cascading soft delete across exercises and sets -- the tombstone must reach the client. */
     @Transactional
     public void delete(UUID userId, UUID id) {
         Workout workout = loadOwn(userId, id);
@@ -226,8 +226,9 @@ public class WorkoutService {
     }
 
     /**
-     * Upsert, nie osobne POST/PUT: klient offline generuje UUID serii sam i po
-     * odzyskaniu sieci nie wie, czy ta seria zdążyła już dojechać na serwer.
+     * Upsert, not separate POST/PUT: the offline client generates the set UUID
+     * itself and after regaining connectivity it does not know whether that
+     * set already reached the server.
      */
     @Transactional
     public WorkoutDetailResponse saveSet(
@@ -273,7 +274,7 @@ public class WorkoutService {
         Workout workout = loadOwn(userId, workoutId);
         loadOwnExercise(workoutId, workoutExerciseId);
         WorkoutSet set = setRepository.findByIdAndWorkoutExerciseId(setId, workoutExerciseId)
-                .orElseThrow(() -> new NotFoundException("Seria nie istnieje: " + setId));
+                .orElseThrow(() -> new NotFoundException("Set does not exist: " + setId));
 
         Instant now = clock.instant();
         set.setDeletedAt(now);
@@ -389,21 +390,21 @@ public class WorkoutService {
 
     private void verifyExerciseVisible(UUID userId, UUID exerciseId) {
         if (exerciseRepository.findVisibleIds(userId, List.of(exerciseId)).isEmpty()) {
-            throw new InvalidRequestException("Ćwiczenie niedostępne dla tego konta: " + exerciseId);
+            throw new InvalidRequestException("Exercise not available for this account: " + exerciseId);
         }
     }
 
     private Workout loadOwn(UUID userId, UUID id) {
         return workoutRepository.findByIdAndUserIdAndDeletedAtIsNull(id, userId)
-                .orElseThrow(() -> new NotFoundException("Trening nie istnieje: " + id));
+                .orElseThrow(() -> new NotFoundException("Workout does not exist: " + id));
     }
 
     private WorkoutExercise loadOwnExercise(UUID workoutId, UUID workoutExerciseId) {
         WorkoutExercise exercise = workoutExerciseRepository
                 .findByIdAndWorkoutId(workoutExerciseId, workoutId)
-                .orElseThrow(() -> new NotFoundException("Ćwiczenie treningu nie istnieje: " + workoutExerciseId));
+                .orElseThrow(() -> new NotFoundException("Workout exercise does not exist: " + workoutExerciseId));
         if (exercise.getDeletedAt() != null) {
-            throw new NotFoundException("Ćwiczenie treningu nie istnieje: " + workoutExerciseId);
+            throw new NotFoundException("Workout exercise does not exist: " + workoutExerciseId);
         }
         return exercise;
     }

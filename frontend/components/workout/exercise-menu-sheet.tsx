@@ -15,9 +15,10 @@ import { useSettings } from "@/lib/settings";
 import type { WorkoutExerciseResponse } from "@/types/api";
 
 /**
- * Menu ćwiczenia (⋮). Akcje rzadkie i nieodwracalne — dlatego siedzą u góry
- * karty, poza zasięgiem kciuka zajętego seriami, i dlatego usunięcie ćwiczenia
- * wymaga potwierdzenia, a usunięcie serii nie (tam jest „Cofnij").
+ * Exercise menu (⋮). Rare and irreversible actions — hence they sit at the
+ * top of the card, out of reach of the thumb busy with sets, and hence
+ * removing an exercise requires confirmation while removing a set does
+ * not (set deletion has "Cofnij").
  */
 export function ExerciseMenuSheet({
   exercise,
@@ -30,7 +31,7 @@ export function ExerciseMenuSheet({
   onClose: () => void;
   onDelete: () => void;
   onNotesChange: (notes: string) => void;
-  /** Otwiera wyszukiwarkę ćwiczeń w trybie zmiany — zamyka to menu. */
+  /** Opens the exercise picker in swap mode — closes this menu. */
   onSwapRequest: () => void;
 }) {
   const preferences = useRestPreferences();

@@ -24,7 +24,7 @@ import java.util.UUID;
 @Service
 public class BodyWeightService {
 
-    /** Tyle tygodni wstecz sięga porównanie "trend 4-tygodniowy" (sekcja 5). */
+    /** How many weeks back the "4-week trend" comparison reaches (section 5). */
     private static final int TREND_WEEKS_BACK = 4;
 
     private final BodyWeightRepository bodyWeightRepository;
@@ -41,10 +41,10 @@ public class BodyWeightService {
     }
 
     /**
-     * Upsert po dacie pomiaru. Rekord z tym samym dniem jest edytowany, nawet
-     * jeśli klient przysłał inne id -- inaczej częściowy indeks unikalny z V3
-     * odrzuciłby insert jako konflikt, a user zobaczyłby 409 przy zwykłej
-     * poprawce wagi.
+     * Upsert by measurement date. A record with the same day is edited even if
+     * the client sent a different id -- otherwise the partial unique index from
+     * V3 would reject the insert as a conflict, and the user would see 409 on
+     * a plain weight correction.
      */
     @Transactional
     public BodyWeightResponse save(UUID userId, SaveBodyWeightRequest request) {
@@ -70,7 +70,7 @@ public class BodyWeightService {
     @Transactional
     public void delete(UUID userId, UUID id) {
         BodyWeight entry = bodyWeightRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new NotFoundException("Wpis wagi nie istnieje: " + id));
+                .orElseThrow(() -> new NotFoundException("Body weight entry does not exist: " + id));
         Instant now = clock.instant();
         entry.setDeletedAt(now);
         entry.setUpdatedAt(now);
@@ -116,8 +116,8 @@ public class BodyWeightService {
     }
 
     /**
-     * Trend liczony po tygodniach Z POMIARAMI, nie po kalendarzu -- przerwa w
-     * ważeniu ma dawać "porównanie do ostatniego znanego tygodnia", a nie dziurę.
+     * Trend computed over weeks WITH MEASUREMENTS, not over the calendar -- a gap in
+     * weighing should give "comparison to the last known week", not a hole.
      */
     private static BodyWeightStatsResponse.Trend fourWeekTrend(List<WeeklyBodyWeightAverage> weekly) {
         if (weekly.size() <= TREND_WEEKS_BACK) {
@@ -138,7 +138,7 @@ public class BodyWeightService {
                 past.averageKg(), current.averageKg(), deltaKg, deltaPercent);
     }
 
-    /** Ostatnie tygodnie do dashboardu -- ten sam podział ISO co w stats(). */
+    /** Recent weeks for the dashboard -- same ISO split as in stats(). */
     @Transactional(readOnly = true)
     public Map<IsoWeek, WeeklyBodyWeightAverage> weeklyAverages(UUID userId, LocalDate from, LocalDate to) {
         List<BodyWeightEntry> metricEntries = entries(userId, from, to).stream()

@@ -24,14 +24,15 @@ import type { DashboardResponse, RecentPersonalRecordResponse } from "@/types/ap
 /**
  * Pulpit (PROMPT §11 etap 8).
  *
- * Wszystkie agregaty przychodzą policzone z bazy jednym żądaniem — przeglądarka
- * nie ściąga serii, żeby je zsumować (PROMPT §9). Zakres pobrania jest stały
- * (`DASHBOARD_WEEKS`), a pigułki nad wykresem filtrują to, co już jest
- * w pamięci: w hali przełączenie „3M → 1M" nie może czekać na sieć.
+ * All aggregates come precomputed from the database in one request — the
+ * browser does not pull sets to sum them (PROMPT §9). The fetch range is
+ * fixed (`DASHBOARD_WEEKS`), and the pills above the chart filter what is
+ * already in memory: at the gym, flipping "3M → 1M" cannot wait for the
+ * network.
  *
- * Wyjątkiem jest `includeDeload` — trend liczy serwer, więc przełącznik
- * oznacza nowe żądanie. To jest świadomy koszt: sposób liczenia trendu to
- * pytanie zadawane raz na kilka tygodni, nie przy każdym spojrzeniu.
+ * The exception is `includeDeload` — the server computes the trend, so
+ * the toggle means a new request. A deliberate cost: how the trend is
+ * computed is a question asked once every few weeks, not on every look.
  */
 
 export function DashboardScreen() {
@@ -53,10 +54,11 @@ export function DashboardScreen() {
         if (isAbortError(cause)) {
           return;
         }
-        // Ogólny komunikat offline („dane zostaną wysłane") jest tu nieprawdą:
-        // pulpit nic nie wysyła, tylko nie ma z czego się złożyć. Agregaty
-        // liczy baza (PROMPT §9), więc bez sieci pulpit zostaje pusty —
-        // w odróżnieniu od treningu, historii i wagi, które chodzą z Dexie.
+        // The generic offline message ("data will be sent") is a lie
+        // here: the dashboard sends nothing, it just has nothing to
+        // assemble from. The database computes the aggregates
+        // (PROMPT §9), so offline the dashboard stays empty — unlike the
+        // workout, history and weight screens, which run from Dexie.
         setError(
           cause instanceof OfflineError
             ? "Pulpit liczy serwer, więc bez zasięgu nie ma z czego go złożyć. Trening, historia i waga działają dalej."
@@ -85,10 +87,11 @@ export function DashboardScreen() {
       (week) => week.to,
     );
     const rows = volumeRows(weeks);
-    // Zakres złożony z samych zer daje Rechartsowi zdegenerowaną domenę [0, 0]:
-    // znika oś, znikają numery tygodni i kafel wygląda na zepsuty albo wciąż
-    // ładujący się. Puste `rows` są tu prawdą wyrażoną wprost — kafel mówi
-    // „brak treningów w tym zakresie" zamiast rysować ramkę bez zawartości.
+    // A range of all zeros gives Recharts a degenerate domain [0, 0]:
+    // the axis disappears, the week numbers disappear and the tile looks
+    // broken or still loading. Empty `rows` are the explicit truth here —
+    // the tile says "no workouts in this range" instead of drawing an
+    // empty frame.
     const hasVolume = rows.some((row) => row.totalKg > 0);
     return {
       rows: hasVolume ? rows : [],
@@ -204,7 +207,7 @@ export function DashboardScreen() {
 }
 
 /* ------------------------------------------------------------------ *
- * Trend objętości
+ * Volume trend
  * ------------------------------------------------------------------ */
 
 function VolumeTrend({
@@ -307,7 +310,7 @@ function MuscleGroupBreakdown({
 }
 
 /* ------------------------------------------------------------------ *
- * Treningi w miesiącach
+ * Workouts per month
  * ------------------------------------------------------------------ */
 
 function MonthlyWorkouts({ months }: { months: DashboardResponse["workoutsPerMonth"] }) {
@@ -382,7 +385,7 @@ function RecentRecords({ records }: { records: readonly RecentPersonalRecordResp
 }
 
 /* ------------------------------------------------------------------ *
- * Waga ciała — skrót
+ * Body weight — shortcut
  * ------------------------------------------------------------------ */
 
 function BodyWeightCard({ stats }: { stats: DashboardResponse["bodyWeight"] }) {
@@ -420,7 +423,7 @@ function BodyWeightCard({ stats }: { stats: DashboardResponse["bodyWeight"] }) {
  * Format
  * ------------------------------------------------------------------ */
 
-/** `YYYY-MM-DD` → `17.09`. Bez `Date`: to jest dzień kalendarzowy, nie moment. */
+/** `YYYY-MM-DD` → `17.09`. No `Date`: this is a calendar day, not an instant. */
 function formatShortDate(isoDate: string): string {
   return `${isoDate.slice(8, 10)}.${isoDate.slice(5, 7)}`;
 }
@@ -442,9 +445,9 @@ const VOLUME_COLUMNS: readonly ChartTableColumn<VolumeRow>[] = [
   {
     key: "week",
     header: "Tydzień",
-    // Deload jako TEKST, nie tylko podkreślenie na wykresie (DESIGN §9).
-    // W osobnej kolumnie zostawał z niej pasek „—" szeroki na jeden znak,
-    // zgnieciony z liczbą treningów w „0—".
+    // Deload as TEXT, not just an underline on the chart (DESIGN §9).
+    // In a separate column it collapsed to a one-char bar "—", squeezed
+    // next to the workout count as "0—".
     cell: (row) =>
       `${String(row.week)}/${String(row.year)}${row.isDeload ? " · deload" : ""}`,
   },

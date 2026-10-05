@@ -4,9 +4,9 @@ import { dismissUndo, undoDeleteSet, useWorkoutState } from "@/lib/workout/store
 import { useRestTimerVisible } from "@/lib/workout/rest-timer";
 
 /**
- * Toast po miękkim usunięciu serii. Żyje 8 s i siedzi NAD timerem, żeby nie
- * zasłonić aktywnego wiersza ani przycisków przerwy — usunięcie serii jest
- * odwracalne, ale okno na „Cofnij" jest krótkie i musi być widoczne.
+ * Toast after a soft set deletion. Lives 8 s and sits ABOVE the timer so
+ * it does not cover the active row or the rest buttons — set deletion is
+ * reversible, but the "Cofnij" window is short and must be visible.
  */
 export function UndoToast() {
   const { undo } = useWorkoutState();

@@ -15,8 +15,9 @@ import {
 } from "@/lib/workout/store";
 
 /**
- * Czas trwania sesji i menu sesji w górnym pasku. Czas liczy się z
- * `startedAt` (timestamp absolutny), więc wygaszony ekran go nie zatrzymuje.
+ * Session duration and session menu in the top bar. The duration is
+ * derived from `startedAt` (absolute timestamp), so a dark screen does
+ * not stop it.
  */
 export function WorkoutAppBarExtras() {
   const { workout } = useWorkoutState();

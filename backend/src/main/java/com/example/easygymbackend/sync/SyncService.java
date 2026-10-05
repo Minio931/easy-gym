@@ -39,22 +39,22 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Dwukierunkowa synchronizacja kolejki offline (Dexie) -- etap 5.
+ * Two-way synchronization of the offline queue (Dexie) -- stage 5.
  *
- * Reguły, których nie widać z samego kształtu DTO:
- *  * Rozstrzyganie konfliktu: last-write-wins po `updated_at`, ściśle `>`.
- *    Remis = wygrywa serwer (klient i tak dostanie jego wersję w `changes`),
- *    bo dwa różne urządzenia z tym samym znacznikiem czasu to prawie zawsze
- *    ten sam zapis odbity echem, nie realna edycja.
- *  * Kolejność stosowania jest wymuszona kluczami obcymi: ćwiczenia ->
- *    szablony -> pozycje szablonów -> treningi -> ćwiczenia treningu -> serie.
- *    Każdy etap kończy się flushem, żeby następny widział rodziców.
- *  * Właściciel ZAWSZE z JWT. Rekord z cudzym user_id jest odrzucany, nie
- *    "przejmowany" -- to jest ta druga linia obrony zamiast RLS w Postgresie
- *    (decyzja 2 w CLAUDE.md).
- *  * Błędny pojedynczy rekord nie wywraca całej paczki: wraca w `rejected`
- *    z powodem, reszta się zapisuje. Inaczej jedna zepsuta seria blokowałaby
- *    synchronizację telefonu w nieskończoność.
+ * Rules not visible from the DTO shape alone:
+ *  * Conflict resolution: last-write-wins by `updated_at`, strictly `>`.
+ *    A tie = server wins (the client gets its version back in `changes` anyway),
+ *    because two different devices with the same timestamp are almost always
+ *    the same write echoed back, not a real edit.
+ *  * Apply order is enforced by foreign keys: exercises ->
+ *    routines -> routine items -> workouts -> workout exercises -> sets.
+ *    Each stage ends with a flush so the next one sees its parents.
+ *  * Owner is ALWAYS from the JWT. A record with someone else's user_id is
+ *    rejected, not "taken over" -- this is the second line of defense in
+ *    place of RLS in Postgres (decision 2 in CLAUDE.md).
+ *  * A single bad record does not wreck the whole batch: it comes back in
+ *    `rejected` with a reason, the rest is saved. Otherwise one broken set
+ *    would block a phone's sync indefinitely.
  */
 @Service
 public class SyncService {
@@ -127,7 +127,7 @@ public class SyncService {
             if (entity != null) {
                 if (entity.isGlobal()) {
                     context.reject(SyncContext.EXERCISES, record.id(),
-                            "ćwiczenie z katalogu globalnego jest tylko do odczytu");
+                            "exercise from the global catalog is read-only");
                     continue;
                 }
                 if (!entity.getUserId().equals(context.userId())) {
@@ -142,7 +142,7 @@ public class SyncService {
                 if (isBlank(record.name()) || isBlank(record.muscleGroup())
                         || !Equipment.ALLOWED.contains(record.equipment())) {
                     context.reject(SyncContext.EXERCISES, record.id(),
-                            "nowe ćwiczenie wymaga name, muscleGroup i poprawnego equipment");
+                            "new exercise requires name, muscleGroup and valid equipment");
                     continue;
                 }
                 entity = new Exercise();
@@ -160,7 +160,7 @@ public class SyncService {
             if (record.equipment() != null) {
                 if (!Equipment.ALLOWED.contains(record.equipment())) {
                     context.reject(SyncContext.EXERCISES, record.id(),
-                            "nieznany typ sprzętu: " + record.equipment());
+                            "unknown equipment type: " + record.equipment());
                     continue;
                 }
                 entity.setEquipment(record.equipment());
@@ -198,7 +198,7 @@ public class SyncService {
                 }
             } else {
                 if (isBlank(record.name())) {
-                    context.reject(SyncContext.ROUTINES, record.id(), "nowy szablon wymaga name");
+                    context.reject(SyncContext.ROUTINES, record.id(), "new routine requires name");
                     continue;
                 }
                 entity = new Routine();
@@ -243,12 +243,12 @@ public class SyncService {
             }
             if (!ownedRoutines.contains(record.routineId())) {
                 context.reject(SyncContext.ROUTINE_ITEMS, record.id(),
-                        "szablon nie istnieje albo należy do innego konta: " + record.routineId());
+                        "routine does not exist or belongs to a different account: " + record.routineId());
                 continue;
             }
             if (!visibleExercises.contains(record.exerciseId())) {
                 context.reject(SyncContext.ROUTINE_ITEMS, record.id(),
-                        "ćwiczenie niedostępne dla tego konta: " + record.exerciseId());
+                        "exercise not available for this account: " + record.exerciseId());
                 continue;
             }
             if (entity != null && !updatedAt.isAfter(entity.getUpdatedAt())) {
@@ -299,7 +299,7 @@ public class SyncService {
                 }
             } else {
                 if (record.startedAt() == null) {
-                    context.reject(SyncContext.WORKOUTS, record.id(), "nowy trening wymaga startedAt");
+                    context.reject(SyncContext.WORKOUTS, record.id(), "new workout requires startedAt");
                     continue;
                 }
                 entity = new Workout();
@@ -309,7 +309,7 @@ public class SyncService {
             }
             if (record.routineId() != null && !ownedRoutines.contains(record.routineId())) {
                 context.reject(SyncContext.WORKOUTS, record.id(),
-                        "szablon nie istnieje albo należy do innego konta: " + record.routineId());
+                        "routine does not exist or belongs to a different account: " + record.routineId());
                 continue;
             }
 
@@ -354,12 +354,12 @@ public class SyncService {
             }
             if (!ownedWorkouts.contains(record.workoutId())) {
                 context.reject(SyncContext.WORKOUT_EXERCISES, record.id(),
-                        "trening nie istnieje albo należy do innego konta: " + record.workoutId());
+                        "workout does not exist or belongs to a different account: " + record.workoutId());
                 continue;
             }
             if (!visibleExercises.contains(record.exerciseId())) {
                 context.reject(SyncContext.WORKOUT_EXERCISES, record.id(),
-                        "ćwiczenie niedostępne dla tego konta: " + record.exerciseId());
+                        "exercise not available for this account: " + record.exerciseId());
                 continue;
             }
             if (entity != null && !updatedAt.isAfter(entity.getUpdatedAt())) {
@@ -405,7 +405,7 @@ public class SyncService {
             }
             if (!ownedParents.contains(record.workoutExerciseId())) {
                 context.reject(SyncContext.SETS, record.id(),
-                        "ćwiczenie treningu nie istnieje albo należy do innego konta: "
+                        "workout exercise does not exist or belongs to a different account: "
                                 + record.workoutExerciseId());
                 continue;
             }
@@ -441,9 +441,9 @@ public class SyncService {
     }
 
     /**
-     * Konflikt "jeden żywy wpis na dzień" rozstrzygany tak samo jak każdy inny
-     * konflikt -- po updated_at. Przegrany wpis dostaje tombstone (a nie jest
-     * kasowany), więc drugie urządzenie dowie się, że zniknął.
+     * The "one live entry per day" conflict is resolved the same way as any
+     * other conflict -- by updated_at. The losing entry gets a tombstone
+     * (not a hard delete), so the other device learns that it disappeared.
      */
     private void applyBodyWeights(SyncContext context, List<SyncRecords.BodyWeightSync> incoming) {
         if (incoming.isEmpty()) {
@@ -468,7 +468,7 @@ public class SyncService {
             } else {
                 if (record.measuredOn() == null || record.weightKg() == null) {
                     context.reject(SyncContext.BODY_WEIGHTS, record.id(),
-                            "nowy wpis wagi wymaga measuredOn i weightKg");
+                            "new body weight entry requires measuredOn and weightKg");
                     continue;
                 }
                 entity = new BodyWeight();
@@ -477,7 +477,7 @@ public class SyncService {
                 entity.setMeasuredOn(record.measuredOn());
             }
             if (record.weightKg() != null && !isValidBodyWeight(record.weightKg())) {
-                context.reject(SyncContext.BODY_WEIGHTS, record.id(), "waga poza zakresem 0-400 kg");
+                context.reject(SyncContext.BODY_WEIGHTS, record.id(), "weight out of range 0-400 kg");
                 continue;
             }
 
@@ -498,7 +498,7 @@ public class SyncService {
         }
     }
 
-    /** @return false, gdy przychodzący wpis przegrał z istniejącym wpisem z tego dnia. */
+    /** @return false when the incoming entry lost to an existing entry from that day. */
     private boolean resolveDayConflict(SyncContext context, UUID incomingId, LocalDate day, Instant updatedAt) {
         BodyWeight sameDay = bodyWeightRepository
                 .findByUserIdAndMeasuredOnAndDeletedAtIsNull(context.userId(), day)
@@ -508,16 +508,16 @@ public class SyncService {
         }
         if (!updatedAt.isAfter(sameDay.getUpdatedAt())) {
             context.reject(SyncContext.BODY_WEIGHTS, incomingId,
-                    "nowszy wpis na ten dzień już istnieje: " + sameDay.getId());
+                    "a newer entry for this day already exists: " + sameDay.getId());
             return false;
         }
         sameDay.setDeletedAt(context.now());
         sameDay.setUpdatedAt(context.now());
         bodyWeightRepository.saveAndFlush(sameDay);
-        // Przegrany rekord wraca do klienta jako tombstone, nawet gdy jego
-        // updated_at jest starsze niż `since` z zapytania.
+        // The losing record goes back to the client as a tombstone, even if its
+        // updated_at is older than the `since` from the request.
         context.reject(SyncContext.BODY_WEIGHTS, sameDay.getId(),
-                "zastąpiony nowszym wpisem na ten sam dzień: " + incomingId);
+                "replaced by a newer entry for the same day: " + incomingId);
         return true;
     }
 
@@ -553,7 +553,7 @@ public class SyncService {
     }
 
     /* ---------------------------------------------------------------- *
-     * Narzędzia
+     * Utilities
      * ---------------------------------------------------------------- */
 
     private static <E, D> List<D> merge(
@@ -580,21 +580,21 @@ public class SyncService {
         return weight.compareTo(BigDecimal.ZERO) > 0 && weight.compareTo(BigDecimal.valueOf(400)) < 0;
     }
 
-    /** Lustro CHECK-ów z V3 -- pojedyncza zła seria ma wrócić w `rejected`, nie wywalić paczki. */
+    /** Mirror of V3 CHECKs -- a single bad set should come back in `rejected`, not blow up the batch. */
     private static String validateSet(SyncRecords.SetSync record) {
         if (record.weightKg() == null) {
-            return "seria wymaga weightKg";
+            return "set requires weightKg";
         }
         if (record.weightKg().compareTo(BigDecimal.ZERO) < 0
                 || record.weightKg().compareTo(BigDecimal.valueOf(500)) > 0) {
-            return "ciężar poza zakresem 0-500 kg";
+            return "weight out of range 0-500 kg";
         }
         if (record.reps() < 1 || record.reps() > 100) {
-            return "liczba powtórzeń poza zakresem 1-100";
+            return "rep count out of range 1-100";
         }
         if (record.rpe() != null && (record.rpe().compareTo(BigDecimal.ONE) < 0
                 || record.rpe().compareTo(BigDecimal.TEN) > 0)) {
-            return "RPE poza zakresem 1-10";
+            return "RPE out of range 1-10";
         }
         return null;
     }

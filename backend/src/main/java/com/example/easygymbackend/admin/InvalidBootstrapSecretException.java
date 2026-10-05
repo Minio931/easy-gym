@@ -1,14 +1,14 @@
 package com.example.easygymbackend.admin;
 
 /**
- * Zły/brakujący X-Bootstrap-Secret na /api/admin/users. Osobny wyjątek od
- * BadCredentialsException (auth logowania) -- to nie jest próba logowania,
- * to próba dostępu do endpointu admina, semantycznie 403, nie 401.
+ * Wrong/missing X-Bootstrap-Secret on /api/admin/users. Separate exception from
+ * BadCredentialsException (login auth) -- this is not a login attempt, this is
+ * an attempt to access an admin endpoint, semantically 403, not 401.
  */
 public class InvalidBootstrapSecretException extends RuntimeException {
 
     public InvalidBootstrapSecretException() {
-        super("Nieprawidłowy lub brakujący sekret administracyjny");
+        super("Invalid or missing admin bootstrap secret");
     }
 
 }

@@ -13,9 +13,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Tabela `sets` (SET to słowo kluczowe SQL, stąd nazwa klasy WorkoutSet).
- * Uwaga: ta tabela NIE ma kolumny created_at -- porządkuje ją completed_at,
- * a do LWW starcza updated_at.
+ * The `sets` table (SET is an SQL keyword, hence the class name WorkoutSet).
+ * Note: this table has NO created_at column -- it is ordered by completed_at
+ * and updated_at is sufficient for LWW.
  */
 @Entity
 @Table(name = "sets")

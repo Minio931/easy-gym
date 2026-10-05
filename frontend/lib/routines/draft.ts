@@ -2,17 +2,17 @@ import type { SaveRoutineRequest } from "@/lib/api/routines";
 import type { ExerciseResponse, RoutineResponse, WorkoutDetailResponse } from "@/types/api";
 
 /**
- * Szkic szablonu treningu — czysta struktura, którą edytuje ekran, i czyste
- * funkcje, które ją zmieniają. Komponent układa, nie liczy (konwencja projektu).
+ * Workout-template draft — a pure structure the screen edits, and pure
+ * functions that change it. The component lays things out, it does not
+ * compute (project convention).
  *
- * Nazwa ćwiczenia siedzi w szkicu tylko po to, żeby dało się go narysować bez
- * drugiego zapytania; na serwer leci samo `exerciseId`. Kolejność pozycji jest
- * kolejnością w tablicy — `orderIndex` powstaje dopiero przy wysyłce, bo
- * trzymanie go w szkicu oznaczałoby przenumerowywanie wszystkiego przy każdym
- * przesunięciu wiersza.
+ * The exercise name sits in the draft only so it can be drawn without a
+ * second request; only `exerciseId` goes to the server. Item order is the
+ * array order — `orderIndex` is produced only on send, because keeping it
+ * in the draft would mean renumbering everything on every row move.
  */
 
-/** Granice z `SaveRoutineRequest` po stronie backendu — te same, nie „podobne". */
+/** Bounds from `SaveRoutineRequest` on the backend — the same, not "similar". */
 export const NAME_MAX_LENGTH = 200;
 export const NOTES_MAX_LENGTH = 2000;
 export const TARGET_SETS_MIN = 1;
@@ -21,7 +21,7 @@ export const TARGET_REPS_MIN = 1;
 export const TARGET_REPS_MAX = 100;
 
 export interface RoutineDraftItem {
-  /** `id` pozycji z serwera; `null` dla pozycji dodanej w tej edycji. */
+  /** Server-side item `id`; `null` for items added in this edit. */
   id: string | null;
   exerciseId: string;
   exerciseName: string;
@@ -30,7 +30,7 @@ export interface RoutineDraftItem {
 }
 
 export interface RoutineDraft {
-  /** `null` = szablon jeszcze nie istnieje. */
+  /** `null` = the template does not exist yet. */
   id: string | null;
   name: string;
   notes: string;
@@ -52,9 +52,10 @@ export function draftFromRoutine(routine: RoutineResponse, exerciseNames: Readon
       .map((item) => ({
         id: item.id,
         exerciseId: item.exerciseId,
-        // Nazwy nie ma w odpowiedzi szablonu (są tam same `exerciseId`).
-        // Brak w katalogu = ćwiczenie usunięte albo katalog jeszcze nie doszedł;
-        // „?" byłoby gorsze niż uczciwe „ćwiczenie spoza katalogu".
+        // The name is not in the template response (only `exerciseId`).
+        // Missing in the catalog = the exercise was deleted or the catalog
+        // has not arrived yet; "?" would be worse than an honest
+        // "exercise outside the catalog".
         exerciseName: exerciseNames.get(item.exerciseId) ?? "Ćwiczenie spoza katalogu",
         targetSets: item.targetSets,
         targetReps: item.targetReps,
@@ -63,17 +64,19 @@ export function draftFromRoutine(routine: RoutineResponse, exerciseNames: Readon
 }
 
 /**
- * Szkic z zakończonego treningu — „zapisz to, co właśnie zrobiłem, jako plan".
+ * Draft from a finished workout — "save what I just did as a plan".
  *
- * Cel serii to liczba serii ROBOCZYCH, bo dokładnie to liczy licznik `0/3` na
- * karcie ćwiczenia; rozgrzewka jest z niego wyłączona tak samo jak z objętości
- * i rekordów. Cel powtórzeń to MEDIANA powtórzeń w seriach roboczych.
+ * The target set count is the number of WORKING sets, because that is
+ * exactly what the `0/3` counter on the exercise card tracks; the warmup is
+ * excluded from it, same as from volume and records. The target rep count
+ * is the MEDIAN of reps across working sets.
  *
- * Nie „wartość najczęstsza": przy stałych seriach (5/5/5) obie reguły dają to
- * samo, ale przy drabinie 3/2/1 każda liczba jest tak samo częsta i remis
- * trzeba rozstrzygać arbitralnie — pierwsza wersja brała najniższą i robiła
- * z sesji plan „3 serie × 1 powtórzenie". Mediana opisuje taką sesję uczciwie
- * (2) i nie wymaga drugiej reguły obok pierwszej.
+ * Not "the mode value": for uniform sets (5/5/5) both rules yield the same,
+ * but for a 3/2/1 drop set each number is equally frequent and the tie
+ * must be broken arbitrarily — an earlier version took the lowest and
+ * turned the session into a plan of "3 sets × 1 rep". The median describes
+ * such a session honestly (2) and does not need a second rule beside the
+ * first.
  */
 export function draftFromWorkout(workout: WorkoutDetailResponse, name: string): RoutineDraft {
   return {
@@ -93,8 +96,9 @@ export function draftFromWorkout(workout: WorkoutDetailResponse, name: string): 
   };
 }
 
-/** Mediana; przy parzystej liczbie serii DOLNY środek — cel ma być całkowity
- *  i raczej do wykonania niż do pobicia, a średnia dałaby „7,5 powtórzenia". */
+/** Median; with an even number of sets the LOWER middle — the target
+ *  should be an integer and more for executing than for beating, and the
+ *  average would give "7.5 reps". */
 function medianReps(reps: readonly number[]): number | null {
   if (reps.length === 0) {
     return null;
@@ -104,7 +108,7 @@ function medianReps(reps: readonly number[]): number | null {
 }
 
 /* ------------------------------------------------------------------ *
- * Zmiany szkicu
+ * Draft mutations
  * ------------------------------------------------------------------ */
 
 export function addItem(draft: RoutineDraft, exercise: ExerciseResponse): RoutineDraft {
@@ -128,8 +132,8 @@ export function removeItem(draft: RoutineDraft, index: number): RoutineDraft {
 }
 
 /**
- * Przesunięcie pozycji o jeden. Poza tablicą nie robi nic — brzegowy wiersz
- * ma mieć nieaktywną strzałkę, a nie zapętlać listę.
+ * Move an item by one. Outside the array it does nothing — the edge row
+ * should have a disabled arrow, not wrap the list.
  */
 export function moveItem(draft: RoutineDraft, index: number, offset: -1 | 1): RoutineDraft {
   const target = index + offset;
@@ -153,13 +157,13 @@ export function setItemTarget(
 }
 
 /* ------------------------------------------------------------------ *
- * Walidacja i wysyłka
+ * Validation and send
  * ------------------------------------------------------------------ */
 
 /**
- * Puste pole = brak celu (`null`), nie zero. Wartość spoza zakresu jest
- * PRZYCINANA, a nie odrzucana: to stepper obok pola, nie formularz podatkowy,
- * a serwer i tak pilnuje granic.
+ * Empty field = no target (`null`), not zero. A value outside the range is
+ * CLAMPED, not rejected: this is a stepper beside the field, not a tax
+ * form, and the server guards the bounds anyway.
  */
 export function parseTarget(value: string, min: number, max: number): number | null {
   const trimmed = value.trim();
@@ -173,7 +177,7 @@ export function parseTarget(value: string, min: number, max: number): number | n
   return Math.min(Math.max(parsed, min), max);
 }
 
-/** `null` = szkic da się zapisać. */
+/** `null` = the draft is saveable. */
 export function validateDraft(draft: RoutineDraft): string | null {
   if (draft.name.trim() === "") {
     return "Szablon musi mieć nazwę.";
@@ -191,9 +195,9 @@ export function validateDraft(draft: RoutineDraft): string | null {
 }
 
 /**
- * Szkic → żądanie. Wysyłamy KOMPLET pozycji, bo `PUT` podmienia całą listę
- * (`backend/API.md`): pominięta pozycja dostaje tombstone, a nie zostaje po
- * staremu. Różnica byłaby tu cichym kasowaniem.
+ * Draft → request. We send the FULL item list, because `PUT` replaces the
+ * whole list (`backend/API.md`): an omitted item receives a tombstone, it
+ * is not left as is. A diff here would be a silent deletion.
  */
 export function toSaveRequest(draft: RoutineDraft): SaveRoutineRequest {
   return {
@@ -210,7 +214,7 @@ export function toSaveRequest(draft: RoutineDraft): SaveRoutineRequest {
   };
 }
 
-/** Podsumowanie do wiersza listy: „4 ćwiczenia · 13 serii". */
+/** Summary for the list row: "4 ćwiczenia · 13 serii". */
 export function totalTargetSets(routine: RoutineResponse): number {
   return routine.items
     .filter((item) => item.deletedAt === null)

@@ -6,8 +6,9 @@ import jakarta.validation.constraints.Size;
 import java.util.UUID;
 
 /**
- * `id` opcjonalne: klient offline generuje UUID sam (i tak musi, przez Dexie),
- * ale online-only klient może je zostawić puste i dostać UUID z serwera.
+ * `id` optional: the offline client generates the UUID itself (it has to,
+ * via Dexie), but an online-only client may leave it empty and receive a
+ * UUID from the server.
  */
 public record SaveExerciseRequest(
         UUID id,

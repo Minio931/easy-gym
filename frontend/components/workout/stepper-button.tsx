@@ -3,12 +3,12 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Przycisk steppera (`−2.5` / `+2.5` / `−1` / `+1`), 56 × 48 px.
+ * Stepper button (`−2.5` / `+2.5` / `−1` / `+1`), 56 × 48 px.
  *
- * Przytrzymanie uruchamia autorepeat (start po 400 ms, potem co 100 ms) —
- * dojście z 60 do 140 kg to inaczej 32 tapnięcia. Wartość jest zaciskana do
- * zakresu po stronie `lib/workout/set-values.ts`, więc trzymanie plusa nigdy
- * nie wyprowadzi pola poza 500 kg.
+ * Press-and-hold starts autorepeat (begins after 400 ms, then every
+ * 100 ms) — going from 60 to 140 kg is otherwise 32 taps. The value is
+ * clamped to range in `lib/workout/set-values.ts`, so holding plus never
+ * sends the field past 500 kg.
  */
 const REPEAT_DELAY_MS = 400;
 const REPEAT_INTERVAL_MS = 100;
@@ -19,7 +19,7 @@ export function StepperButton({
   onStep,
 }: {
   label: string;
-  /** Dopowiedzenie dla czytnika ekranu: „+2.5" samo w sobie nie mówi, czego dotyczy. */
+  /** Screen-reader hint: "+2.5" on its own does not say what it applies to. */
   unit: string;
   onStep: () => void;
 }) {
@@ -28,8 +28,9 @@ export function StepperButton({
   const pointerHandledRef = useRef(false);
   const onStepRef = useRef(onStep);
 
-  // Autorepeat woła NAJŚWIEŻSZY callback: krok liczy się od aktualnej wartości
-  // pola, więc zamrożona domknięciem wersja dodawałaby wciąż to samo.
+  // Autorepeat calls the FRESHEST callback: the step is computed from the
+  // current field value, so a closure-frozen version would keep adding
+  // the same amount.
   useEffect(() => {
     onStepRef.current = onStep;
   });
@@ -64,7 +65,7 @@ export function StepperButton({
       onPointerLeave={stop}
       onPointerCancel={stop}
       onClick={() => {
-        // Klik bez pointerdown = klawiatura. Z pointerem krok już poleciał.
+        // Click without pointerdown = keyboard. With pointer the step already fired.
         if (pointerHandledRef.current) {
           pointerHandledRef.current = false;
           return;
@@ -72,8 +73,8 @@ export function StepperButton({
         onStepRef.current();
       }}
     >
-      {/* Nazwa dostępna zaczyna się od WIDOCZNEGO tekstu — aria-label, który go
-          zastępuje, rozjeżdża to, co user widzi, z tym, co słyszy. */}
+      {/* The accessible name starts with the VISIBLE text — an aria-label
+          that replaces it diverges what the user sees from what they hear. */}
       {label}
       <span className="sr-only"> {unit}</span>
     </button>

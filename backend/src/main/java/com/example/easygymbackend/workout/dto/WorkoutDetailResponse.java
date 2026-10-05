@@ -6,9 +6,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Pełny trening pod ekran aktywnej sesji i podsumowanie (sekcja 3.6 promptu).
- * personalRecordsBrokenIn to rekordy pobite W MOMENCIE tej sesji, nie
- * "aktualne globalne maksima" -- różnica opisana w metrics/PersonalRecordCalculator.
+ * Full workout for the active session screen and summary (section 3.6 of the
+ * prompt). personalRecordsBrokenIn are records broken AT THE MOMENT of this
+ * session, not "current global maxima" -- the distinction is documented in
+ * metrics/PersonalRecordCalculator.
  */
 public record WorkoutDetailResponse(
         UUID id,

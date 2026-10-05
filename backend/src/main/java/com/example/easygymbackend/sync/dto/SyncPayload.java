@@ -12,9 +12,9 @@ import jakarta.validation.Valid;
 import java.util.List;
 
 /**
- * Ta sama struktura w obie strony (push i pull) -- klient nie musi mapować
- * dwóch różnych kształtów. Kolejność pól = kolejność stosowania zmian, bo
- * klucze obce wymagają, żeby rodzic istniał wcześniej.
+ * Same shape in both directions (push and pull) -- the client does not have
+ * to map two different shapes. Field order = apply order, because foreign
+ * keys require the parent to exist first.
  */
 public record SyncPayload(
         @Valid List<ExerciseSync> exercises,

@@ -36,9 +36,9 @@ import type { ExerciseResponse, SetResponse } from "@/types/api";
 
 /**
  * Ekran aktywnego treningu. Orkiestruje; liczenia nie robi (to `lib/metrics.ts`),
- * zapisów nie robi (to `lib/workout/store.ts`). Tu jest wyłącznie to, czego
- * magazyn nie powinien wiedzieć: ustawienia urządzenia (czas przerwy, dźwięk),
- * nawigacja i który arkusz jest otwarty.
+ * This component does no writes (that is `lib/workout/store.ts`). Only
+ * what the store should not know lives here: device settings (rest time,
+ * sound), navigation and which sheet is open.
  */
 export function WorkoutScreen() {
   const state = useWorkoutState();
@@ -94,7 +94,7 @@ export function WorkoutScreen() {
     });
   };
 
-  /** Jeden tap = seria odhaczona i timer w biegu. Ścieżka dla 5×5. */
+  /** One tap = set checked off and timer running. Path for 5×5. */
   const copyPrevious = (workoutExerciseId: string, last: SetResponse) => {
     beginNewSet(workoutExerciseId, {
       weight: String(last.weightKg),
@@ -130,7 +130,7 @@ export function WorkoutScreen() {
       setFinishing(false);
       closeFinishSheet();
       if (detail !== null) {
-        // replace, nie push: cofnięcie nie może wrócić do sesji, której już nie ma.
+        // replace, not push: back must not return to a session that no longer exists.
         router.replace(`/trening/${detail.id}/podsumowanie`);
       }
     });

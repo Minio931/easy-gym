@@ -5,8 +5,8 @@ import { Toggle } from "@/components/ui/toggle";
 import { formatDuration, formatVolume, pluralPl, setsLabel } from "@/lib/format";
 import type { WorkoutDetailResponse } from "@/types/api";
 
-/** Wiersze z danymi, których user nie zatwierdził, nie trafią do bazy — trzeba
- * o tym powiedzieć wprost, zanim trening zostanie zamknięty. */
+/** Rows with data the user did not confirm will not reach the database —
+ * must be said explicitly before the workout is closed. */
 function unconfirmedNotice(count: number): string {
   if (count === 1) {
     return "Masz 1 niezatwierdzoną serię. Zostanie pominięta.";
@@ -16,9 +16,9 @@ function unconfirmedNotice(count: number): string {
 }
 
 /**
- * Jedyny modal na tym ekranie. Zakończenie treningu jest nieodwracalne po
- * stronie UI (sesja znika z `/active`), więc dostaje potwierdzenie — w
- * odróżnieniu od usunięcia serii, które ma „Cofnij".
+ * The only modal on this screen. Finishing the workout is UI-irreversible
+ * (the session disappears from `/active`), so it gets a confirmation —
+ * unlike deleting a set, which has "Cofnij".
  */
 export function FinishSheet({
   workout,

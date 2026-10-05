@@ -7,10 +7,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Używane i przy POST, i przy PUT -- PUT nadpisuje komplet pól modyfikowalnych
- * (endedAt = null oznacza "trening nadal trwa", nie "nie zmieniaj").
- * applyRoutine (tylko przy POST): skopiuj pozycje szablonu jako ćwiczenia
- * treningu; domyślnie true, gdy podano routineId.
+ * Used both on POST and on PUT -- PUT overwrites the full set of modifiable
+ * fields (endedAt = null means "workout still ongoing", not "do not change").
+ * applyRoutine (only on POST): copy routine items as workout exercises;
+ * defaults to true when routineId is provided.
  */
 public record SaveWorkoutRequest(
         UUID id,

@@ -5,13 +5,13 @@ import { useSyncExternalStore } from "react";
 const noopSubscribe = () => () => {};
 
 /**
- * `false` w renderze serwerowym i w trakcie hydracji, `true` potem.
+ * `false` during server render and hydration, `true` afterwards.
  *
- * Potrzebne, bo cała sesja siedzi w localStorage: serwer nie wie, czy ktoś
- * jest zalogowany, więc bez tego flagi guard tras zobaczyłby "brak sesji" w
- * pierwszym renderze i przerzuciłby zalogowanego użytkownika na logowanie.
- * useSyncExternalStore zamiast useState+useEffect -- ten sam efekt bez
- * kaskadowego re-renderu i bez setState w efekcie.
+ * Needed because the whole session lives in localStorage: the server does not
+ * know whether anyone is signed in, so without this flag the route guard
+ * would see "no session" in the first render and bounce a signed-in user to
+ * the login screen. useSyncExternalStore instead of useState+useEffect — the
+ * same effect without a cascading re-render and without setState in an effect.
  */
 export function useIsHydrated(): boolean {
   return useSyncExternalStore(

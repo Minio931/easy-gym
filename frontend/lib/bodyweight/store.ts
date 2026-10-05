@@ -17,22 +17,22 @@ import { uuid } from "@/lib/workout/uuid";
 import type { BodyWeightStatsResponse } from "@/types/api";
 
 /* ================================================================== *
- * JEDYNE MIEJSCE, KTÓRE ZAPISUJE WAGĘ.
+ * SINGLE PLACE THAT WRITES BODY WEIGHT.
  *
- * Ta sama droga co przy treningu (etap 5): najpierw Dexie z `dirty = 1`,
- * potem API. Wagę wpisuje się rano w domu, ale też w szatni — brak zasięgu
- * nie może oznaczać „wpisz to sobie później".
+ * Same path as workouts (stage 5): first Dexie with `dirty = 1`, then
+ * the API. Weight is entered in the morning at home, but also in the
+ * locker room — no signal cannot mean "type it in later".
  *
- * Statystyki (średnie tygodniowe, krocząca, trend) liczy SERWER, gdy jest
- * sieć. Bez sieci liczy je `computeLocalStats` z tych samych reguł
- * (`lib/metrics.ts` jest mirrorem backendu), więc ekran ma jeden kształt
- * danych i jeden sposób renderowania, niezależnie od zasięgu.
+ * Statistics (weekly averages, rolling, trend) are computed by the SERVER
+ * when there is a network. Offline they are computed by `computeLocalStats`
+ * from the same rules (`lib/metrics.ts` mirrors the backend), so the screen
+ * has one data shape and one render path, regardless of signal.
  * ================================================================== */
 
 export interface BodyWeightState {
   status: "idle" | "loading" | "ready";
   stats: BodyWeightStatsResponse | null;
-  /** `true` gdy liczby pochodzą z Dexie, nie z serwera — ekran to sygnalizuje. */
+  /** `true` when the numbers come from Dexie, not the server — the screen signals this. */
   local: boolean;
   saving: boolean;
   error: string | null;
@@ -79,7 +79,7 @@ export function getBodyWeightState(): BodyWeightState {
   return state;
 }
 
-/** Migawka serwerowa — stała referencja, inaczej hydracja zgłasza niezgodność. */
+/** Server snapshot — stable reference, otherwise hydration reports a mismatch. */
 export function getServerBodyWeightState(): BodyWeightState {
   return INITIAL;
 }
@@ -93,10 +93,10 @@ export function useBodyWeightState(): BodyWeightState {
 }
 
 /* ------------------------------------------------------------------ *
- * Odczyt
+ * Read
  * ------------------------------------------------------------------ */
 
-/** Przelicza ekran z lokalnej bazy. Używane po każdym zapisie i przy braku sieci. */
+/** Recomputes the screen from the local DB. Used after every write and when offline. */
 async function refreshFromLocal(local: boolean): Promise<void> {
   const db = getDatabase();
   if (db === null) {
@@ -114,7 +114,7 @@ export async function loadBodyWeights(): Promise<void> {
     setState({ status: "loading" });
   }
 
-  // Najpierw lokalne: ekran jest pełny od razu, także bez zasięgu.
+  // Local first: the screen is complete right away, even without signal.
   await refreshFromLocal(true).catch(() => undefined);
   if (token !== loadToken) {
     return;
@@ -136,8 +136,8 @@ export async function loadBodyWeights(): Promise<void> {
       return;
     }
     if (cause instanceof OfflineError) {
-      // Brak sieci to stan normalny — zostajemy przy liczbach z Dexie
-      // i mówimy o tym wprost zamiast pokazywać błąd.
+      // No network is a normal state — we stay with Dexie numbers and
+      // say so explicitly instead of showing an error.
       setState({ status: "ready", error: null, local: true });
       return;
     }
@@ -150,12 +150,12 @@ export async function loadBodyWeights(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ *
- * Zapis
+ * Write
  * ------------------------------------------------------------------ */
 
 /**
- * Zapis wagi na dany dzień. Upsert po dacie — drugi wpis tego samego dnia
- * POPRAWIA pierwszy, po obu stronach: lokalnie i na serwerze.
+ * Save weight for a given day. Upsert by date — a second entry on the same
+ * day EDITS the first, on both sides: locally and on the server.
  */
 export async function saveWeight(
   measuredOn: string,
@@ -168,8 +168,9 @@ export async function saveWeight(
 
   let id = uuid();
   if (db !== null) {
-    // Dexie PRZED siecią. Zwraca `id` istniejącego wpisu z tego dnia, jeśli był
-    // — wysyłamy więc na serwer to samo `id`, a nie drugi rekord na ten dzień.
+    // Dexie BEFORE the network. Returns the `id` of an existing entry on
+    // this day if there was one — so we send the server the same `id`, not
+    // a second record for the day.
     const saved = await saveBodyWeightLocally(db, {
       id,
       measuredOn,
@@ -196,8 +197,9 @@ export async function saveWeight(
   } catch (cause) {
     setState({ saving: false });
     if (cause instanceof OfflineError) {
-      // Wpis siedzi w Dexie i pojedzie synchronizacją. Z punktu widzenia
-      // użytkownika zapis SIĘ UDAŁ — bo się udał, tylko jeszcze nie dojechał.
+      // The entry sits in Dexie and will ship with sync. From the user's
+      // perspective the save SUCCEEDED — because it did, it just has not
+      // arrived yet.
       void requestSync();
       return true;
     }

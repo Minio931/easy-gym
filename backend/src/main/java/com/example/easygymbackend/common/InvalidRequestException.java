@@ -1,8 +1,8 @@
 package com.example.easygymbackend.common;
 
 /**
- * Walidacja, której nie da się wyrazić adnotacją na DTO -- np. spójność
- * dwóch pól albo referencja do nieistniejącego ćwiczenia.
+ * Validation that cannot be expressed with a DTO annotation -- e.g. consistency
+ * between two fields or a reference to a non-existent exercise.
  */
 public class InvalidRequestException extends RuntimeException {
 

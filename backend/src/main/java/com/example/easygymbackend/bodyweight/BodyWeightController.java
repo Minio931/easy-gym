@@ -38,7 +38,7 @@ public class BodyWeightController {
         return bodyWeightService.list(CurrentUser.id(), from, to);
     }
 
-    /** Średnie tygodniowe ISO, krocząca 7-dniowa, trend 4-tygodniowy. */
+    /** ISO weekly averages, 7-day rolling, 4-week trend. */
     @GetMapping("/stats")
     public BodyWeightStatsResponse stats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -47,7 +47,7 @@ public class BodyWeightController {
         return bodyWeightService.stats(CurrentUser.id(), from, to);
     }
 
-    /** PUT bez id w ścieżce, bo kluczem biznesowym jest data pomiaru, nie UUID. */
+    /** PUT without id in the path, because the business key is the measurement date, not UUID. */
     @PutMapping
     public BodyWeightResponse save(@Valid @RequestBody SaveBodyWeightRequest request) {
         return bodyWeightService.save(CurrentUser.id(), request);

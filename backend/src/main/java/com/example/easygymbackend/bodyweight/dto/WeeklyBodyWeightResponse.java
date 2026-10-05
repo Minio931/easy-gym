@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Tydzień ISO-8601 (poniedziałek-niedziela, Europe/Warsaw) -- ten sam podział
- * co metrics.IsoWeek po stronie serwera i date-fns z weekStartsOn: 1 po
- * stronie frontu. `incomplete` = mniej niż 2 pomiary w tygodniu.
+ * ISO-8601 week (Monday-Sunday, Europe/Warsaw) -- same split as metrics.IsoWeek
+ * on the server side and date-fns with weekStartsOn: 1 on the front end.
+ * `incomplete` = fewer than 2 measurements in the week.
  */
 public record WeeklyBodyWeightResponse(
         int year,

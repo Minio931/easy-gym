@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Porównanie tydzień-do-tygodnia z domyślnym pomijaniem tygodni/sesji deload
- * (sekcja 4 promptu: celowy lekki tydzień nie może wyglądać jak spadek
- * formy). includeDeload=true włącza deload z powrotem do łańcucha, na
- * życzenie usera -- domyślnie tydzień deload znika z porównań całkowicie,
- * więc tydzień PO deloadzie porównywany jest do ostatniego tygodnia
- * nie-deload PRZED nim, a nie do samego deloadu (inaczej powrót do normy
- * wyglądałby jak fałszywy skok formy).
+ * Week-over-week comparison with default skipping of deload weeks/sessions
+ * (section 4 of the prompt: a deliberate light week must not look like a drop
+ * in form). includeDeload=true brings deload back into the chain, on user
+ * request -- by default a deload week disappears from comparisons entirely,
+ * so the week AFTER a deload is compared to the last non-deload week BEFORE
+ * it, not to the deload itself (otherwise returning to normal would look like
+ * a false jump in form).
  */
 public final class TrendComparator {
 

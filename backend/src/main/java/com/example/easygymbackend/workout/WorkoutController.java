@@ -46,7 +46,7 @@ public class WorkoutController {
                 CurrentUser.id(), from, to, Math.clamp(limit, 1, MAX_LIMIT), Math.max(offset, 0));
     }
 
-    /** 204, gdy nie ma otwartego treningu -- front nie musi rozróżniać 404 od błędu. */
+    /** 204 when no workout is open -- the front end does not need to distinguish 404 from an error. */
     @GetMapping("/active")
     public ResponseEntity<WorkoutDetailResponse> active(@RequestParam(required = false) String formula) {
         return workoutService.active(CurrentUser.id(), MetricsMapper.formula(formula))
@@ -130,7 +130,7 @@ public class WorkoutController {
                 CurrentUser.id(), id, workoutExerciseId, null, request, MetricsMapper.formula(formula)));
     }
 
-    /** PUT z UUID-em z klienta = upsert (patrz WorkoutService#saveSet). */
+    /** PUT with a client-supplied UUID = upsert (see WorkoutService#saveSet). */
     @PutMapping("/{id}/exercises/{workoutExerciseId}/sets/{setId}")
     public WorkoutDetailResponse saveSet(
             @PathVariable UUID id,

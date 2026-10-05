@@ -1,9 +1,9 @@
 package com.example.easygymbackend.common;
 
 /**
- * Operacja na rekordzie, który user widzi, ale którego nie wolno mu zmieniać
- * -- w praktyce ćwiczenia globalne (exercises.user_id IS NULL). Tu 403, nie
- * 404, bo istnienie rekordu i tak nie jest tajemnicą (jest w seedzie).
+ * Operation on a record the user can see but is not allowed to modify -- in
+ * practice, global exercises (exercises.user_id IS NULL). This is 403, not
+ * 404, because the existence of the record is not a secret anyway (it is in the seed).
  */
 public class ForbiddenOperationException extends RuntimeException {
 

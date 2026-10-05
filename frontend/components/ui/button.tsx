@@ -9,7 +9,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * Wysokość 48 px (--spacing-control) to nie jest wybór estetyczny -- to
+ * Height 48 px (--spacing-control) is not an aesthetic choice — it is
  * minimalny cel dotykowy dla akcji wykonywanej w trakcie serii, spoconym
  * kciukiem (DESIGN.md §6).
  */

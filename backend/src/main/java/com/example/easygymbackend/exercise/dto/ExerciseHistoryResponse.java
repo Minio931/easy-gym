@@ -8,9 +8,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Dane pod ekran pojedynczego ćwiczenia (sekcja 6 promptu): progresja ciężaru
- * z kontekstem powtórzeń, e1RM w czasie, objętość na sesję. Sesje w kolejności
- * chronologicznej -- wykres rysuje je od lewej, a metrics liczy PR po kolei.
+ * Data for the single-exercise screen (section 6 of the prompt): weight
+ * progression with rep context, e1RM over time, volume per session. Sessions
+ * in chronological order -- the chart draws them left-to-right and metrics
+ * computes PRs in sequence.
  */
 public record ExerciseHistoryResponse(
         UUID exerciseId,

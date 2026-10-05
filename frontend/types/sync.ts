@@ -1,14 +1,15 @@
 /**
- * Kontrakt `POST /api/sync` (backend/API.md, sekcja „Synchronizacja offline").
- * Kształt rekordu = kolumny tabeli w camelCase, **bez `userId`** — właściciela
- * serwer bierze wyłącznie z JWT i to, co przyśle klient, i tak ignoruje.
+ * `POST /api/sync` contract (backend/API.md, section "Offline sync").
+ * Record shape = table columns in camelCase, **without `userId`** — the
+ * server takes the owner only from the JWT and ignores anything the client
+ * sends in that field anyway.
  *
- * `updatedAt` jest obowiązkowe w każdym rekordzie: po nim rozstrzyga się
- * konflikt (last-write-wins). `deletedAt !== null` to tombstone — skasowanie
- * offline musi dojechać na drugie urządzenie, więc nigdy nie wysyłamy DELETE.
+ * `updatedAt` is mandatory on every record: conflict resolution runs on it
+ * (last-write-wins). `deletedAt !== null` is a tombstone — a deletion done
+ * offline must reach the other device, so we never send DELETE.
  *
- * Zmiana któregokolwiek pola tutaj jest zmianą kontraktu z backendem
- * (PROMPT.md §12), nie refaktorem — odpowiednik po stronie serwera to
+ * Changing any field here is a backend contract change (PROMPT.md §12),
+ * not a refactor — the server-side counterpart is
  * `sync/dto/SyncRecords.java`.
  */
 
@@ -86,7 +87,7 @@ export interface SetSync {
 
 export interface BodyWeightSync {
   id: string;
-  /** Dzień jako `YYYY-MM-DD` — klucz biznesowy wpisu, nie `id`. */
+  /** Day as `YYYY-MM-DD` — the entry's business key, not `id`. */
   measuredOn: string;
   weightKg: number;
   note: string | null;
@@ -95,9 +96,9 @@ export interface BodyWeightSync {
 }
 
 /**
- * Ta sama struktura w obie strony (push i pull) — klient nie mapuje dwóch
- * różnych kształtów. Kolejność pól **jest** kolejnością stosowania zmian:
- * klucze obce wymagają, żeby rodzic istniał wcześniej.
+ * Same structure in both directions (push and pull) — the client does not
+ * map two different shapes. Field order **is** the application order:
+ * foreign keys require the parent to exist first.
  */
 export interface SyncPayload {
   exercises?: ExerciseSync[];
@@ -109,7 +110,7 @@ export interface SyncPayload {
   bodyWeights?: BodyWeightSync[];
 }
 
-/** Nazwy tabel w paczce — klucz w `SyncPayload` i w `applied`/`rejected`. */
+/** Table names in the batch — the key in `SyncPayload` and in `applied`/`rejected`. */
 export const SYNC_TABLES = [
   "exercises",
   "routines",
@@ -122,7 +123,7 @@ export const SYNC_TABLES = [
 
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
-/** Dowolny rekord paczki — wszystkie mają `id` i `updatedAt`, i to wystarcza do LWW. */
+/** Any batch record — all have `id` and `updatedAt`, which is enough for LWW. */
 export type SyncRecord =
   | ExerciseSync
   | RoutineSync
@@ -132,7 +133,7 @@ export type SyncRecord =
   | SetSync
   | BodyWeightSync;
 
-/** `since: null` przy pierwszym uruchomieniu = pełny zaciąg. */
+/** `since: null` on the first run = full pull. */
 export interface SyncRequest {
   since: string | null;
   changes: SyncPayload;
@@ -145,10 +146,10 @@ export interface SyncRejection {
 }
 
 export interface SyncResponse {
-  /** Znacznik POCZĄTKU transakcji serwera — zapisujemy go jako `since`. */
+  /** Timestamp of the server transaction START — we save it as `since`. */
   serverTime: string;
   applied: Record<string, number>;
-  /** Odrzucone wracają też w `changes` w wersji serwerowej — zbieżność bez drugiej rundy. */
+  /** Rejected records also come back in `changes` in server form — convergence without a second round. */
   rejected: SyncRejection[];
   changes: SyncPayload;
 }

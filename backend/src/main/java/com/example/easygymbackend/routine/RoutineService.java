@@ -46,7 +46,7 @@ public class RoutineService {
             return List.of();
         }
 
-        // Jeden SELECT na wszystkie pozycje zamiast N+1 po jednym na szablon.
+        // One SELECT for all items instead of N+1 one-per-routine.
         Map<UUID, List<RoutineItemResponse>> itemsByRoutine = routineItemRepository
                 .findByRoutineIdInAndDeletedAtIsNullOrderByOrderIndexAsc(
                         routines.stream().map(Routine::getId).toList())
@@ -103,7 +103,7 @@ public class RoutineService {
         routine.setUpdatedAt(now);
         routineRepository.save(routine);
 
-        // Tombstone na pozycjach też -- klient kasuje po deleted_at, nie po kaskadzie FK.
+        // Tombstone on items too -- the client deletes by deleted_at, not by FK cascade.
         for (RoutineItem item : routineItemRepository
                 .findByRoutineIdAndDeletedAtIsNullOrderByOrderIndexAsc(id)) {
             item.setDeletedAt(now);
@@ -157,7 +157,7 @@ public class RoutineService {
         Set<UUID> visible = new HashSet<>(exerciseRepository.findVisibleIds(userId, exerciseIds));
         for (UUID exerciseId : exerciseIds) {
             if (!visible.contains(exerciseId)) {
-                throw new InvalidRequestException("Ćwiczenie niedostępne dla tego konta: " + exerciseId);
+                throw new InvalidRequestException("Exercise not available for this account: " + exerciseId);
             }
         }
     }
@@ -170,7 +170,7 @@ public class RoutineService {
 
     private Routine loadOwn(UUID userId, UUID id) {
         return routineRepository.findByIdAndUserIdAndDeletedAtIsNull(id, userId)
-                .orElseThrow(() -> new NotFoundException("Szablon nie istnieje: " + id));
+                .orElseThrow(() -> new NotFoundException("Routine does not exist: " + id));
     }
 
 }

@@ -29,10 +29,10 @@ public class DashboardService {
     private static final int DEFAULT_RECENT_PR_LIMIT = 10;
 
     /**
-     * Ostatnie pobicia rekordu ciężaru per ćwiczenie. Funkcja okna liczy
-     * "maksimum ze WSZYSTKICH wcześniejszych serii" -- rekord to ściśle
-     * większy ciężar niż dotychczasowy (remis nie liczy się, tak samo jak w
-     * PersonalRecordCalculator). Rozgrzewka i assisted wykluczone.
+     * Recent weight-PR breaks per exercise. The window function computes
+     * "max over ALL earlier sets" -- a PR is strictly greater weight than the
+     * previous one (a tie does not count, same as in PersonalRecordCalculator).
+     * Warmups and assisted sets are excluded.
      */
     private static final String RECENT_PR_SQL = """
             SELECT t.set_id, t.exercise_id, t.exercise_name, t.weight_kg, t.reps, t.completed_at, t.workout_id
@@ -150,9 +150,9 @@ public class DashboardService {
     }
 
     /**
-     * Domyślnie tygodnie deload wypadają z łańcucha porównań -- tydzień po
-     * deloadzie porównuje się do ostatniego tygodnia NIE-deload przed nim
-     * (TrendComparator). includeDeload=true wyłącza to zachowanie.
+     * By default deload weeks drop out of the comparison chain -- the week
+     * after a deload is compared to the last NON-deload week before it
+     * (TrendComparator). includeDeload=true disables that behavior.
      */
     private static DashboardResponse.Trend volumeTrend(
             List<DashboardResponse.WeeklyVolume> weekly, boolean includeDeload) {

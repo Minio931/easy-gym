@@ -8,11 +8,11 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAdjusters;
 
 /**
- * Tydzień ISO-8601 (poniedziałek-niedziela) w strefie Europe/Warsaw -- sekcja
- * 5 promptu wprost zabrania liczenia tego przez natywny getDay() bez korekty.
- * java.time.temporal.IsoFields implementuje regułę ISO-8601 (tydzień 1 =
- * tydzień zawierający pierwszy czwartek stycznia) natywnie, więc zero ręcznej
- * arytmetyki na offsetach dni.
+ * ISO-8601 week (Monday-Sunday) in Europe/Warsaw -- section 5 of the prompt
+ * explicitly forbids computing this via native getDay() without correction.
+ * java.time.temporal.IsoFields implements the ISO-8601 rule (week 1 =
+ * the week containing the first Thursday of January) natively, so no manual
+ * arithmetic on day offsets.
  */
 public record IsoWeek(int year, int week) implements Comparable<IsoWeek> {
 
@@ -28,7 +28,7 @@ public record IsoWeek(int year, int week) implements Comparable<IsoWeek> {
         return of(instant.atZone(WARSAW).toLocalDate());
     }
 
-    /** Poniedziałek tego tygodnia. 4 stycznia zawsze leży w tygodniu 1 wg ISO-8601. */
+    /** Monday of this week. January 4th always lies in week 1 per ISO-8601. */
     public LocalDate mondayStart() {
         return LocalDate.ofYearDay(year, 4)
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))

@@ -9,14 +9,16 @@ import { loadRoutines, useRoutinesState } from "@/lib/routines/store";
 import { startEmptyWorkout, startWorkoutFromRoutine } from "@/lib/workout/store";
 
 /**
- * Stan pusty ekranu treningu: jeden przycisk główny i lista szablonów jako
- * wiersze. Tap w szablon od razu startuje trening (`applyRoutine`), bez
- * ekranu podglądu — szablon to skrót, a nie formularz. Układanie i poprawianie
- * szablonów siedzi osobno, na `/szablony`.
+ * Empty state of the workout screen: one primary button and the template
+ * list as rows. Tap on a template immediately starts the workout
+ * (`applyRoutine`), with no preview screen — a template is a shortcut,
+ * not a form. Composing and editing templates lives separately on
+ * `/szablony`.
  *
- * Lista idzie przez `lib/routines/store`, czyli najpierw z Dexie: wcześniej
- * czytała prosto z API i na siłowni bez zasięgu nie dało się odpalić szablonu,
- * mimo że rekordy leżały już na urządzeniu.
+ * The list goes through `lib/routines/store`, i.e. Dexie first: it used
+ * to read straight from the API and in a gym without signal a template
+ * could not be launched, even though the records were already on the
+ * device.
  */
 export function WorkoutStart() {
   const { status, routines } = useRoutinesState();

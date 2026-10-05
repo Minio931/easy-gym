@@ -49,7 +49,7 @@ public class ExerciseController {
         return exerciseService.get(CurrentUser.id(), id);
     }
 
-    /** Dane ekranu ćwiczenia: sesje chronologicznie + aktualne rekordy. */
+    /** Exercise screen data: sessions in chronological order + current records. */
     @GetMapping("/{id}/history")
     public ExerciseHistoryResponse history(
             @PathVariable UUID id,

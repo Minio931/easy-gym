@@ -5,10 +5,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Wiersz listy treningów policzony w bazie (GROUP BY), nie pętlą po seriach
- * w serwisie -- lista historii ma sięgać całej historii konta.
- * volumeKg/setCount liczone TYLKO z serii roboczych (rozgrzewka odfiltrowana
- * w JOIN-ie), assisted wliczone -- to "displayVolume" z sekcji 4 promptu.
+ * Workout-list row computed in the database (GROUP BY), not by looping over
+ * sets in the service -- the history list may span the entire account history.
+ * volumeKg/setCount are computed ONLY from working sets (warmup filtered out
+ * in the JOIN), assisted included -- this is "displayVolume" from section 4
+ * of the prompt.
  */
 public record WorkoutSummaryRow(
         UUID id,

@@ -2,17 +2,17 @@ import { CLEAN, DIRTY, type EasyGymDatabase, type LocalBodyWeight } from "@/lib/
 import type { BodyWeightResponse } from "@/types/api";
 
 /**
- * Wpisy wagi w lokalnej bazie.
+ * Body-weight entries in the local database.
  *
- * Kluczem biznesowym jest DZIEŃ, nie `id` — dokładnie tak jak po stronie
- * serwera (częściowy indeks unikalny na `(user_id, measured_on)` z V3).
- * Zapis lokalny musi więc też być upsertem po dacie: gdyby tworzył nowy wiersz
- * przy każdej poprawce, dwa wpisy z tego samego dnia pojechałyby w paczce sync
- * i serwer musiałby jeden z nich odrzucić tombstone'em. To by działało, ale
- * użytkownik zobaczyłby, jak jego poprawka znika po synchronizacji.
+ * The business key is the DAY, not `id` — exactly as on the server (partial
+ * unique index on `(user_id, measured_on)` from V3). The local write must
+ * therefore also be an upsert by date: if it created a new row on every
+ * correction, two entries with the same day would ship in a sync batch and
+ * the server would reject one of them with a tombstone. That would work,
+ * but the user would see their correction vanish after the sync.
  */
 
-/** Żywe wpisy, od najstarszego — taki porządek zakładają funkcje z `lib/metrics.ts`. */
+/** Live entries, oldest first — the order expected by `lib/metrics.ts` functions. */
 export async function readBodyWeights(db: EasyGymDatabase): Promise<BodyWeightResponse[]> {
   const rows = await db.bodyWeights.toArray();
   return rows
@@ -32,8 +32,9 @@ export async function readBodyWeightOn(
 }
 
 /**
- * Upsert po dacie. Zwraca zapisany wpis — z `id` istniejącego wiersza, jeśli
- * ten dzień był już zważony, więc wołający może wysłać na serwer to samo `id`.
+ * Upsert by date. Returns the saved entry — with the `id` of the existing
+ * row if that day was already weighed, so the caller can send the same `id`
+ * to the server.
  */
 export async function saveBodyWeightLocally(
   db: EasyGymDatabase,
@@ -53,7 +54,7 @@ export async function saveBodyWeightLocally(
   return toResponse(row);
 }
 
-/** Wersja z serwera: już tam jest, więc nie czeka w kolejce wysyłki. */
+/** Server version: already there, so it does not wait in the outgoing queue. */
 export async function saveServerBodyWeight(
   db: EasyGymDatabase,
   entry: BodyWeightResponse,
@@ -68,7 +69,7 @@ export async function cacheServerBodyWeights(
   const rows: LocalBodyWeight[] = [];
   for (const entry of entries) {
     const existing = await db.bodyWeights.get(entry.id);
-    // Lokalna poprawka czekająca na wysłanie jest nowsza niż to, co wie serwer.
+    // A local correction waiting to be sent is newer than what the server knows.
     if (existing?.dirty === DIRTY) {
       continue;
     }
@@ -77,7 +78,7 @@ export async function cacheServerBodyWeights(
   await db.bodyWeights.bulkPut(rows);
 }
 
-/** Tombstone — po nim ten sam dzień można zważyć ponownie (indeks jest częściowy). */
+/** Tombstone — after it the same day can be weighed again (the index is partial). */
 export async function markBodyWeightDeleted(
   db: EasyGymDatabase,
   id: string,

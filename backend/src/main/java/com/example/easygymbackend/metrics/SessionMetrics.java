@@ -11,12 +11,12 @@ public final class SessionMetrics {
     }
 
     /**
-     * Objętość sesji do WYŚWIETLENIA userowi -- włącznie z seriami assisted
-     * (fizyczna praca i tak została wykonana), zawsze z pominięciem rozgrzewki.
-     * To INNA liczba niż {@link #prEligibleVolumeKg} -- ta druga, używana
-     * tylko do trackingu PR "największa objętość w sesji", assisted wyklucza.
-     * Sekcja 4 promptu rozróżnia te dwa przypadki wprost, mimo że brzmią
-     * jak ten sam wzór na pierwszy rzut oka.
+     * Session volume for DISPLAY to the user -- including assisted sets
+     * (the physical work was done anyway), always excluding warmup.
+     * This is a DIFFERENT number than {@link #prEligibleVolumeKg} -- that
+     * one, used only for PR tracking of "greatest session volume", excludes
+     * assisted. Section 4 of the prompt distinguishes these two cases
+     * explicitly, even though they sound like the same formula at a glance.
      */
     public static BigDecimal displayVolumeKg(List<ExerciseSet> sets) {
         return sumVolume(workingSets(sets));
@@ -26,7 +26,7 @@ public final class SessionMetrics {
         return sumVolume(workingSets(sets).stream().filter(s -> !s.assisted()).toList());
     }
 
-    /** Najcięższa seria w sesji: max ciężar wśród nie-assisted, remis -> więcej powtórzeń. */
+    /** Heaviest set in a session: max weight among non-assisted, tie -> more reps. */
     public static Optional<ExerciseSet> heaviestSet(List<ExerciseSet> sets) {
         return workingSets(sets).stream()
                 .filter(s -> !s.assisted())

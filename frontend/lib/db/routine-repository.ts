@@ -2,17 +2,17 @@ import { CLEAN, DIRTY, type EasyGymDatabase, type LocalRoutine, type LocalRoutin
 import type { RoutineItemResponse, RoutineResponse } from "@/types/api";
 
 /**
- * Szablony treningów w lokalnej bazie.
+ * Workout templates in the local database.
  *
- * Szablon to dwie tabele (`routines` + `routineItems`), więc każdy zapis
- * dotyka obu — i w tej samej transakcji, bo szablon bez pozycji albo pozycje
- * bez szablonu to stan, którego ekran nie umie narysować.
+ * A template is two tables (`routines` + `routineItems`), so every write
+ * touches both — and in one transaction, because a template without items
+ * or items without a template is a state the screen cannot draw.
  *
- * Kolejność listy jest taka jak na serwerze (`ORDER BY name`), żeby lista
- * nie przeskakiwała w momencie, w którym dane z sieci podmieniają lokalne.
+ * List ordering is the same as on the server (`ORDER BY name`), so the list
+ * does not jump when the network data replaces the local one.
  */
 
-/** Żywe szablony z żywymi pozycjami, po nazwie — tak jak `GET /api/routines`. */
+/** Live templates with live items, by name — just like `GET /api/routines`. */
 export async function readRoutines(db: EasyGymDatabase): Promise<RoutineResponse[]> {
   const [routines, items] = await Promise.all([
     db.routines.toArray(),
@@ -51,12 +51,12 @@ export async function readRoutine(
 }
 
 /**
- * Zapis szablonu przed wysłaniem na serwer.
+ * Save a template before sending to the server.
  *
- * Pozycja, której nie ma w nowej liście, dostaje **tombstone** — dokładnie to
- * robi `PUT /api/routines/{id}` (podmienia całą listę). Zwykłe skasowanie
- * wiersza z Dexie nie dojechałoby do drugiego urządzenia: paczka sync wysyła
- * rekordy, a nie informację o nieobecności.
+ * An item missing from the new list receives a **tombstone** — exactly what
+ * `PUT /api/routines/{id}` does (replaces the whole list). A plain Dexie
+ * row deletion would not reach the other device: the sync batch sends
+ * records, not information about absence.
  */
 export async function saveRoutineLocally(
   db: EasyGymDatabase,
@@ -94,12 +94,12 @@ export async function saveRoutineLocally(
 }
 
 /**
- * Odpowiedź serwera na NASZ zapis. Nadpisuje lokalny wiersz bez względu na
- * `dirty`, bo jest nowsza od tego, co przed chwilą poszło do Dexie.
+ * Server response to OUR write. Overwrites the local row regardless of
+ * `dirty`, because it is newer than what just went into Dexie.
  *
- * Pozycje nieobecne w odpowiedzi są na serwerze skasowane, więc lokalnie
- * dostają tombstone **z `dirty = 0`** — nie ma po co wysyłać z powrotem
- * czegoś, co serwer właśnie sam zapisał.
+ * Items absent from the response are deleted on the server, so locally
+ * they receive a tombstone **with `dirty = 0`** — nothing to send back
+ * for something the server just wrote itself.
  */
 export async function saveServerRoutine(
   db: EasyGymDatabase,
@@ -135,7 +135,7 @@ export async function saveServerRoutine(
   });
 }
 
-/** Wersja z serwera: już tam jest, więc nie czeka w kolejce wysyłki. */
+/** Server version: already there, so it does not wait in the outgoing queue. */
 export async function cacheServerRoutines(
   db: EasyGymDatabase,
   routines: readonly RoutineResponse[],
@@ -143,7 +143,7 @@ export async function cacheServerRoutines(
   await db.transaction("rw", db.routines, db.routineItems, async () => {
     for (const routine of routines) {
       const existing = await db.routines.get(routine.id);
-      // Lokalna zmiana czekająca na wysłanie jest nowsza niż to, co wie serwer.
+      // A local change waiting to be sent is newer than what the server knows.
       if (existing?.dirty === DIRTY) {
         continue;
       }
@@ -167,7 +167,7 @@ export async function cacheServerRoutines(
   });
 }
 
-/** Tombstone na szablonie i na jego pozycjach — soft delete tak jak na serwerze. */
+/** Tombstone on the template and its items — soft delete as on the server. */
 export async function markRoutineDeleted(
   db: EasyGymDatabase,
   id: string,

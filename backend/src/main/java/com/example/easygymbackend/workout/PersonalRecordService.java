@@ -20,10 +20,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Wejście do PersonalRecordCalculator na realnych danych. Sesje ładowane
- * jednym zapytaniem per ćwiczenie i tylko do momentu badanej sesji włącznie --
- * "PR pobity w tej sesji" to rekord W MOMENCIE wykonania, więc późniejsze
- * treningi nie mogą go unieważnić.
+ * Entry point into PersonalRecordCalculator over real data. Sessions are
+ * loaded in a single query per exercise and only up to and including the
+ * inspected session -- "PR broken in this session" is the record AT THE
+ * MOMENT of execution, so later workouts cannot invalidate it.
  */
 @Service
 public class PersonalRecordService {
@@ -51,7 +51,7 @@ public class PersonalRecordService {
                 .toList();
     }
 
-    /** Rekordy pobite przez dany trening, per ćwiczenie w nim wykonane. */
+    /** Records broken by the given workout, per exercise performed in it. */
     @Transactional(readOnly = true)
     public List<PersonalRecordResponse> brokenIn(
             UUID userId, Workout workout, List<UUID> exerciseIds, OneRepMaxFormula formula) {
@@ -62,8 +62,8 @@ public class PersonalRecordService {
         List<PersonalRecordResponse> result = new ArrayList<>();
 
         for (UUID exerciseId : exerciseIds) {
-            // +1 ms, bo górna granica zapytania jest wyłączna, a sesja badana
-            // ma zostać ostatnim elementem listy chronologicznej.
+            // +1 ms, because the upper query bound is exclusive and the inspected
+            // session must remain the last element of the chronological list.
             List<PersonalRecordCalculator.Session> sessions =
                     sessions(userId, exerciseId, Instant.EPOCH, workout.getStartedAt().plusMillis(1));
             if (sessions.isEmpty()

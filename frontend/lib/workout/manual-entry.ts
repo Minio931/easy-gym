@@ -5,15 +5,17 @@ import { uuid } from "@/lib/workout/uuid";
 import type { WorkoutDetailResponse } from "@/types/api";
 
 /**
- * Ręczne wpisanie treningu, który już się odbył (PROMPT: „import" historycznych
- * treningów — backend nie potrzebuje osobnego endpointu, `POST /api/workouts`
- * przyjmuje `startedAt`/`endedAt` z klienta, patrz backend/API.md).
+ * Manual entry of a workout that has already happened (PROMPT: "import" of
+ * historical workouts — the backend does not need a separate endpoint,
+ * `POST /api/workouts` accepts `startedAt`/`endedAt` from the client, see
+ * backend/API.md).
  *
- * Świadomie BEZ ścieżki offline (w przeciwieństwie do `lib/bodyweight/store.ts`
- * i `lib/workout/store.ts`): to kilka kolejnych żądań (trening → ćwiczenia →
- * serie), a wpisywanie starych danych robi się w domu, nie na siłowni bez
- * zasięgu. Przy błędzie w trakcie trening może zostać częściowo zapisany na
- * serwerze — komunikat mówi to wprost, żeby nie dublować wpisu.
+ * Deliberately WITHOUT an offline path (unlike `lib/bodyweight/store.ts` and
+ * `lib/workout/store.ts`): this is several sequential requests (workout →
+ * exercises → sets), and typing in old data is done at home, not in a gym
+ * without signal. On a mid-flight error the workout may end up partially
+ * saved on the server — the UI message says so explicitly, to avoid
+ * duplicating the entry.
  */
 
 export interface ManualSetInput {

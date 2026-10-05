@@ -8,8 +8,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Pozycja listy historii. volumeKg = objętość serii roboczych (z assisted),
- * policzona SUM-em w bazie -- patrz WorkoutSummaryRow.
+ * History list entry. volumeKg = working-set volume (with assisted), computed
+ * via SUM in the database -- see WorkoutSummaryRow.
  */
 public record WorkoutSummaryResponse(
         UUID id,

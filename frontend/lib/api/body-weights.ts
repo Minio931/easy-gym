@@ -6,12 +6,14 @@ import type {
 } from "@/types/api";
 
 /**
- * Waga ciała. `PUT` jest **upsertem po dacie**, nie po `id`: kluczem biznesowym
- * jest dzień pomiaru, więc poprawka wagi z drugiego urządzenia edytuje wpis,
- * zamiast wywalać 409 z częściowego indeksu unikalnego (backend/API.md).
+ * Body weight. `PUT` is an **upsert by date**, not by `id`: the business key
+ * is the measurement day, so a weight correction from another device edits
+ * the entry instead of blowing up with a 409 from the partial unique index
+ * (backend/API.md).
  *
- * Średnie tygodniowe, kroczącą 7-dniową i trend liczy serwer — te same reguły
- * co `lib/metrics.ts`, który jest ich mirrorem i wchodzi do gry, gdy nie ma sieci.
+ * Weekly averages, the 7-day rolling average and the trend are computed by
+ * the server — same rules as `lib/metrics.ts`, which is their mirror and
+ * takes over when there is no network.
  */
 
 export function listBodyWeights(

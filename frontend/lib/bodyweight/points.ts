@@ -1,20 +1,21 @@
 import type { BodyWeightResponse, WeeklyBodyWeightResponse } from "@/types/api";
 
 /**
- * Punkty wykresu wagi. Dwie serie na jednej osi Y — surowe pomiary i średnie
- * tygodniowe to ta sama wielkość w tych samych kilogramach, więc wspólna skala
- * jest tu poprawna, a nie złamaniem zasady „jedna oś Y" (DESIGN §10).
+ * Body-weight chart points. Two series on one Y axis — raw measurements and
+ * weekly averages are the same quantity in the same kilograms, so a shared
+ * scale is correct here, not a violation of the "one Y axis" rule
+ * (DESIGN §10).
  */
 
 const DAY_MS = 86_400_000;
 
 /**
- * Dzień kalendarzowy na pozycję osi X.
+ * Calendar day to X-axis position.
  *
- * Bierzemy POŁUDNIE czasu lokalnego, nie północ. Północ leży na granicy doby,
- * więc przy przejściu na czas letni potrafi wylądować w dniu poprzednim —
- * punkt przeskakuje wtedy o jedną kratkę bez żadnego powodu w danych.
- * Ta sama konwencja co w `lib/metrics.ts`.
+ * We take LOCAL NOON, not midnight. Midnight lies on the day boundary, so
+ * at a DST transition it can land in the previous day — the point then
+ * jumps one tick for no reason in the data. Same convention as in
+ * `lib/metrics.ts`.
  */
 export function dayToTime(isoDate: string): number {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -52,10 +53,10 @@ export function rawPoints(entries: readonly BodyWeightResponse[]): RawWeightPoin
 }
 
 /**
- * Średnia tygodniowa siada w ŚRODKU tygodnia, nie na jego początku ani końcu.
- * Średnia z poniedziałku do niedzieli nie opisuje poniedziałku — postawiona
- * na granicy sugerowałaby, że opisuje, i rozjeżdżałaby się z chmurą surowych
- * pomiarów, przez którą ma przechodzić.
+ * The weekly average sits in the MIDDLE of the week, not at its start or
+ * end. The Monday-to-Sunday mean does not describe Monday — placed on the
+ * boundary it would suggest it does, and would drift away from the cloud
+ * of raw measurements it is supposed to pass through.
  */
 export function weeklyPoints(
   weeks: readonly WeeklyBodyWeightResponse[],
@@ -63,10 +64,10 @@ export function weeklyPoints(
   return [...weeks]
     .sort((a, b) => (a.year - b.year) || (a.week - b.week))
     .map((week) => ({
-      // Tydzień trwa od poniedziałku 00:00 do poniedziałku 00:00, więc jego
-      // środek to czwartek 12:00 — czyli dokładnie trzy doby od POŁUDNIA
-      // poniedziałku, które oddaje `dayToTime`. Dodanie jeszcze pół doby
-      // (odruch „3,5 dnia") przesuwa punkt na piątek i tydzień robi się krzywy.
+      // The week runs from Monday 00:00 to Monday 00:00, so its midpoint
+      // is Thursday 12:00 — exactly three days from Monday NOON, which
+      // `dayToTime` returns. Adding another half day (the "3.5 days"
+      // reflex) shifts the point to Friday and the week ends up skewed.
       t: dayToTime(week.from) + 3 * DAY_MS,
       year: week.year,
       week: week.week,
@@ -80,13 +81,13 @@ export function weeklyPoints(
 }
 
 /**
- * Wspólna domena osi Y dla obu serii, z niewielkim marginesem.
+ * Shared Y-axis domain for both series, with a small padding.
  *
- * Bez tego Recharts dobiera domenę per seria i linia średnich potrafi wypaść
- * poza chmurę pomiarów, mimo że z definicji leży w jej środku. Margines jest
- * proporcjonalny do rozpiętości, ale nie mniejszy niż pół kilograma — przy
- * wadze stabilnej co do 200 g wykres bez marginesu jest płaską kreską przy
- * krawędzi.
+ * Without it, Recharts picks a per-series domain and the averages line can
+ * fall outside the measurement cloud, even though by definition it lies in
+ * its middle. The padding is proportional to the span, but no less than
+ * half a kilogram — with weight stable to 200 g, a padless chart becomes
+ * a flat line at the edge.
  */
 export function weightDomain(
   raw: readonly RawWeightPoint[],

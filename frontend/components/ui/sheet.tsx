@@ -4,18 +4,18 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /**
- * Arkusz wjeżdżający z dołu (200 ms, DESIGN §8). Na ekranie treningu jest
- * świadomie rzadki: żadna akcja wykonywana w trakcie serii nie otwiera modala.
- * Zostają trzy miejsca — wybór ćwiczenia, menu (⋮) i potwierdzenie zakończenia.
+ * Bottom-slide sheet (200 ms, DESIGN §8). On the workout screen it is
+ * deliberately rare: no action performed during a set opens a modal.
+ * Three places remain — exercise picker, (⋮) menu and finish confirmation.
  *
- * Renderuje się PORTALEM do `<body>`, a treść aplikacji dostaje na ten czas
- * `inert` + `aria-hidden`. Bez tego czytnik ekranu i Tab wchodzą pod arkusz,
- * a „Zakończ" w arkuszu i „Zakończ trening" pod spodem są jednocześnie
- * osiągalne — czyli modal, który niczego nie zasłania.
+ * Rendered via PORTAL to `<body>`, and the app content gets `inert` +
+ * `aria-hidden` for the duration. Without this a screen reader and Tab
+ * reach under the sheet, and "Zakończ" in the sheet and "Zakończ trening"
+ * underneath are simultaneously reachable — a modal that hides nothing.
  */
 const APP_ROOT_ID = "app-root";
 
-/** Zagnieżdżone arkusze (menu sesji → zakończenie) nie mogą zdjąć `inert` za wcześnie. */
+/** Nested sheets (session menu → finish) must not drop `inert` too early. */
 let openSheets = 0;
 
 export function Sheet({
@@ -28,7 +28,7 @@ export function Sheet({
   title: string;
   onClose: () => void;
   children: ReactNode;
-  /** `full` = pełny ekran (wyszukiwarka ćwiczeń), `bottom` = arkusz przy dole. */
+  /** `full` = full screen (exercise picker), `bottom` = bottom sheet. */
   variant?: "full" | "bottom";
   footer?: ReactNode;
 }) {

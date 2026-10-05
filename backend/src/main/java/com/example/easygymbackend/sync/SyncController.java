@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Jedno wywołanie = push + pull. Klient wysyła wszystko, co ma w kolejce, i
- * dostaje z powrotem zmiany od `since` (własne z innego urządzenia oraz
- * rozstrzygnięcia konfliktów).
+ * One call = push + pull. The client sends everything it has queued and
+ * receives back the changes since `since` (its own from another device, plus
+ * conflict resolutions).
  */
 @RestController
 @RequestMapping("/api/sync")

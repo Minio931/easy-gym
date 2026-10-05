@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Przełącznik `role="switch"`. Stan niesie pozycja suwaka ORAZ `aria-checked`,
+ * Toggle with `role="switch"`. State is carried by slider position AND `aria-checked`,
  * nie sam kolor (DESIGN §9).
  */
 export function Toggle({

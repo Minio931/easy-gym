@@ -3,13 +3,13 @@
 import type { ReactNode } from "react";
 
 /**
- * Wspólny chrom wykresów: osie, marginesy, formaty dat i pudełko tooltipa.
- * Wydzielone, bo ekran ćwiczenia i ekran wagi muszą wyglądać jak jeden system,
- * a nie jak dwa wykresy zrobione osobno — druga kopia tych stałych rozjechałaby
- * się przy pierwszej korekcie szerokości osi.
+ * Shared chart chrome: axes, margins, date formats and the tooltip box.
+ * Extracted because the exercise screen and the weight screen must look
+ * like one system, not two charts built separately — a second copy of
+ * these constants would drift away at the first axis-width tweak.
  */
 
-/** Chrom osi — kolory z tokenów motywu, nigdy z koloru serii (DESIGN §10). */
+/** Axis chrome — colors from theme tokens, never from a series color (DESIGN §10). */
 export const AXIS_PROPS = {
   stroke: "var(--chart-axis)",
   tick: { fill: "var(--chart-axis)", fontSize: 11 },
@@ -17,12 +17,13 @@ export const AXIS_PROPS = {
   axisLine: false,
 } as const;
 
-// Bez ujemnego marginesu z lewej. Podciągnięcie wykresu pod oś Y odzyskuje
-// kilkanaście pikseli szerokości, ale ucina etykiety osi — a ucięta liczba na
-// osi to gorzej niż brak liczby: „108 kg" ucięte do „08 kg" czyta się jak dane.
+// No negative left margin. Pulling the chart under the Y axis recovers a
+// dozen pixels of width but clips axis labels — and a clipped number on
+// the axis is worse than a missing one: "108 kg" clipped to "08 kg" reads
+// as data.
 export const MARGIN = { top: 8, right: 8, bottom: 0, left: 0 } as const;
 
-/** Szerokość osi Y dobrana pod najdłuższą etykietę, jaka się tu pojawia. */
+/** Y-axis width sized for the longest label that can appear here. */
 export const Y_AXIS_WIDTH = 56;
 
 export function formatDayMonth(value: number): string {
@@ -41,8 +42,8 @@ export function timeAxis(points: readonly { t: number }[]) {
   return {
     dataKey: "t" as const,
     type: "number" as const,
-    // Jeden punkt dałby zdegenerowaną domenę [x, x] i Recharts narysowałby oś
-    // bez podziałki -- rozsuwamy ją o dobę w każdą stronę.
+    // A single point would give a degenerate domain [x, x] and Recharts
+    // would draw the axis without ticks — spread it by one day each way.
     domain:
       points.length === 1
         ? [points[0].t - 86_400_000, points[0].t + 86_400_000]
@@ -53,9 +54,9 @@ export function timeAxis(points: readonly { t: number }[]) {
 }
 
 /**
- * Oś czasu dla słupków. Słupek jest rysowany wokół swojego punktu, więc
- * pierwszy i ostatni wystają poza domenę i wchodzą na etykiety osi Y.
- * Rozsuwamy domenę o pół odstępu między punktami z każdej strony.
+ * Time axis for bars. A bar is drawn around its point, so the first and
+ * last ones overflow the domain and run into the Y-axis labels. We spread
+ * the domain by half the inter-point gap on each side.
  */
 export function barTimeAxis(points: readonly { t: number }[]) {
   const axis = timeAxis(points);
@@ -81,8 +82,8 @@ export function TooltipBox({ title, lines }: { title: string; lines: ReactNode[]
   );
 }
 
-/** Kształt, w jakim Recharts woła `content` tooltipa. `payload` jest u nich
- *  `readonly` -- bez tego modyfikatora TS odrzuca całą funkcję. */
+/** Shape in which Recharts calls the tooltip `content`. Their `payload`
+ *  is `readonly` — without that modifier TS rejects the whole function. */
 export interface TooltipPayload<T> {
   active?: boolean;
   payload?: readonly { payload?: T }[];

@@ -1,9 +1,9 @@
 import type { SVGProps } from "react";
 
 /**
- * Ikony rysowane inline, 20 px, jeden styl kreski. Świadomie nie bierzemy
- * biblioteki ikon ani emoji (DESIGN.md §2) -- to kilkanaście ścieżek, a każda
- * zewnętrzna paczka dokłada wagi do apki uruchamianej na słabym LTE.
+ * Icons drawn inline, 20 px, one stroke style. Deliberately no icon library
+ * or emoji (DESIGN.md §2) — it is a dozen paths, and every external package
+ * adds weight to an app launched on weak LTE.
  */
 type IconProps = SVGProps<SVGSVGElement>;
 
@@ -35,7 +35,7 @@ export function DashboardIcon(props: IconProps) {
   );
 }
 
-/** Sztanga -- zakładka „Trening". */
+/** Barbell — the "Trening" tab. */
 export function BarbellIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -53,7 +53,7 @@ export function HistoryIcon(props: IconProps) {
   );
 }
 
-/** Waga łazienkowa -- zakładka „Waga". */
+/** Bathroom scale — the "Waga" tab. */
 export function ScaleIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -97,7 +97,7 @@ export function PlusIcon(props: IconProps) {
   );
 }
 
-/** Trzy kropki -- menu ćwiczenia i sesji (akcje rzadkie, u góry ekranu). */
+/** Three dots — exercise and session menus (rare actions, at the top of the screen). */
 export function MoreIcon(props: IconProps) {
   return (
     <svg

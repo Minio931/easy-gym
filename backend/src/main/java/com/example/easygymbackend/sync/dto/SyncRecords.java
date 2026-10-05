@@ -8,13 +8,13 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Rekordy paczki sync. Kształt = kolumny tabeli w camelCase, bez user_id --
- * właściciela serwer bierze WYŁĄCZNIE z JWT (CurrentUser), a to, co przyśle
- * klient, i tak by zignorował.
+ * Sync batch records. Shape = table columns in camelCase, without user_id --
+ * the server takes the owner ONLY from the JWT (CurrentUser) and would ignore
+ * anything the client sent anyway.
  *
- * `updatedAt` jest obowiązkowe w każdym rekordzie: to po nim rozstrzyga się
- * konflikt (last-write-wins). `deletedAt != null` to tombstone -- skasowanie
- * offline musi dojechać na drugie urządzenie, więc nigdy nie ma tu DELETE.
+ * `updatedAt` is mandatory on every record: this is what conflict resolution
+ * uses (last-write-wins). `deletedAt != null` is a tombstone -- an offline
+ * delete must reach the other device, so there is never a DELETE here.
  */
 public final class SyncRecords {
 

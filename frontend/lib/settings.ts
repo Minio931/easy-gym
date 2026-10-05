@@ -4,11 +4,11 @@ import { useSyncExternalStore } from "react";
 import type { OneRepMaxFormula } from "@/lib/metrics";
 
 /**
- * Ustawienia użytkownika trzymane lokalnie. Świadomie NIE w bazie: backend
- * nie ma jeszcze endpointu profilu, a obie te wartości są per-urządzenie
- * (motyw) albo bez wpływu na dane (formuła e1RM liczy się na żywo, nigdy nie
- * jest zapisywana -- PROMPT.md §4). Gdy dojdzie endpoint profilu, formuła
- * przeniesie się na serwer; motyw zostanie tutaj.
+ * User settings kept locally. Deliberately NOT in the database: the backend
+ * has no profile endpoint yet, and both values are either per-device (theme)
+ * or do not affect data (the e1RM formula is computed on the fly and never
+ * persisted — PROMPT.md §4). When a profile endpoint lands, the formula
+ * moves to the server; the theme stays here.
  */
 
 export type ThemePreference = "system" | "dark" | "light";
@@ -16,7 +16,7 @@ export type ThemePreference = "system" | "dark" | "light";
 export interface Settings {
   theme: ThemePreference;
   oneRepMaxFormula: OneRepMaxFormula;
-  /** Domyślna przerwa między seriami w sekundach (konfigurowalna per ćwiczenie w etapie 4). */
+  /** Default rest between sets, in seconds (per-exercise configurable in stage 4). */
   defaultRestSeconds: number;
 }
 
@@ -55,9 +55,9 @@ function parse(raw: string | null): Settings {
 
 const listeners = new Set<() => void>();
 
-/** `undefined` = jeszcze nie czytaliśmy localStorage. Cache jest wymagany:
- * useSyncExternalStore pętli się, jeśli migawka zwraca za każdym razem nowy
- * obiekt. */
+/** `undefined` = we have not read localStorage yet. The cache is required:
+ * useSyncExternalStore loops if the snapshot returns a new object every
+ * time. */
 let cached: Settings | undefined = undefined;
 
 export function readSettings(): Settings {
@@ -92,11 +92,11 @@ export function updateSettings(patch: Partial<Settings>): void {
 }
 
 /**
- * Ręczny wybór motywu musi wygrywać w OBIE strony, także nad
- * prefers-color-scheme -- stąd atrybut data-theme na <html>, obsłużony w
- * globals.css osobnym blokiem, nie tylko media query. Przy starcie robi to
- * mikroskopijny skrypt w app/layout.tsx (żeby nie było mignięcia), tutaj
- * tylko przy zmianie ustawienia.
+ * A manual theme choice must win in BOTH directions, including over
+ * prefers-color-scheme — hence the data-theme attribute on <html>, handled
+ * in globals.css by a dedicated block, not only a media query. At startup
+ * that is done by a tiny script in app/layout.tsx (to avoid a flash); here
+ * only on a setting change.
  */
 export function applyTheme(theme: ThemePreference): void {
   const root = document.documentElement;

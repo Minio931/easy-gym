@@ -3,13 +3,13 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Wspólny zegar sekundowy dla całej apki (czas trwania sesji, „trening trwa
- * od wczoraj"). Jeden `setInterval` na wszystkie liczniki zamiast jednego na
- * komponent, a migawka to liczba sekund — prymityw, więc React re-renderuje
- * dopiero przy zmianie sekundy, nie przy każdym ticku.
+ * Shared second-tick clock for the whole app (session duration, "workout
+ * running since yesterday"). One `setInterval` for all counters instead of
+ * one per component, and the snapshot is a number of seconds — a primitive,
+ * so React re-renders only when the second changes, not on every tick.
  *
- * Czas bierze się z `Date.now()`, nigdy z licznika dekrementowanego w
- * interwale: uśpiona zakładka wstrzymuje `setInterval`, ale nie zegar.
+ * Time comes from `Date.now()`, never from a counter decremented in the
+ * interval: a sleeping tab pauses `setInterval`, but not the clock.
  */
 
 const listeners = new Set<() => void>();
@@ -55,12 +55,12 @@ function getServerSnapshot(): number {
   return 0;
 }
 
-/** Sekundy epoki, odświeżane co sekundę. */
+/** Epoch seconds, refreshed every second. */
 export function useNowSeconds(): number {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/** Sekundy od podanego momentu ISO; `0` przed hydracją i dla dat z przyszłości. */
+/** Seconds since the given ISO instant; `0` before hydration and for future dates. */
 export function useElapsedSeconds(startedAt: string | null): number {
   const now = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   if (startedAt === null || now === 0) {

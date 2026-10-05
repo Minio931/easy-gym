@@ -2,13 +2,14 @@ import { parseDecimalInput } from "@/lib/workout/set-values";
 import { round2 } from "@/lib/metrics";
 
 /**
- * Walidacja pola wagi ciała. Granice są **te same** co `CHECK` w bazie i co
- * `@DecimalMin/@DecimalMax` w `SaveBodyWeightRequest`: ostro między 0 a 400.
- * Przekroczenie po stronie serwera to `400`, więc front zaciska zawczasu.
+ * Body-weight field validation. Bounds are **the same** as the `CHECK` in the
+ * database and as `@DecimalMin/@DecimalMax` in `SaveBodyWeightRequest`:
+ * strictly between 0 and 400. The server returns `400` on breach, so the
+ * frontend clamps up front.
  *
- * Parsowanie liczby dzielimy z polem ciężaru serii (`parseDecimalInput`) —
- * przecinek jako separator dziesiętny jest na polskiej klawiaturze pod kciukiem
- * i musi działać tak samo w obu miejscach.
+ * Number parsing is shared with the set-weight field (`parseDecimalInput`) —
+ * a comma as the decimal separator is right under the thumb on the Polish
+ * keyboard and must work the same way in both places.
  */
 
 export const BODY_WEIGHT_MIN = 0;
@@ -30,15 +31,16 @@ export function validateBodyWeightInput(raw: string): BodyWeightValidation {
   if (parsed === null) {
     return { weightKg: null, error: BODY_WEIGHT_ERROR };
   }
-  // Granice są OSTRE po obu stronach — 0 i 400 same w sobie są odrzucane przez
-  // bazę, więc dopuszczenie ich tutaj dałoby 400 z serwera zamiast komunikatu.
+  // Bounds are STRICT on both sides — 0 and 400 are themselves rejected by
+  // the database, so allowing them here would yield a 400 from the server
+  // instead of a UI message.
   if (parsed <= BODY_WEIGHT_MIN || parsed >= BODY_WEIGHT_MAX) {
     return { weightKg: null, error: BODY_WEIGHT_ERROR };
   }
   return { weightKg: round2(parsed), error: null };
 }
 
-/** Dzisiejszy dzień kalendarzowy jako `YYYY-MM-DD` w czasie lokalnym. */
+/** Today's calendar day as `YYYY-MM-DD` in local time. */
 export function todayIsoDate(now: Date = new Date()): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");

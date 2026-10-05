@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 /**
- * Minimalny chroniony endpoint potwierdzający, że pipeline JWT działa
- * end-to-end. Docelowo pierwszy krok pod przyszłe /api/profile.
+ * Minimal protected endpoint confirming the JWT pipeline works
+ * end-to-end. Eventually the first step toward the future /api/profile.
  */
 @RestController
 @RequestMapping("/api")

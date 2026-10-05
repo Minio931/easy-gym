@@ -49,12 +49,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
     }
 
-    // Siatka bezpieczeństwa pod wyścig: dwa równoczesne POST /api/admin/users
-    // z tym samym loginem mogłyby ominąć sprawdzenie findByLogin w serwisie
-    // i oba dojść do zapisu -- baza (UNIQUE na login) i tak to zablokuje.
+    // Safety net against a race: two concurrent POST /api/admin/users with the
+    // same login could bypass the findByLogin check in the service and both
+    // reach the save -- the database (UNIQUE on login) will block it anyway.
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Konflikt danych"));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Data conflict"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

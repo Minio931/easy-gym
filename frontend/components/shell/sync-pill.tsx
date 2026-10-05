@@ -8,14 +8,14 @@ import { useIsOnline } from "@/lib/use-online";
 import { retryFailedMutations, useWorkoutState } from "@/lib/workout/store";
 
 /**
- * Pigułka stanu synchronizacji (DESIGN §7.4). Zasady, które łatwo zepsuć:
- * - online i wszystko zapisane => NIE POKAZUJEMY NIC. Cisza jest normą.
- * - offline to stan normalny, nie awaria: kolor --serious, nigdy czerwony,
- *   nigdy modal, nigdy blokowanie przycisków.
- * - stan nigdy nie jest niesiony samym kolorem — zawsze znak + tekst.
+ * Sync status pill (DESIGN §7.4). Rules easy to break:
+ * - online and everything saved => SHOW NOTHING. Silence is the norm.
+ * - offline is a normal state, not a failure: color --serious, never red,
+ *   never a modal, never blocking buttons.
+ * - state is never carried by color alone — always sign + text.
  *
- * Kolejność ważności: błąd zapisu > offline > kolejka. Błąd wygrywa, bo to
- * jedyny stan, w którym user musi cokolwiek zrobić.
+ * Priority order: write error > offline > queue. Error wins because it is
+ * the only state in which the user must do anything.
  */
 export function SyncPill() {
   const isOnline = useIsOnline();
@@ -89,19 +89,19 @@ export function SyncPill() {
     );
   }
 
-  // Licznik zaległości pokazujemy dopiero od etapu 5, bo dopiero teraz oznacza
-  // realną robotę: wiersze leżące w Dexie z `dirty = 1`. W etapie 4 kolejka
-  // żyła w pamięci zakładki i migałaby przy każdej zatwierdzonej serii, a zapis
-  // w tle ma być niewidoczny (spec §4: „Zapis w tle — nic").
+  // The pending counter is shown only from stage 5, because only now does
+  // it mean real work: rows sitting in Dexie with `dirty = 1`. In stage 4
+  // the queue lived in tab memory and would flicker on every confirmed
+  // set, and background writes should be invisible (spec §4).
   //
-  // Online i wszystko wysłane => nie pokazujemy NIC. Cisza jest normą.
+  // Online and everything sent => show NOTHING. Silence is the norm.
   //
-  // `inFlight === 0` jest tu kluczowe. Zapis, który właśnie leci do API, ma
-  // przez chwilę swój wiersz w Dexie oznaczony jako niewysłany — bez tego
-  // warunku pigułka mrugałaby „⟳ 1 w kolejce" przy KAŻDEJ zatwierdzonej serii,
-  // a zapis w tle ma być niewidoczny (spec §4: „Zapis w tle — nic").
-  // Licznik należy się wyłącznie zaległościom, których w tej chwili nikt nie
-  // wypycha: paczce z sesji bez zasięgu albo zapisowi, który się nie udał.
+  // `inFlight === 0` is key. A write currently flying to the API briefly
+  // has its Dexie row marked as unsent — without this guard the pill
+  // would blink "⟳ 1 queued" on EVERY confirmed set, whereas background
+  // writes must stay invisible (spec §4).
+  // The counter is reserved for arrears that nobody is currently pushing:
+  // a batch from an offline session or a write that failed.
   if (sync.pending > 0 && inFlight === 0 && sync.status !== "syncing") {
     return (
       <button

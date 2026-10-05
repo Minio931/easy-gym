@@ -9,10 +9,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * e1rmKg liczone na żywo z formuły przekazanej w zapytaniu -- nigdy nie jest
- * trzymane w bazie (zmiana formuły w ustawieniach zafałszowałaby historię).
- * `null` oznacza "formuła nie daje sensownego wyniku" (Brzycki dla reps > 36),
- * nie zero.
+ * e1rmKg is computed on the fly from the formula passed in the request --
+ * never stored in the database (changing the setting would falsify history).
+ * `null` means "the formula does not yield a meaningful result" (Brzycki for
+ * reps > 36), not zero.
  */
 public record SetResponse(
         UUID id,

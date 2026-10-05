@@ -9,26 +9,28 @@ import type {
 import { parseIsoDate } from "@/lib/metrics";
 
 /**
- * Skoroszyt .xlsx wg PROMPT §7. Sześć arkuszy, nagłówek zamrożony i z filtrem,
- * formaty liczbowe zamiast tekstu, wiersze PR podświetlone, delty ujemne na
- * czerwono i dodatnie na zielono.
+ * .xlsx workbook per PROMPT §7. Six sheets, frozen filtered header,
+ * number formats instead of text, PR rows highlighted, negative deltas in
+ * red and positive ones in green.
  *
- * Arkusz „Serie” jest płaskim ŹRÓDŁEM pod tabelę przestawną: jeden wiersz =
- * jedna seria, zero scalanych komórek, a zakres danych dostaje nazwę
- * `Serie_Dane`, żeby pivot dało się wstawić bez zaznaczania myszą.
+ * The "Serie" sheet is a flat SOURCE for a pivot table: one row = one set,
+ * zero merged cells, and the data range is named `Serie_Dane`, so the
+ * pivot can be inserted without mouse-selecting anything.
  *
- * ExcelJS nie umie natywnych wykresów Excela — dlatego w pliku ich nie ma
- * i dlatego arkusz źródłowy jest tu najważniejszy: wykres robi Excel z tabeli
- * przestawnej i pozostaje ŻYWY, w odróżnieniu od wklejonego obrazka.
+ * ExcelJS cannot produce native Excel charts — that is why the file has
+ * none, and that is why the source sheet matters here most: the chart is
+ * built by Excel from the pivot table and stays LIVE, unlike a pasted
+ * image.
  */
 
-/** `dd.mm.yyyy`, `0.00 "kg"`, procenty — PROMPT §7. */
+/** `dd.mm.yyyy`, `0.00 "kg"`, percentages — PROMPT §7. */
 const DATE_FORMAT = "dd.mm.yyyy";
 const WEIGHT_FORMAT = '0.00 "kg"';
 /**
- * Procent jako literał w cudzysłowie, NIE format `0.0%`.
- * `lib/metrics.ts` oddaje wartości już przemnożone (45 = 45%), a Excelowy
- * format procentowy mnoży przez sto jeszcze raz i pokazałby „4500,0%".
+ * Percent as a quoted literal, NOT the `0.0%` format.
+ * `lib/metrics.ts` returns values already multiplied (45 = 45%), and
+ * Excel's percent format would multiply by one hundred again and show
+ * "4500.0%".
  */
 const PERCENT_FORMAT = '0.0"%"';
 const VOLUME_FORMAT = '# ##0 "kg"';
@@ -46,8 +48,8 @@ interface Column {
 }
 
 export async function buildWorkbook(data: ExportDataset): Promise<Workbook> {
-  // Dynamiczny import: ExcelJS waży więcej niż cała reszta apki i nie ma go
-  // po co wciągać do bundla ekranu treningu.
+  // Dynamic import: ExcelJS weighs more than the rest of the app, and
+  // there is no reason to pull it into the workout-screen bundle.
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "easy-gym";
@@ -158,7 +160,7 @@ function formatDuration(totalSeconds: number): string {
 }
 
 /* ------------------------------------------------------------------ *
- * 3. Serie — źródło pod tabelę przestawną
+ * 3. Sets — source for the pivot table
  * ------------------------------------------------------------------ */
 
 function buildSetsSheet(workbook: Workbook, sets: readonly SetRow[]): void {
@@ -192,9 +194,9 @@ function buildSetsSheet(workbook: Workbook, sets: readonly SetRow[]): void {
       set.isPersonalRecord ? "tak" : "",
     ]);
     if (set.isPersonalRecord) {
-      // Podświetlenie CAŁEGO wiersza, nie samej komórki „PR": w tabeli
-      // przestawnej i tak zostanie kolumna, ale w surowym arkuszu rekord ma
-      // być widoczny przy przewijaniu.
+      // Highlight the WHOLE row, not only the "PR" cell: a pivot table
+      // will keep the column anyway, but in the raw sheet the record
+      // should be visible while scrolling.
       row.eachCell((cell) => {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: PR_FILL } };
       });
@@ -203,8 +205,8 @@ function buildSetsSheet(workbook: Workbook, sets: readonly SetRow[]): void {
 
   finishSheet(sheet);
 
-  // Nazwany zakres pod tabelę przestawną: `Wstaw → Tabela przestawna` przyjmuje
-  // `Serie_Dane` wpisane z palca, bez zaznaczania tysięcy wierszy myszą.
+  // Named range for the pivot table: `Insert → PivotTable` accepts
+  // `Serie_Dane` typed by hand, without mouse-selecting thousands of rows.
   if (sets.length > 0) {
     const lastColumn = "K";
     workbook.definedNames.add(
@@ -215,7 +217,7 @@ function buildSetsSheet(workbook: Workbook, sets: readonly SetRow[]): void {
 }
 
 /* ------------------------------------------------------------------ *
- * 4. Progres ćwiczeń
+ * 4. Exercise progress
  * ------------------------------------------------------------------ */
 
 function buildProgressSheet(workbook: Workbook, progress: readonly ProgressRow[]): void {
@@ -257,7 +259,7 @@ function format2(value: number): string {
 }
 
 /* ------------------------------------------------------------------ *
- * 5. i 6. Waga ciała
+ * 5. and 6. Body weight
  * ------------------------------------------------------------------ */
 
 function buildBodyWeightSheet(workbook: Workbook, data: ExportDataset): void {
@@ -304,7 +306,7 @@ function buildWeeklyWeightSheet(workbook: Workbook, weeks: readonly WeeklyWeight
 }
 
 /* ------------------------------------------------------------------ *
- * Wspólne formatowanie
+ * Shared formatting
  * ------------------------------------------------------------------ */
 
 function setColumns(sheet: Worksheet, columns: readonly Column[]): void {
@@ -325,8 +327,8 @@ function styleHeader(row: ReturnType<Worksheet["getRow"]>): void {
 }
 
 function finishSheet(sheet: Worksheet): void {
-  // Zamrożony nagłówek + autofiltr: arkusz z tysiącem serii bez tego jest
-  // nie do czytania po pierwszym przewinięciu.
+  // Frozen header + autofilter: a sheet with a thousand sets is unreadable
+  // after the first scroll without it.
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   const lastColumn = sheet.columnCount;
   sheet.autoFilter = {
@@ -335,7 +337,7 @@ function finishSheet(sheet: Worksheet): void {
   };
 }
 
-/** Ujemne na czerwono, dodatnie na zielono (PROMPT §7); zero i brak bez koloru. */
+/** Negative in red, positive in green (PROMPT §7); zero and missing uncolored. */
 function colourDelta(cell: { font?: unknown }, value: number | null): void {
   if (value === null || value === 0) {
     return;

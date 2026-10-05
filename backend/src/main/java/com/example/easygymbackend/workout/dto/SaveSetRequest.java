@@ -11,8 +11,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Granice 0-500 kg / 1-100 powt. / RPE 1-10 są lustrem CHECK-ów z migracji V3
- * -- walidacja tutaj daje 400 z czytelnym komunikatem zamiast 409 z bazy.
+ * The 0-500 kg / 1-100 reps / RPE 1-10 bounds mirror the CHECKs from
+ * migration V3 -- validation here gives 400 with a readable message instead
+ * of 409 from the database.
  */
 public record SaveSetRequest(
         UUID id,

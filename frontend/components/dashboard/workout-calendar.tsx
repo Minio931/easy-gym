@@ -5,17 +5,18 @@ import { cellIntensity, type CalendarCell, type CalendarGrid } from "@/lib/dashb
 import { pluralPl } from "@/lib/format";
 
 /**
- * Kalendarz treningów: tygodnie w kolumnach, dni tygodnia w wierszach.
- * Na 390 px to jedyny układ, w którym pół roku mieści się bez przewijania
- * w pionie — klasyczna siatka miesięczna zjadłaby sześć ekranów.
+ * Workout calendar: weeks as columns, days of the week as rows. At
+ * 390 px this is the only layout where half a year fits without
+ * vertical scrolling — a classic monthly grid would eat six screens.
  *
- * Siatkę liczy `lib/dashboard/calendar.ts`; tutaj są tylko wymiary i kolory.
+ * `lib/dashboard/calendar.ts` builds the grid; only dimensions and
+ * colors live here.
  */
 
 const CELL = 12;
 const GAP = 3;
 const WEEKDAYS = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"];
-/** Podpisujemy co drugi dzień — siedem etykiet przy 12 px komórce to ściana. */
+/** Label every other day — seven labels on a 12 px cell is a wall. */
 const LABELLED_WEEKDAYS = [0, 2, 4];
 
 export function WorkoutCalendar({
@@ -28,8 +29,8 @@ export function WorkoutCalendar({
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Najnowszy tydzień jest po prawej i to on interesuje patrzącego —
-    // kalendarz otwarty na marcu wymagałby przewinięcia, żeby zobaczyć „dziś".
+    // The newest week is on the right and that is what the viewer cares
+    // about — a calendar opened on March would need scrolling to see "today".
     const element = scroller.current;
     if (element !== null) {
       element.scrollLeft = element.scrollWidth;
@@ -105,9 +106,9 @@ function Cell({ cell, maxCount }: { cell: CalendarCell; maxCount: number }) {
 
   return (
     <div
-      // `title` to podpowiedź dla myszy; treść dla czytnika niesie `aria-label`
-      // całej siatki — 180 osobnych komórek do przeklikania byłoby gorsze niż
-      // jedno zdanie podsumowania.
+      // `title` is a mouse tooltip; the whole grid's `aria-label`
+      // carries the content for the reader — 180 separately navigable
+      // cells would be worse than one summary sentence.
       title={
         cell.outside ? undefined : `${formatCellDate(cell.date)}: ${cellText(cell.workoutCount)}`
       }
@@ -115,9 +116,9 @@ function Cell({ cell, maxCount }: { cell: CalendarCell; maxCount: number }) {
       style={{
         width: CELL,
         height: CELL,
-        // Dzień poza zakresem jest przezroczysty, dzień bez treningu ma
-        // powierzchnię — pusty kalendarz ma wyglądać na kalendarz, a nie na
-        // brak danych.
+        // A day outside the range is transparent, a day without a
+        // workout has a surface — an empty calendar should look like a
+        // calendar, not like missing data.
         background: cell.outside
           ? "transparent"
           : intensity === 0

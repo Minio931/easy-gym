@@ -28,7 +28,7 @@ management:
   endpoints:
     web:
       exposure:
-        # Tylko health -- reszta actuatora (env, beans, ...) to wyciek konfiguracji.
+        # Only health -- the rest of actuator (env, beans, ...) is a configuration leak.
         include: health
   endpoint:
     health:
@@ -36,18 +36,18 @@ management:
       probes:
         enabled: true
       group:
-        # Sygnal samej bazy dla dashboardu wojtur.ovh -- bez `show-details`,
-        # wiec /actuator/health/database oddaje tylko {"status":"UP"|"DOWN"},
-        # tak jak reszta actuatora, zero wycieku ponad to. Nazwa grupy MUSI
-        # byc inna niz "db" -- to nazwa wlasnego wskaznika, kolizja wywala
-        # start (IllegalStateException: HealthContributor "db" clashes).
+        # Database-only signal for the wojtur.ovh dashboard -- no `show-details`,
+        # so /actuator/health/database only returns {"status":"UP"|"DOWN"}, same
+        # as the rest of actuator, zero leakage beyond that. The group name MUST
+        # differ from "db" -- that is the name of the built-in indicator, a clash
+        # breaks startup (IllegalStateException: HealthContributor "db" clashes).
         database:
           include: db
 
 app:
   jwt:
-    # Wartość developerska poniżej celowo słaba -- w produkcji JWT_SECRET musi być
-    # ustawiony (min. 32 losowe bajty), inaczej podpisy JWT są do podrobienia.
+    # The dev value below is deliberately weak -- in production JWT_SECRET must
+    # be set (min. 32 random bytes), otherwise JWT signatures are forgeable.
     secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-please-1234567890}
     issuer: easy-gym-backend
     access-token-ttl: 15m
@@ -58,5 +58,5 @@ app:
 
   admin:
     # Sekret do POST /api/admin/users (patrz AdminUserService) -- w produkcji
-    # WYMAGANY realny, losowy sekret; dev default poniżej jest celowo słaby.
+    # a real random secret is REQUIRED; the dev default below is deliberately weak.
     bootstrap-secret: ${ADMIN_BOOTSTRAP_SECRET:dev-only-bootstrap-secret-change-me}

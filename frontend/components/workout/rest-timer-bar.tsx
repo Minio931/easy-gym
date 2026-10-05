@@ -3,15 +3,15 @@
 import { formatDuration } from "@/lib/format";
 import { addRestSeconds, skipRest, useRestTimer } from "@/lib/workout/rest-timer";
 
-/** Ostatnie 10 s: pasek i liczba przechodzą na --warning (DESIGN §7.3). */
+/** Last 10 s: the bar and number switch to --warning (DESIGN §7.3). */
 const WARNING_THRESHOLD_SECONDS = 10;
 
 /**
- * Pasek timera przerwy — sticky nad dolną nawigacją, renderowany w powłoce
- * aplikacji, nie w karcie ćwiczenia. Dzięki temu przerwa leci dalej, gdy user
- * zajrzy w historię, i jest widoczna z każdej zakładki.
+ * Rest-timer bar — sticky above the bottom nav, rendered in the app shell,
+ * not in the exercise card. This way the rest keeps running when the user
+ * peeks at history, and it is visible from every tab.
  *
- * Liczba bierze się z `endsAt`, więc wygaszony ekran jej nie zatrzymuje.
+ * The number comes from `endsAt`, so a dark screen does not stop it.
  */
 export function RestTimerBar() {
   const timer = useRestTimer();

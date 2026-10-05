@@ -1,18 +1,18 @@
 import type { TokenPairResponse } from "@/types/api";
 
 /**
- * Przechowywanie pary tokenów. localStorage, nie cookie httpOnly -- świadoma
- * decyzja: backend oddaje tokeny w body, a apka ma działać offline jako PWA,
- * więc i tak musi trzymać je po stronie klienta. Kosztem jest podatność na
- * XSS; ograniczamy ją tym, że nigdzie nie wstrzykujemy HTML-a z danych i nie
- * ładujemy skryptów z zewnątrz.
+ * Token pair storage. localStorage, not httpOnly cookie — a deliberate
+ * decision: the backend returns tokens in the body, and the app has to work
+ * offline as a PWA, so it must hold them on the client anyway. The cost is
+ * XSS exposure; we limit it by not injecting HTML from data anywhere and
+ * not loading external scripts.
  *
- * Moduł jest sklepem dla useSyncExternalStore: `readSession()` musi zwracać
- * REFERENCYJNIE tę samą wartość, dopóki sesja się nie zmieniła (inaczej React
- * wpada w pętlę renderów), stąd cache zamiast parsowania JSON-a przy każdym
- * wywołaniu. Zapis idzie wyłącznie przez `writeSession` -- zdarzenie
- * `storage` z innej zakładki jest jedynym sposobem, żeby zakładki nie
- * wylogowały się nawzajem po rotacji refresh tokenu.
+ * The module is the store for useSyncExternalStore: `readSession()` must
+ * return the same value BY REFERENCE until the session changes (otherwise
+ * React enters a render loop), hence the cache instead of parsing JSON on
+ * every call. Writes go exclusively through `writeSession` — the `storage`
+ * event from another tab is the only way to prevent tabs from logging each
+ * other out after a refresh-token rotation.
  */
 
 const STORAGE_KEY = "easy-gym.auth";
@@ -20,7 +20,7 @@ const STORAGE_KEY = "easy-gym.auth";
 export interface StoredSession {
   accessToken: string;
   refreshToken: string;
-  /** Epoch ms. Liczone z expiresInSeconds w momencie odebrania pary. */
+  /** Epoch ms. Computed from expiresInSeconds at the moment the pair was received. */
   accessTokenExpiresAt: number;
   userId: string;
   login: string;
@@ -28,7 +28,7 @@ export interface StoredSession {
 
 const listeners = new Set<() => void>();
 
-/** `undefined` = jeszcze nie czytaliśmy localStorage. */
+/** `undefined` = we have not read localStorage yet. */
 let cached: StoredSession | null | undefined = undefined;
 
 function isStoredSession(value: unknown): value is StoredSession {
@@ -57,8 +57,8 @@ function parseFromStorage(): StoredSession | null {
     const parsed: unknown = JSON.parse(raw);
     return isStoredSession(parsed) ? parsed : null;
   } catch {
-    // Uszkodzony wpis traktujemy jak brak sesji -- lepiej ekran logowania niż
-    // wyjątek przy starcie apki.
+    // A corrupted entry is treated as no session — a login screen is
+    // better than an exception at app startup.
     return null;
   }
 }
@@ -70,7 +70,7 @@ export function readSession(): StoredSession | null {
   return cached;
 }
 
-/** Migawka dla renderu serwerowego: serwer nigdy nie zna sesji. */
+/** Snapshot for server render: the server never knows the session. */
 export function readServerSession(): null {
   return null;
 }
@@ -87,7 +87,7 @@ export function writeSession(session: StoredSession | null): void {
   notify();
 }
 
-/** Zbudowanie sesji z odpowiedzi serwera; tożsamość zostaje z poprzedniej sesji. */
+/** Build a session from the server response; identity carries over from the previous one. */
 export function sessionFromTokens(
   tokens: TokenPairResponse,
   identity: { userId: string; login: string },
@@ -116,8 +116,8 @@ function notify(): void {
 }
 
 if (typeof window !== "undefined") {
-  // Rotacja refresh tokenu w innej zakładce -- adoptujemy nową parę zamiast
-  // dalej używać unieważnionej.
+  // Refresh-token rotation in another tab — we adopt the new pair instead
+  // of continuing to use the invalidated one.
   window.addEventListener("storage", (event) => {
     if (event.key !== STORAGE_KEY && event.key !== null) {
       return;

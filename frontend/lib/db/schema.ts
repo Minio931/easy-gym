@@ -10,36 +10,38 @@ import type {
 } from "@/types/sync";
 
 /**
- * Lokalna baza (IndexedDB przez Dexie). Tabele są 1:1 odbiciem rekordów paczki
- * `POST /api/sync` — dzięki temu wypchnięcie zmiany to odczyt wiersza, a nie
- * tłumaczenie jednego kształtu na drugi w obie strony.
+ * Local database (IndexedDB via Dexie). The tables are a 1:1 reflection of
+ * the records in the `POST /api/sync` batch — this way pushing a change is
+ * a row read, not translating one shape into another in both directions.
  *
- * Dwie decyzje, z których wynika reszta:
+ * Two decisions from which the rest follows:
  *
- * 1. **Jedna baza na konto** (`easy-gym.<userId>`), nie wspólna z kolumną
- *    `userId`. Backend pilnuje izolacji filtrem w serwisie i wymusza na to test
- *    przy każdym endpoincie, bo zapomniany filtr to realny błąd. Tutaj tej
- *    pomyłki nie da się popełnić: cudzych danych po prostu nie ma w tej bazie,
- *    a wylogowanie kasuje ją w całości (PROMPT §2 — cudzy trening nie może
- *    zostać na urządzeniu).
+ * 1. **One database per account** (`easy-gym.<userId>`), not shared with a
+ *    `userId` column. The backend enforces isolation with a filter in the
+ *    service, and a test enforces it at every endpoint, because a forgotten
+ *    filter is a real bug. Here the mistake cannot be made: someone else's
+ *    data simply does not exist in this database, and logout wipes it
+ *    entirely (PROMPT §2 — someone else's workout must not remain on the
+ *    device).
  *
- * 2. **`dirty` zamiast osobnego dziennika operacji.** Wiersz z `dirty = 1` to
- *    zmiana, która nie dojechała na serwer. Serwer rozstrzyga konflikty
- *    last-write-wins na CAŁYCH rekordach, więc odtwarzanie dziennika operacji
- *    nie dałoby nic poza ryzykiem kolejności, a ponowienie wysyłki tego samego
- *    wiersza jest z natury idempotentne.
+ * 2. **`dirty` instead of a separate operation log.** A row with `dirty = 1`
+ *    is a change that has not reached the server. The server resolves
+ *    conflicts last-write-wins on WHOLE records, so replaying an operation
+ *    log would offer nothing but ordering risk, and resending the same row
+ *    is idempotent by nature.
  */
 
 /**
- * `0 | 1`, nie `boolean` — IndexedDB nie indeksuje wartości logicznych, więc
- * `where("dirty").equals(true)` nigdy nic nie zwraca i to cichy błąd, nie wyjątek.
+ * `0 | 1`, not `boolean` — IndexedDB does not index boolean values, so
+ * `where("dirty").equals(true)` never returns anything, and that is a silent
+ * bug, not an exception.
  */
 export type DirtyFlag = 0 | 1;
 
 export const CLEAN: DirtyFlag = 0;
 export const DIRTY: DirtyFlag = 1;
 
-/** Rekord serwera + znacznik „czeka na wysłanie". */
+/** Server record + a "waiting to be sent" marker. */
 export type Local<T> = T & { dirty: DirtyFlag };
 
 export type LocalExercise = Local<ExerciseSync>;
@@ -50,8 +52,8 @@ export type LocalWorkoutExercise = Local<WorkoutExerciseSync>;
 export type LocalSet = Local<SetSync>;
 export type LocalBodyWeight = Local<BodyWeightSync>;
 
-/** Księgowość synchronizacji. Trzymana w bazie, nie w localStorage, żeby
- *  `since` i dane, których dotyczy, ginęły i wracały razem. */
+/** Sync bookkeeping. Kept in the database, not in localStorage, so that
+ *  `since` and the data it describes disappear and come back together. */
 export interface MetaRow {
   key: string;
   value: string | null;
@@ -72,8 +74,9 @@ export class EasyGymDatabase extends Dexie {
 
   constructor(name: string) {
     super(name);
-    // Indeksy dobrane pod realne zapytania: `dirty` (co wypchnąć), klucz obcy
-    // (złóż trening z kawałków) i `startedAt`/`measuredOn` (historia, wykresy).
+    // Indexes chosen for actual queries: `dirty` (what to push), foreign key
+    // (assemble a workout from pieces), and `startedAt`/`measuredOn`
+    // (history, charts).
     this.version(1).stores({
       exercises: "id, dirty, name, muscleGroup",
       routines: "id, dirty",

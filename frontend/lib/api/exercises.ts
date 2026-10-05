@@ -7,11 +7,11 @@ import type {
 import type { OneRepMaxFormula } from "@/lib/metrics";
 
 /**
- * Katalog ćwiczeń: globalne (seed, `userId: null`) + własne użytkownika.
- * `query` to fuzzy search po stronie bazy (pg_trgm) — **nie filtrujemy wyniku
- * dodatkowo lokalnie**, bo lokalny filtr `includes()` odrzuciłby trafienia,
- * które trigram uznał za bliskie (literówki), czyli dokładnie to, po co ten
- * endpoint istnieje.
+ * Exercise catalog: global (seed, `userId: null`) + the user's own.
+ * `query` is a fuzzy search on the database side (pg_trgm) — **we do not
+ * further filter the result locally**, because a local `includes()` filter
+ * would reject hits the trigram considered close (typos), which is exactly
+ * what this endpoint is for.
  */
 export function searchExercises(
   query: string,

@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
 /**
- * Wrapper ekranu: margines boczny 16 px ustawiony RAZ tutaj, nie w każdym
- * komponencie, i max-width 560 px od 640 px w górę -- apka nie rozlewa się
- * na desktopie, bo i tak nie jest do niego (DESIGN.md §5).
+ * Screen wrapper: 16 px side gutter set ONCE here, not in every component,
+ * and max-width 560 px from 640 px up — the app does not spread out on
+ * desktop, since it is not for desktop anyway (DESIGN.md §5).
  */
 export function Screen({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-[560px] px-4">{children}</div>;
@@ -13,7 +13,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   return <h2 className="label-caps mb-3">{children}</h2>;
 }
 
-/** Pusty ekran: jedno zdanie co zrobić + akcja. Bez ilustracji i bez „Ups!". */
+/** Empty screen: one sentence of what to do + action. No illustration, no "Oops!". */
 export function EmptyState({
   message,
   action,
@@ -29,7 +29,7 @@ export function EmptyState({
   );
 }
 
-/** Szkielet zamiast spinnera -- ładowanie danych historycznych (DESIGN.md §7.7). */
+/** Skeleton instead of a spinner — loading historical data (DESIGN.md §7.7). */
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
@@ -40,9 +40,10 @@ export function Skeleton({ className = "" }: { className?: string }) {
 }
 
 /**
- * Kafel liczby: duża wartość, podpis, opcjonalna wskazówka. Trzy takie w rzędzie
- * mieszczą się w 390 px — i tylko trzy, dlatego `truncate` jest tu wszędzie:
- * ucięta etykieta jest do przełknięcia, ucięta liczba czyta się jak inna liczba.
+ * Number tile: a large value, a label, an optional hint. Three such tiles
+ * fit in a row at 390 px — and only three, which is why `truncate` is
+ * everywhere here: a truncated label is tolerable, a truncated number
+ * reads like a different number.
  */
 export function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (

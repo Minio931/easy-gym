@@ -14,8 +14,8 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Jeden ŻYWY wpis na (user_id, measured_on) -- pilnuje tego częściowy indeks
- * unikalny w V3 (WHERE deleted_at IS NULL). Tabela nie ma created_at.
+ * One LIVE entry per (user_id, measured_on) -- enforced by the partial unique
+ * index in V3 (WHERE deleted_at IS NULL). The table has no created_at.
  */
 @Entity
 @Table(name = "body_weights")

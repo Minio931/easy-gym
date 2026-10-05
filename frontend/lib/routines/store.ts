@@ -17,22 +17,22 @@ import { uuid } from "@/lib/workout/uuid";
 import type { RoutineResponse } from "@/types/api";
 
 /* ================================================================== *
- * JEDYNE MIEJSCE, KTÓRE ZAPISUJE SZABLON.
+ * SINGLE PLACE THAT WRITES THE TEMPLATE.
  *
- * Ta sama droga co przy treningu i wadze (etap 5): najpierw Dexie
- * z `dirty = 1`, potem API. Szablon układa się w domu, ale poprawia w szatni
- * („dziś bez martwego ciągu") — brak zasięgu nie może znaczyć „zapamiętaj to
- * sobie i wpisz później".
+ * The same path as workouts and body weight (stage 5): first Dexie with
+ * `dirty = 1`, then the API. A template is built at home, but tweaked in
+ * the locker room ("today no deadlift") — no signal cannot mean "remember
+ * that and type it in later".
  *
- * `id` szablonu i pozycji nadaje KLIENT. Serwer honoruje podane `id`
- * (`RoutineService.create`), więc rekord zapisany offline i ten sam rekord
- * wysłany po powrocie sieci to jeden wiersz, a nie dwa.
+ * The template `id` and item `id` come from the CLIENT. The server honors
+ * supplied `id` (`RoutineService.create`), so a record saved offline and
+ * the same record sent after signal returns is one row, not two.
  * ================================================================== */
 
 export interface RoutinesState {
   status: "idle" | "loading" | "ready";
   routines: RoutineResponse[];
-  /** `true` gdy lista pochodzi z Dexie, nie z serwera. */
+  /** `true` when the list comes from Dexie, not from the server. */
   local: boolean;
   saving: boolean;
   error: string | null;
@@ -67,7 +67,7 @@ export function getRoutinesState(): RoutinesState {
   return state;
 }
 
-/** Migawka serwerowa — stała referencja, inaczej hydracja zgłasza niezgodność. */
+/** Server snapshot — stable reference, otherwise hydration reports a mismatch. */
 function getServerRoutinesState(): RoutinesState {
   return INITIAL;
 }
@@ -77,7 +77,7 @@ export function useRoutinesState(): RoutinesState {
 }
 
 /* ------------------------------------------------------------------ *
- * Odczyt
+ * Read
  * ------------------------------------------------------------------ */
 
 async function refreshFromLocal(local: boolean): Promise<void> {
@@ -96,9 +96,10 @@ export async function loadRoutines(): Promise<void> {
     setState({ status: "loading" });
   }
 
-  // Najpierw Dexie: lista jest pełna od razu, także bez zasięgu. Do etapu
-  // szablonów czytała wyłącznie z sieci, więc na siłowni bez zasięgu nie dało
-  // się odpalić szablonu, mimo że rekordy leżały już na urządzeniu.
+  // Dexie first: the list is complete right away, even without signal.
+  // Until the templates stage the list read from the network only, so at
+  // the gym without signal a template could not be launched, even though
+  // the records were already on the device.
   await refreshFromLocal(true).catch(() => undefined);
   if (token !== loadToken) {
     return;
@@ -127,10 +128,10 @@ export async function loadRoutines(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ *
- * Zapis
+ * Write
  * ------------------------------------------------------------------ */
 
-/** Zwraca `id` zapisanego szablonu albo `null`, gdy zapis się nie udał. */
+/** Returns the `id` of the saved template, or `null` if the save failed. */
 export async function saveRoutine(draft: RoutineDraft): Promise<string | null> {
   setState({ saving: true, error: null });
 
@@ -151,8 +152,9 @@ export async function saveRoutine(draft: RoutineDraft): Promise<string | null> {
       name: request.name,
       notes: request.notes ?? null,
       items: request.items.map((item, index) => ({
-        // `toSaveRequest` gubi `id` nowej pozycji celowo (serwer go nie wymaga),
-        // ale lokalny wiersz musi je mieć — bierzemy je z `withIds`.
+        // `toSaveRequest` drops a new item's `id` on purpose (the server
+        // does not require it), but the local row must have it — taken
+        // from `withIds`.
         id: withIds.items[index].id ?? uuid(),
         routineId: id,
         exerciseId: item.exerciseId,
@@ -183,8 +185,9 @@ export async function saveRoutine(draft: RoutineDraft): Promise<string | null> {
   } catch (cause) {
     setState({ saving: false });
     if (cause instanceof OfflineError) {
-      // Szablon siedzi w Dexie i pojedzie synchronizacją. Z punktu widzenia
-      // użytkownika zapis SIĘ UDAŁ — bo się udał, tylko jeszcze nie dojechał.
+      // The template sits in Dexie and will ship with sync. From the user's
+      // perspective the save SUCCEEDED — because it did, it just has not
+      // arrived yet.
       void requestSync();
       return id;
     }

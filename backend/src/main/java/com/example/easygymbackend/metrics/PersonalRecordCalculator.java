@@ -10,11 +10,11 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * PR w trzech kategoriach (ciężar, e1RM, objętość sesji) + per zakres
- * powtórzeń -- wszystkie z pominięciem serii is_warmup i assisted (sekcja 4
- * promptu). Sesje muszą wejść w kolejności chronologicznej -- przy remisie
- * rekord zostaje przy PIERWSZYM wystąpieniu (kolejna, równa wartość go nie
- * przebija), więc "pobicie rekordu" = ściśle większa wartość, nie remis.
+ * PRs in three categories (weight, e1RM, session volume) + per rep range --
+ * all with is_warmup and assisted sets excluded (section 4 of the prompt).
+ * Sessions must come in chronological order -- on a tie the record stays with
+ * the FIRST occurrence (a later equal value does not beat it), so "breaking
+ * a record" = strictly greater value, not a tie.
  */
 public final class PersonalRecordCalculator {
 
@@ -62,10 +62,10 @@ public final class PersonalRecordCalculator {
     }
 
     /**
-     * PR-y pobite w OSTATNIEJ sesji z listy (musi być chronologiczna) --
-     * pod baner "pobite PR" w podsumowaniu treningu (sekcja 3.6) i pod
-     * kolumnę "czy PR" w eksporcie XLSX (sekcja 7, arkusz Serie), na tym
-     * samym algorytmie co {@link #compute}, więc żadnej duplikacji reguł.
+     * PRs broken in the LAST session of the list (must be chronological) --
+     * feeds the "PR broken" banner in the workout summary (section 3.6) and
+     * the "is PR" column in the XLSX export (section 7, Sets sheet), using
+     * the same algorithm as {@link #compute}, so no duplication of rules.
      */
     public static PersonalRecords brokenIn(List<Session> chronologicalSessions, OneRepMaxFormula formula) {
         if (chronologicalSessions.isEmpty()) {

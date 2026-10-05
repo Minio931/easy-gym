@@ -28,14 +28,14 @@ import {
 import { saveRoutine, useRoutinesState } from "@/lib/routines/store";
 
 /**
- * Edytor szablonu. Kolejność ćwiczeń zmieniają STRZAŁKI, nie przeciąganie:
- * lista jest w pionie w przewijanej stronie, więc drag na telefonie walczy
- * ze scrollem, a na siłowni przegrywa (DESIGN §9 — gest nie może być jedyną
- * drogą). Dwa tapnięcia w strzałkę są nudne i działają zawsze.
+ * Template editor. ARROWS reorder exercises, not drag: the list is
+ * vertical inside a scrollable page, so drag on a phone fights the
+ * scroll and loses in the gym (DESIGN §9 — the gesture must not be the
+ * only path). Two taps on an arrow are boring and always work.
  *
- * Cele serii i powtórzeń są opcjonalne. Puste pole to brak celu, nie zero —
- * `targetSets` zasila licznik „0/3" na karcie ćwiczenia, a zero znaczyłoby
- * „ćwiczenie zaplanowane na zero serii".
+ * The set and rep targets are optional. An empty field means no target,
+ * not zero — `targetSets` drives the "0/3" counter on the exercise card,
+ * and zero would mean "exercise planned for zero sets".
  */
 export function RoutineEditorScreen({ routineId }: { routineId: string | null }) {
   const router = useRouter();
@@ -46,8 +46,9 @@ export function RoutineEditorScreen({ routineId }: { routineId: string | null })
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Katalog ćwiczeń: odpowiedź szablonu niesie same `exerciseId`, a nazwy
-  // trzeba skądś wziąć. `findExercises` schodzi offline na lokalny katalog.
+  // Exercise catalog: the template response carries only `exerciseId`,
+  // and names must come from somewhere. `findExercises` falls back to
+  // the local catalog offline.
   useEffect(() => {
     const controller = new AbortController();
     void findExercises("", controller.signal)
@@ -67,7 +68,7 @@ export function RoutineEditorScreen({ routineId }: { routineId: string | null })
     let cancelled = false;
     const load = async (): Promise<void> => {
       const db = getDatabase();
-      // Dexie najpierw: edytor otwiera się pełny także bez zasięgu.
+      // Dexie first: the editor opens complete even offline.
       const local = db === null ? null : await readRoutine(db, routineId).catch(() => null);
       if (!cancelled && local !== null) {
         setDraft(draftFromRoutine(local, names));
@@ -87,9 +88,9 @@ export function RoutineEditorScreen({ routineId }: { routineId: string | null })
     return () => {
       cancelled = true;
     };
-    // `names` celowo poza zależnościami: dociągnięcie katalogu nie może
-    // nadpisać szkicu, w którym user zdążył już coś zmienić. Nazwy uzupełnia
-    // `withNames` przy renderze.
+    // `names` deliberately outside deps: fetching the catalog must not
+    // overwrite a draft the user has already touched. `withNames` fills
+    // the names at render time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routineId]);
 
@@ -309,8 +310,8 @@ function TargetField({
         inputMode="numeric"
         value={value === null ? "" : String(value)}
         placeholder="—"
-        // Etykieta wizualna jest wspólna dla całego wiersza, więc czytnik
-        // ekranu bez tego słyszy pięć razy „Serie" bez wiedzy, czyich.
+        // The visual label is shared across the row, so without this a
+        // screen reader hears five times "Serie" without knowing whose.
         aria-label={`${label} — ${exerciseName}`}
         onChange={(event) => {
           onChange(parseTarget(event.target.value, min, max));

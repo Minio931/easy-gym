@@ -22,7 +22,7 @@ const TITLES: Record<string, string> = {
   "/eksport": "Eksport",
 };
 
-/** Wysokości pasków doklejanych nad dolną nawigacją (DESIGN §7.3, §11). */
+/** Heights of bars pinned above the bottom nav (DESIGN §7.3, §11). */
 const REST_BAR_PX = 64;
 const ACTIVE_WORKOUT_BAR_PX = 44;
 
@@ -32,15 +32,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const timerVisible = useRestTimerVisible();
   const hasWorkout = useHasActiveWorkout();
 
-  // Trening ładujemy raz, na poziomie powłoki: pasek „Trening trwa" i timer
-  // przerwy są widoczne z każdej zakładki, nie tylko z /trening.
+  // The workout loads once, at the shell level: the "workout in progress"
+  // bar and the rest timer are visible from every tab, not only /trening.
   useEffect(() => {
     ensureActiveWorkoutLoaded(settings.oneRepMaxFormula);
   }, [settings.oneRepMaxFormula]);
 
   const isWorkout = pathname === "/trening";
-  // Nazwa ćwiczenia jest długa i zmienna, więc w pasku zostaje rodzaj ekranu,
-  // a nazwa jest nagłówkiem treści — tak samo jak przy podsumowaniu.
+  // An exercise name is long and variable, so the bar keeps the screen
+  // kind, and the name is the content heading — same as on the summary.
   const title = pathname === "/trening/nowy-historyczny"
     ? "Trening z przeszłości"
     : pathname.startsWith("/trening/")
@@ -58,8 +58,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh" id="app-root">
       <AppBar title={title}>{isWorkout && <WorkoutAppBarExtras />}</AppBar>
-      {/* Odstęp dolny rośnie i maleje z ANIMACJĄ — wjazd timera nie może
-          podskoczyć listą serii pod palcem (spec §1). */}
+      {/* Bottom spacing grows and shrinks with ANIMATION — a timer slide-in
+          must not bump the set list under the thumb (spec §1). */}
       <main
         className="pt-5 transition-[padding-bottom] duration-200 ease-out"
         style={{

@@ -6,10 +6,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.UUID;
 
 /**
- * Punkt wejścia do "kto woła" dla wszystkich przyszłych kontrolerów/serwisów
- * domenowych. Rzuca, jeśli wywołane poza zabezpieczonym requestem -- to znaczy
- * że endpoint zapomniał wymagać uwierzytelnienia, czyli błąd konfiguracji, nie
- * sytuacja do cichego ignorowania.
+ * Entry point for "who is calling" for all future domain controllers/services.
+ * Throws if invoked outside a secured request -- that means the endpoint forgot
+ * to require authentication, i.e. a configuration bug, not a situation to be
+ * silently ignored.
  */
 public final class CurrentUser {
 
@@ -20,7 +20,7 @@ public final class CurrentUser {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser user)) {
             throw new IllegalStateException(
-                    "Brak zalogowanego użytkownika w SecurityContext -- endpoint musi wymagać uwierzytelnienia");
+                    "No authenticated user in SecurityContext -- endpoint must require authentication");
         }
         return user;
     }

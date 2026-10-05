@@ -43,9 +43,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(subscribe, readSession, readServerSession);
   const isHydrated = useIsHydrated();
 
-  // Dopóki nie ma hydracji, nie wiemy nic -- localStorage nie istnieje na
-  // serwerze. "anonymous" w tym momencie oznaczałoby wyrzucenie zalogowanego
-  // użytkownika na ekran logowania przy każdym odświeżeniu.
+  // Until hydration we know nothing — localStorage does not exist on the
+  // server. "anonymous" at that point would bounce a signed-in user to the
+  // login screen on every refresh.
   const status: AuthStatus = !isHydrated
     ? "loading"
     : session === null
@@ -57,9 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    // Weryfikacja tokenu w tle, raz przy starcie apki. Offline NIE
-    // wylogowuje -- refresh token żyje 30 dni, a apka ma działać bez zasięgu
-    // (DESIGN.md §7.4).
+    // Background token verification, once at app startup. Offline does NOT
+    // log out — the refresh token lives 30 days, and the app must work
+    // without signal (DESIGN.md §7.4).
     void authApi
       .me()
       .then((identity) => {
@@ -77,12 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-    // Celowo raz po zalogowaniu, nie przy każdej rotacji access tokenu.
+    // Deliberately once after login, not on every access-token rotation.
   }, [status]);
 
   const signIn = useCallback(async (login: string, password: string) => {
     const tokens = await authApi.login({ login, password });
-    // userId znamy dopiero z /api/me; do tego czasu sesja ma sam login.
+    // userId is known only from /api/me; until then the session has only the login.
     writeSession(sessionFromTokens(tokens, { userId: "", login }));
     try {
       const identity = await authApi.me();
@@ -91,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         writeSession({ ...current, ...identity });
       }
     } catch (error) {
-      // Zalogowany offline to wciąż zalogowany -- userId uzupełni się przy
-      // pierwszym udanym /api/me.
+      // Signed in offline is still signed in — userId will fill in on the
+      // first successful /api/me.
       if (!(error instanceof OfflineError)) {
         throw error;
       }
@@ -101,26 +101,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const current = readSession();
-    // Zaległości wypychamy PRZED skasowaniem sesji — bez tokenu synchronizacja
-    // nie ma jak przejść, a trening zrobiony bez zasięgu nie może zginąć przy
-    // wylogowaniu. Offline `fetch` odrzuca się od razu, więc to nie blokuje.
+    // We push the pending queue BEFORE clearing the session — without a
+    // token sync has no way to go through, and a workout done offline must
+    // not die on logout. Offline `fetch` rejects immediately, so this does
+    // not block.
     if (current !== null) {
       await releaseLocalData(current.userId);
     }
     writeSession(null);
-    // Migawka aktywnego treningu jest przypisana do konta — nie może zostać na
-    // urządzeniu po wylogowaniu i wyskoczyć następnej osobie.
+    // The active-workout snapshot is tied to the account — it must not
+    // stay on the device after logout and pop up for the next person.
     resetWorkoutStore();
-    // Ekran wagi też trzyma dane konta w pamięci modułu — bez tego następna
-    // osoba na tym urządzeniu zobaczyłaby cudze pomiary do czasu przeładowania.
+    // The body-weight screen also keeps account data in the module memory —
+    // without this the next person on this device would see someone else's
+    // measurements until a reload.
     resetBodyWeightStore();
     if (current !== null) {
-      // Best effort: unieważnienie refresh tokenu po stronie serwera. Brak
-      // sieci nie może zablokować wylogowania lokalnie.
+      // Best effort: invalidate the refresh token on the server. No
+      // network must not block the local logout.
       try {
         await authApi.logout({ refreshToken: current.refreshToken });
       } catch {
-        /* celowo puste */
+        /* intentionally empty */
       }
     }
   }, []);
@@ -141,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (context === null) {
-    throw new Error("useAuth musi być wywołane wewnątrz <AuthProvider>");
+    throw new Error("useAuth must be called inside <AuthProvider>");
   }
   return context;
 }

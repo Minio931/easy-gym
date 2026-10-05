@@ -13,11 +13,12 @@ import { validateSetInput } from "@/lib/workout/set-values";
 import type { ExerciseResponse } from "@/types/api";
 
 /**
- * Ręczne wpisanie treningu z przeszłości -- jedyna droga do backfillu
- * historii (patrz `lib/workout/manual-entry.ts`). Świadomie osobno od
- * `WorkoutScreen`: tamten ekran pilnuje inwariantu „najwyżej jeden aktywny
- * trening" i całej maszynerii live session (timer przerwy, drafty,
- * optymistyczne UI) -- tu nic z tego nie ma sensu, bo trening już się odbył.
+ * Manual entry of a past workout — the only path for history backfill
+ * (see `lib/workout/manual-entry.ts`). Deliberately separate from
+ * `WorkoutScreen`: that screen enforces the "at most one active workout"
+ * invariant and the whole live-session machinery (rest timer, drafts,
+ * optimistic UI) — none of which makes sense here, because the workout
+ * already happened.
  */
 
 interface DraftSet {

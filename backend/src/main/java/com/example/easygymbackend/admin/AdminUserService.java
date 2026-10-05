@@ -13,11 +13,11 @@ import java.security.MessageDigest;
 import java.util.UUID;
 
 /**
- * Zamiennik ręcznego generowania bcrypt hashy (PasswordHashCli) -- konta
- * nadal nie mają self-service rejestracji, ale zamiast lokalnego CLI +
- * ręcznej migracji Flyway, jest jeden chroniony endpoint. "Chroniony" =
- * osobny sekret współdzielony (ADMIN_BOOTSTRAP_SECRET), nie JWT -- w
- * momencie zakładania pierwszego konta nie ma jeszcze czym się zalogować.
+ * Replacement for manual bcrypt hash generation (PasswordHashCli) -- accounts
+ * still have no self-service registration, but instead of a local CLI +
+ * manual Flyway migration, there is a single protected endpoint. "Protected" =
+ * a separate shared secret (ADMIN_BOOTSTRAP_SECRET), not JWT -- at the moment
+ * the first account is being created there is nothing to log in with yet.
  */
 @Service
 public class AdminUserService {
@@ -48,10 +48,10 @@ public class AdminUserService {
         user.setId(UUID.randomUUID());
         user.setLogin(login);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
-        // saveAndFlush, nie save -- @CreationTimestamp na createdAt jest liczony przez
-        // Hibernate dopiero przy budowaniu INSERT-a (flush), a nie przy wywołaniu save().
-        // Bez wymuszonego flusha ta metoda zwracała createdAt=null, mimo że w bazie
-        // kolumna (NOT NULL) i tak dostawała poprawną wartość dopiero przy commicie.
+        // saveAndFlush, not save -- @CreationTimestamp on createdAt is computed by
+        // Hibernate only when building the INSERT (flush), not on the save() call.
+        // Without a forced flush this method returned createdAt=null, even though the
+        // (NOT NULL) column in the database received its correct value at commit time.
         user = userRepository.saveAndFlush(user);
 
         return new CreateUserResponse(user.getId(), user.getLogin(), user.getCreatedAt());
@@ -65,8 +65,8 @@ public class AdminUserService {
         byte[] provided = providedSecret.getBytes(StandardCharsets.UTF_8);
         byte[] expected = adminProperties.bootstrapSecret().getBytes(StandardCharsets.UTF_8);
 
-        // MessageDigest.isEqual jest stałoczasowe -- porównanie == na String
-        // ujawniałoby przez timing, ile początkowych znaków sekretu zgadza się.
+        // MessageDigest.isEqual is constant-time -- a == comparison on String
+        // would reveal through timing how many leading characters of the secret match.
         if (!MessageDigest.isEqual(provided, expected)) {
             throw new InvalidBootstrapSecretException();
         }

@@ -3,13 +3,14 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * „Ostatnio używane" w arkuszu dodawania ćwiczenia.
+ * "Recently used" in the add-exercise sheet.
  *
- * Źródłem jest `localStorage`, nie endpoint — backend nie ma
- * `GET /api/exercises/recent`, a `GET /api/workouts` zwraca podsumowania bez
- * nazw ćwiczeń, więc zrekonstruowanie tej listy kosztowałoby N zapytań o
- * szczegóły treningów. Świadomy kompromis na etap 4; w etapie 5 zastąpi to
- * zapytanie do Dexie, które ma już całą historię lokalnie.
+ * The source is `localStorage`, not an endpoint — the backend has no
+ * `GET /api/exercises/recent`, and `GET /api/workouts` returns summaries
+ * without exercise names, so reconstructing this list would cost N
+ * workout-detail requests. A deliberate stage-4 compromise; in stage 5 this
+ * is replaced by a Dexie query, which already holds the full history
+ * locally.
  */
 
 const STORAGE_KEY = "easy-gym.recent-exercises";
@@ -30,7 +31,7 @@ function read(): string[] {
   }
 }
 
-/** Migawka MUSI być stabilna referencyjnie, inaczej useSyncExternalStore pętli render. */
+/** The snapshot MUST be reference-stable, otherwise useSyncExternalStore loops the render. */
 export function readRecentExerciseIds(): string[] {
   if (cached === undefined) {
     cached = read();
@@ -60,7 +61,7 @@ export function rememberExercise(exerciseId: string): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* brak miejsca w storage nie może zablokować dodania ćwiczenia */
+    /* no storage room must not block adding an exercise */
   }
   for (const listener of listeners) {
     listener();

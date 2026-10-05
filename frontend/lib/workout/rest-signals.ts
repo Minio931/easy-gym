@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Sygnały końca przerwy: dźwięk, wibracja, powiadomienie systemowe.
+ * End-of-rest signals: sound, vibration, system notification.
  *
- * Dźwięk generujemy WebAudio zamiast ładować plik — kilka linijek zamiast
- * requestu, który i tak nie przejdzie offline. `AudioContext` musi zostać
- * odblokowany gestem użytkownika (polityka autoplay), więc wołamy
- * {@link unlockAudio} przy pierwszym tapnięciu ✓, a nie przy wejściu na ekran.
+ * The sound is generated with WebAudio instead of loading a file — a few
+ * lines instead of a request that would not go through offline anyway.
+ * `AudioContext` must be unlocked by a user gesture (autoplay policy),
+ * so we call {@link unlockAudio} on the first ✓ tap, not on screen entry.
  */
 
 let audioContext: AudioContext | null = null;
@@ -32,7 +32,7 @@ export function unlockAudio(): void {
   }
 }
 
-/** Dwa krótkie sygnały — słyszalne w hali, a nie alarm pożarowy. */
+/** Two short beeps — audible in a gym, but not a fire alarm. */
 export function playRestEndSound(): void {
   if (audioContext === null || audioContext.state !== "running") {
     return;
@@ -63,9 +63,9 @@ export function vibrate(pattern: number | number[]): void {
 const PERMISSION_ASKED_KEY = "easy-gym.notifications-asked";
 
 /**
- * O zgodę pytamy raz, po pierwszej zatwierdzonej serii — nie przy wejściu na
- * ekran. Prośba bez kontekstu jest odruchowo odrzucana, a drugiej szansy
- * przeglądarka nie daje.
+ * We ask for permission once, after the first confirmed set — not on screen
+ * entry. A context-free prompt is reflexively dismissed, and the browser
+ * does not give a second chance.
  */
 export function maybeRequestNotificationPermission(): void {
   if (typeof window === "undefined" || !("Notification" in window)) {
@@ -95,6 +95,6 @@ export function showRestEndNotification(): void {
   try {
     new Notification("Przerwa skończona", { body: "Czas na kolejną serię.", tag: "easy-gym-rest" });
   } catch {
-    /* niektóre przeglądarki wymagają Service Workera — wtedy zostaje wibracja */
+    /* some browsers require a Service Worker — then vibration is the fallback */
   }
 }

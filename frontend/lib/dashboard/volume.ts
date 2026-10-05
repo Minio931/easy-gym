@@ -14,12 +14,12 @@ import {
 import type { WeeklyVolumeResponse } from "@/types/api";
 
 /**
- * Wiersze wykresu objętości tygodniowej i rozbicie na grupy mięśniowe.
+ * Weekly volume chart rows and the muscle-group breakdown.
  *
- * Czyste funkcje: backend oddaje objętość już zsumowaną per tydzień i grupę
- * (`GROUP BY`, PROMPT §9), tutaj tylko układamy to w kształt, który rysuje się
- * bez liczenia w JSX — kubełkowanie 11 grup do 8 slotów palety siedzi
- * w `lib/charts.ts` i jest wyłącznie prezentacyjne.
+ * Pure functions: the backend returns volume already summed per week and
+ * group (`GROUP BY`, PROMPT §9); here we only arrange it into a shape that
+ * draws without computing in JSX — bucketing the 11 groups into 8 palette
+ * slots lives in `lib/charts.ts` and is strictly presentational.
  */
 
 export interface VolumeRow {
@@ -27,26 +27,26 @@ export interface VolumeRow {
   week: number;
   from: string;
   to: string;
-  /** Podpis osi: sam numer tygodnia ISO — na 390 px nic więcej się nie mieści. */
+  /** Axis label: just the ISO week number — nothing more fits at 390 px. */
   label: string;
   totalKg: number;
   workoutCount: number;
   isDeload: boolean;
-  /** Klucz kubełka → kilogramy. Kubełki bez objętości są nieobecne. */
+  /** Bucket key → kilograms. Buckets with no volume are absent. */
   kg: Record<string, number>;
 }
 
 /**
- * Uzupełnia tygodnie, których nie ma w odpowiedzi.
+ * Fills in the weeks missing from the response.
  *
- * Backend oddaje WYŁĄCZNIE tygodnie z treningiem. Bez dopełnienia sześć
- * tygodni przerwy znika z osi, a ostatni słupek sprzed dwóch miesięcy siada
- * obok bieżącego i wygląda jak zeszły tydzień — ten sam rodzaj kłamstwa, co
- * oś kategorialna na wykresie ćwiczenia (etap 6). Tydzień bez treningu ma tu
- * prawdziwą wartość: zero.
+ * The backend returns ONLY weeks with training. Without padding, a
+ * six-week break disappears from the axis, and the last bar from two
+ * months ago sits next to the current one and looks like last week — the
+ * same kind of lie as a categorical axis on the exercise chart (stage 6).
+ * A week without training has a real value here: zero.
  *
- * To nie jest agregowanie w przeglądarce — sumy przychodzą policzone, tutaj
- * dokładamy tylko puste sloty osi.
+ * This is not aggregating in the browser — the sums arrive computed; here
+ * we only add empty axis slots.
  */
 export function fillMissingWeeks(
   weeks: readonly WeeklyVolumeResponse[],
@@ -102,11 +102,11 @@ export function volumeRows(weeks: readonly WeeklyVolumeResponse[]): VolumeRow[] 
 }
 
 /**
- * Kubełki obecne w całym zakresie, posortowane po slocie palety.
+ * Buckets present over the whole range, sorted by palette slot.
  *
- * Liczone raz dla CAŁEGO zakresu, nie per tydzień: segmenty stosu muszą mieć
- * stałą kolejność między słupkami, inaczej ten sam kolor wędruje w pionie
- * i wykres „miga" przy przewijaniu wzrokiem.
+ * Computed once for the WHOLE range, not per week: stack segments must
+ * have a stable order between bars, otherwise the same color drifts
+ * vertically and the chart "flickers" as the eye scans it.
  */
 export function activeBuckets(rows: readonly VolumeRow[]): MuscleGroupBucket[] {
   const seen = new Map<string, MuscleGroupBucket>();
@@ -121,11 +121,11 @@ export function activeBuckets(rows: readonly VolumeRow[]): MuscleGroupBucket[] {
 }
 
 function bucketByKey(key: string): MuscleGroupBucket {
-  // Klucze wierszy pochodzą z `bucketWeeklyVolume`, więc zawsze istnieje
-  // kubełek o tym kluczu; szukamy go po dowolnej należącej doń grupie.
+  // Row keys come from `bucketWeeklyVolume`, so a bucket with that key
+  // always exists; we look it up by any group that belongs to it.
   const found = BUCKETS_BY_KEY.get(key);
   if (found === undefined) {
-    throw new Error(`Nieznany kubełek: ${key}`);
+    throw new Error(`Unknown bucket: ${key}`);
   }
   return found;
 }
@@ -135,15 +135,16 @@ const BUCKETS_BY_KEY = new Map<string, MuscleGroupBucket>(
 );
 
 /**
- * Rozbicie na PEŁNE grupy z bazy (jest ich 11), zsumowane po całym zakresie
- * i posortowane malejąco. To jest miejsce, w którym widać wszystkie grupy —
- * wykres pokazuje 8 kubełków, bo tyle jest slotów palety (DESIGN §3.4).
+ * Breakdown by the FULL groups from the database (11 of them), summed over
+ * the whole range and sorted descending. This is the place where every
+ * group is visible — the chart shows 8 buckets, because that is how many
+ * palette slots exist (DESIGN §3.4).
  */
 export interface MuscleGroupTotal {
   group: string;
   bucket: MuscleGroupBucket;
   kg: number;
-  /** Udział w objętości zakresu, 0–1. */
+  /** Share of the range's volume, 0–1. */
   share: number;
 }
 
@@ -161,29 +162,30 @@ export function muscleGroupTotals(weeks: readonly WeeklyVolumeResponse[]): Muscl
       group,
       bucket: bucketForMuscleGroup(group),
       kg,
-      // Zakres bez ani jednej serii nie ma udziałów — zero zamiast NaN,
-      // bo `NaN%` w tabeli wygląda jak błąd danych, a jest brakiem danych.
+      // A range with no sets has no shares — zero instead of NaN,
+      // because `NaN%` in a table looks like a data error when it is a
+      // missing value.
       share: total > 0 ? kg / total : 0,
     }))
     .sort((a, b) => b.kg - a.kg);
 }
 
 /* ------------------------------------------------------------------ *
- * Kształt słupka
+ * Bar shape
  * ------------------------------------------------------------------ */
 
-/** Przerwa między segmentami stosu w px (DESIGN §10). */
+/** Gap between stack segments, in px (DESIGN §10). */
 export const SEGMENT_GAP = 2;
-/** Zaokrąglenie końców słupka w px (DESIGN §10). */
+/** Bar end radius, in px (DESIGN §10). */
 export const BAR_RADIUS = 4;
 
 /**
- * Ścieżka segmentu stosu: zaokrąglona tylko od tych końców, które są końcami
- * CAŁEGO słupka. Zaokrąglanie każdego segmentu z osobna rozsypałoby stos na
- * łańcuch pigułek, a prostokąt `rx` w SVG nie umie zaokrąglić dwóch rogów.
+ * Stack segment path: rounded only on the ends that are ends of the WHOLE
+ * bar. Rounding each segment separately would scatter the stack into a
+ * chain of pills, and an SVG `rx` rectangle cannot round only two corners.
  *
- * Promień jest przycinany do połowy wysokości i szerokości — przy cienkim
- * segmencie pełne 4 px wywinęłoby łuki na drugą stronę.
+ * The radius is clamped to half the height and width — a thin segment
+ * with a full 4 px would flip the arcs the other way.
  */
 export function roundedBarPath(
   x: number,
@@ -218,9 +220,9 @@ export function roundedBarPath(
 }
 
 /**
- * Czy dany kubełek jest w tym tygodniu najniższym/najwyższym widocznym
- * segmentem. Recharts układa stos od pierwszej serii w górę, więc „pierwszy
- * niezerowy w kolejności slotów" leży na dole słupka.
+ * Whether a given bucket is this week's lowest/highest visible segment.
+ * Recharts stacks from the first series upward, so "the first non-zero in
+ * slot order" sits at the bottom of the bar.
  */
 export function segmentEnds(
   row: VolumeRow,

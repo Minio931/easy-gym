@@ -41,33 +41,33 @@ public class AuthService {
     @Transactional
     public TokenPairResponse login(String login, String rawPassword) {
         User user = userRepository.findByLogin(login)
-                .orElseThrow(() -> new BadCredentialsException("Nieprawidłowy login lub hasło"));
+                .orElseThrow(() -> new BadCredentialsException("Invalid login or password"));
 
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
-            throw new BadCredentialsException("Nieprawidłowy login lub hasło");
+            throw new BadCredentialsException("Invalid login or password");
         }
 
         return issueTokens(user);
     }
 
     /**
-     * Rotacja refresh tokenu: stary rekord jest oznaczany jako revoked przy
-     * każdym użyciu, więc powtórne użycie tego samego surowego tokenu (np. po
-     * jego kradzieży i użyciu przez obie strony) już nie przejdzie -- druga
-     * próba trafia na revokedAt != null i kończy się 401.
+     * Refresh token rotation: the old record is marked as revoked on every
+     * use, so reusing the same raw token (e.g. after theft and use by both
+     * parties) will no longer pass -- the second attempt hits revokedAt != null
+     * and ends with 401.
      */
     @Transactional
     public TokenPairResponse refresh(String rawRefreshToken) {
         String hash = TokenHasher.sha256Hex(rawRefreshToken);
         RefreshToken existing = refreshTokenRepository.findByTokenHashAndRevokedAtIsNull(hash)
                 .filter(rt -> rt.getExpiresAt().isAfter(Instant.now()))
-                .orElseThrow(() -> new BadCredentialsException("Refresh token nieprawidłowy lub wygasły"));
+                .orElseThrow(() -> new BadCredentialsException("Refresh token invalid or expired"));
 
         existing.setRevokedAt(Instant.now());
         refreshTokenRepository.save(existing);
 
         User user = userRepository.findById(existing.getUserId())
-                .orElseThrow(() -> new BadCredentialsException("Użytkownik nie istnieje"));
+                .orElseThrow(() -> new BadCredentialsException("User does not exist"));
 
         return issueTokens(user);
     }

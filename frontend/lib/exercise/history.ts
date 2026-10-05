@@ -1,17 +1,18 @@
 import type { ExerciseHistoryResponse, ExerciseHistorySessionResponse } from "@/types/api";
 
 /**
- * Zamiana odpowiedzi `GET /api/exercises/{id}/history` na punkty wykresów.
- * Czyste funkcje — komponenty wykresów dostają gotowe liczby i tylko rysują.
+ * Converting `GET /api/exercises/{id}/history` into chart points.
+ * Pure functions — chart components get ready numbers and only draw.
  *
- * Wspólna zasada: **sesja bez danej wartości nie daje punktu**, zamiast dawać
- * zero. Trening złożony z samych rozgrzewek ma `heaviestSet: null` i zero na
- * wykresie ciężaru wyglądałoby jak załamanie formy, którego nie było.
+ * Shared rule: **a session without a given value yields no point**, instead
+ * of yielding zero. A workout made of warmups only has `heaviestSet: null`,
+ * and a zero on the weight chart would look like a form crash that never
+ * happened.
  */
 
-/** `t` to milisekundy — oś X jest liczbowa, żeby odstępy między sesjami były
- *  proporcjonalne do przerw. Oś kategorialna rysuje miesiąc przerwy tak samo
- *  jak dzień i kłamie o tempie progresu. */
+/** `t` is in milliseconds — the X axis is numeric so inter-session gaps are
+ *  proportional to the breaks. A categorical axis draws a month-long break
+ *  the same as a day and lies about the pace of progress. */
 interface ChartPointBase {
   t: number;
   workoutId: string;
@@ -43,9 +44,9 @@ function base(session: ExerciseHistorySessionResponse): ChartPointBase {
 }
 
 /**
- * Główny wykres: ciężar najcięższej serii roboczej w czasie (DESIGN §10).
- * `heaviestSet` liczy serwer i **wyklucza rozgrzewki** — nie powtarzamy tej
- * reguły tutaj, żeby nie mogła się rozjechać z backendem.
+ * Main chart: weight of the heaviest working set over time (DESIGN §10).
+ * `heaviestSet` is computed by the server and **excludes warmups** — we do
+ * not repeat the rule here, so it cannot drift from the backend.
  */
 export function weightProgressPoints(
   sessions: readonly ExerciseHistorySessionResponse[],
@@ -61,7 +62,7 @@ export function weightProgressPoints(
   return points;
 }
 
-/** e1RM w czasie. `null` (Brzycki powyżej 36 powtórzeń) pomijamy, nie zerujemy. */
+/** e1RM over time. `null` (Brzycki above 36 reps) is skipped, not zeroed. */
 export function e1rmPoints(sessions: readonly ExerciseHistorySessionResponse[]): E1rmPoint[] {
   const points: E1rmPoint[] = [];
   for (const session of sessions) {
@@ -74,12 +75,12 @@ export function e1rmPoints(sessions: readonly ExerciseHistorySessionResponse[]):
 }
 
 /**
- * Objętość na sesję. Bierzemy `displayVolumeKg` (z `assisted`), bo to jest
- * liczba „ile pracy wykonałem", a nie liczba do trackingu rekordów — ta druga
- * (`prEligibleVolumeKg`) należy do PR-ów i tam zostaje.
+ * Volume per session. We take `displayVolumeKg` (with `assisted`), because
+ * that is the "how much work I did" number, not a tracking number for
+ * records — the latter (`prEligibleVolumeKg`) belongs to PRs and stays there.
  *
- * Tu zero JEST prawdziwą wartością: sesja z samymi rozgrzewkami ma zerową
- * objętość roboczą i tak wygląda w rzeczywistości.
+ * Here zero IS a real value: a session with warmups only has zero working
+ * volume and that is how it looks in reality.
  */
 export function volumePoints(
   sessions: readonly ExerciseHistorySessionResponse[],
@@ -87,7 +88,7 @@ export function volumePoints(
   return sessions.map((session) => ({ ...base(session), volumeKg: session.displayVolumeKg }));
 }
 
-/** Zakres powtórzeń w zbiorze punktów — do skalowania wielkości punktu. */
+/** Range of reps in a set of points — used to scale point size. */
 export function repsExtent(points: readonly WeightPoint[]): { min: number; max: number } {
   if (points.length === 0) {
     return { min: 1, max: 1 };
@@ -102,16 +103,16 @@ export function repsExtent(points: readonly WeightPoint[]): { min: number; max: 
 }
 
 /**
- * Nagłówek ekranu: ostatnia wartość każdej serii, do pokazania w kafelku.
- * `null` gdy w wybranym zakresie nie ma ani jednego punktu — kafelek pokaże
- * wtedy stan pusty zamiast myślnika udającego liczbę.
+ * Screen header: the latest value of each series, to show in a tile.
+ * `null` when the selected range has no point at all — the tile then shows
+ * an empty state instead of a dash masquerading as a number.
  */
 export function latestValue<T>(points: readonly T[], value: (point: T) => number): number | null {
   const last = points.at(-1);
   return last === undefined ? null : value(last);
 }
 
-/** Czy ćwiczenie ma jakikolwiek ślad w historii (do stanu pustego ekranu). */
+/** Does the exercise have any trace in history (for the empty-screen state). */
 export function hasAnyHistory(history: ExerciseHistoryResponse): boolean {
   return history.sessions.length > 0;
 }

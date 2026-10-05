@@ -26,16 +26,16 @@ import type {
 } from "@/types/sync";
 
 /**
- * Zestaw danych eksportu — czysta funkcja z surowych rekordów na wiersze
- * arkuszy (PROMPT §7). Dane biorą się z Dexie, bo po pierwszej synchronizacji
- * leży tam KOMPLET historii (`since: null` = pełny zaciąg). Dzięki temu
- * eksport nie wymaga nowego endpointu ani ściągania tysięcy serii „na teraz",
- * i działa bez zasięgu.
+ * Export dataset — a pure function from raw records to sheet rows
+ * (PROMPT §7). Data comes from Dexie, because after the first sync the
+ * FULL history lives there (`since: null` = full pull). This way the
+ * export needs no new endpoint and no "just-in-time" fetch of thousands
+ * of sets, and works offline.
  *
- * Każda liczba idzie z `lib/metrics.ts`, czyli z mirrora reguł backendu.
- * Własna arytmetyka w tym pliku oznaczałaby, że plik .xlsx pokazuje inny
- * rekord niż ekran ćwiczenia — a to jest dokładnie ten rodzaj rozjazdu,
- * którego nikt nie zauważy w porę.
+ * Every number comes from `lib/metrics.ts`, i.e. the mirror of the backend
+ * rules. Local arithmetic in this file would mean the .xlsx shows a
+ * different record than the exercise screen — exactly the kind of
+ * divergence nobody notices in time.
  */
 
 export interface ExportSource {
@@ -47,10 +47,10 @@ export interface ExportSource {
 }
 
 export interface ExportFilters {
-  /** `YYYY-MM-DD`; `null` = bez ograniczenia z tej strony. */
+  /** `YYYY-MM-DD`; `null` = unbounded on this side. */
   from: IsoDate | null;
   to: IsoDate | null;
-  /** `null` = wszystkie ćwiczenia. */
+  /** `null` = all exercises. */
   exerciseIds: readonly string[] | null;
   workingSetsOnly: boolean;
 }
@@ -63,7 +63,7 @@ export const NO_FILTERS: ExportFilters = {
 };
 
 /* ------------------------------------------------------------------ *
- * Wiersze arkuszy
+ * Sheet rows
  * ------------------------------------------------------------------ */
 
 export interface SetRow {
@@ -77,7 +77,7 @@ export interface SetRow {
   volumeKg: number;
   e1rmKg: number | null;
   isWarmup: boolean;
-  /** Seria pobiła rekord W MOMENCIE wykonania (nie: jest globalnym maksimum). */
+  /** The set broke a record AT THE MOMENT of execution (not: is a global maximum). */
   isPersonalRecord: boolean;
 }
 
@@ -183,9 +183,10 @@ export function buildExportDataset(
     (item) => item.workoutId,
   );
 
-  // Rekordy liczymy na PEŁNEJ historii ćwiczenia, nie na przefiltrowanej.
-  // Zawężenie zakresu dat nie zmienia tego, czy seria pobiła wtedy rekord —
-  // liczenie tego w oknie zrobiłoby „PR" z pierwszej serii każdego eksportu.
+  // Records are computed on the FULL exercise history, not the filtered
+  // one. Narrowing the date range does not change whether a set broke a
+  // record then — computing it in a window would make a "PR" out of the
+  // first set of every export.
   const prSetIds = personalRecordSetIds(
     workouts,
     workoutExercisesByWorkout,
@@ -232,8 +233,8 @@ export function buildExportDataset(
           weightKg: round2(set.weightKg),
           reps: set.reps,
           rpe: set.rpe,
-          // Objętość serii liczona tą samą funkcją co wszędzie indziej;
-          // rozgrzewka ma objętość 0, bo nie wchodzi do objętości sesji.
+          // Set volume computed by the same function used everywhere else;
+          // a warmup has volume 0, because it does not enter session volume.
           volumeKg: displayVolumeKg([toExerciseSet(set)]),
           e1rmKg: set.isWarmup ? null : estimate1RM(set.weightKg, set.reps, formula),
           isWarmup: set.isWarmup,
@@ -313,9 +314,10 @@ function personalRecordSetIds(
 
   const ids = new Set<string>();
   for (const sessions of sessionsByExercise.values()) {
-    // Rekord „w momencie wykonania": przechodzimy historię narastająco i po
-    // każdej sesji patrzymy, czy rekord przeskoczył na jej serię. Ten sam
-    // algorytm co `personalRecordsBrokenIn`, tylko dla każdej sesji po kolei.
+    // Record "at the moment of execution": walk through history
+    // incrementally and after each session check whether the record moved
+    // onto its set. Same algorithm as `personalRecordsBrokenIn`, done per
+    // session.
     let previous = new Set<string>();
     for (let index = 1; index <= sessions.length; index += 1) {
       const records = computePersonalRecords(sessions.slice(0, index), formula);
@@ -346,8 +348,8 @@ function buildProgress(
   const progress: ProgressRow[] = [];
 
   for (const { exercise, rows } of perExercise.values()) {
-    // Progres liczymy na seriach ROBOCZYCH: rozgrzewka rośnie razem z formą,
-    // ale „przyrost" z rozgrzewki to nie jest przyrost siły.
+    // We compute progress on WORKING sets: a warmup grows with form, but
+    // "progress" from a warmup is not a strength increase.
     const working = rows.filter((row) => !row.isWarmup);
     if (working.length === 0) {
       continue;
@@ -376,8 +378,8 @@ function buildProgress(
       bestWeightKg: round2(bestWeight),
       bestE1rmKg: e1rms.length === 0 ? null : round2(Math.max(...e1rms)),
       gainKg: round2(last.weightKg - first.weightKg),
-      // Jedna sesja = brak przyrostu, nie „0%". Zero sugerowałoby, że coś
-      // porównano i wyszło bez zmian.
+      // One session = no gain, not "0%". Zero would suggest something was
+      // compared and came out unchanged.
       gainPercent:
         days.length < 2 || first.weightKg === 0
           ? null
@@ -400,8 +402,9 @@ function buildBodyWeight(
   filters: ExportFilters,
 ): BodyWeightRow[] {
   const live = entries.filter((entry) => entry.deletedAt === null);
-  // Krocząca 7-dniowa liczona na PEŁNEJ serii: okno sięga sześć dni wstecz,
-  // więc obcięcie danych przed liczeniem zafałszowałoby pierwsze wiersze.
+  // The 7-day rolling average is computed on the FULL series: the window
+  // reaches six days back, so trimming the data before computing would
+  // falsify the first rows.
   const rolling = sevenDayRollingAverage(
     live.map((entry) => ({ measuredOn: entry.measuredOn, weightKg: entry.weightKg })),
   );
@@ -423,8 +426,9 @@ function buildWeeklyWeight(
   const live = entries
     .filter((entry) => entry.deletedAt === null)
     .map((entry) => ({ measuredOn: entry.measuredOn, weightKg: entry.weightKg }));
-  // Delty liczymy na pełnym łańcuchu tygodni, a filtr stosujemy dopiero na
-  // wyniku — inaczej pierwszy tydzień zakresu zawsze miałby deltę pustą.
+  // We compute deltas on the full chain of weeks and apply the filter only
+  // to the result — otherwise the first week of the range would always
+  // have an empty delta.
   const weeks = weeklyAverages(live);
 
   return weeks
@@ -526,7 +530,7 @@ function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, 
   return map;
 }
 
-/** Nazwa pliku: `easy-gym-2026-09-17.xlsx` albo z zakresem, gdy filtr go zawęża. */
+/** File name: `easy-gym-2026-09-17.xlsx`, or with a range when the filter narrows it. */
 export function exportFileName(filters: ExportFilters, today: Date): string {
   const stamp = formatIsoDate(today);
   if (filters.from === null && filters.to === null) {
@@ -535,7 +539,7 @@ export function exportFileName(filters: ExportFilters, today: Date): string {
   return `easy-gym-${filters.from ?? "poczatek"}_${filters.to ?? stamp}.xlsx`;
 }
 
-/** Tydzień ISO dnia — używane przy podpisach zakresu w arkuszu podsumowania. */
+/** ISO week of a day — used by range labels in the summary sheet. */
 export function isoWeekLabel(date: IsoDate): string {
   const week = isoWeekOfDate(date);
   return `${String(week.week)}/${String(week.year)}`;

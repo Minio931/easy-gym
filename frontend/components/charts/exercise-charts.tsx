@@ -26,32 +26,34 @@ import { repsExtent, type E1rmPoint, type VolumePoint, type WeightPoint } from "
 import { formatVolume, formatWeight } from "@/lib/format";
 
 /**
- * Wykresy ekranu ćwiczenia. Trzy osobne kafle, każdy z **jedną osią Y** —
- * ciężar, e1RM i objętość mają zupełnie różne skale, a dwie skale na jednym
- * wykresie to wykres, z którego nie da się nic odczytać (DESIGN §10).
+ * Exercise-screen charts. Three separate tiles, each with **one Y axis** —
+ * weight, e1RM and volume have entirely different scales, and two scales
+ * on one chart is a chart from which nothing can be read (DESIGN §10).
  *
- * Wszystkie trzy używają slotu 1 palety. To nie jest niedopatrzenie: każdy
- * wykres ma jedną serię, więc kolor niczego tu nie rozróżnia, a trzy różne
- * kolory sugerowałyby kodowanie, którego nie ma. Tożsamość niesie tytuł kafla.
+ * All three use palette slot 1. That is not an oversight: each chart has
+ * one series, so color distinguishes nothing here, and three different
+ * colors would suggest encoding that does not exist. Identity is carried
+ * by the tile title.
  *
- * Deloadu nie wyróżniamy kształtem punktu — DESIGN rezerwuje pusty punkt
- * z obwódką dla niepełnego tygodnia na wykresie wagi i powielanie tego tutaj
- * dałoby dwa znaczenia jednego symbolu. Deload widać w tooltipie i w tabeli.
+ * Deload is not shown via point shape — DESIGN reserves the empty
+ * outlined point for an incomplete week on the weight chart, and
+ * replicating that here would give one symbol two meanings. Deload is
+ * visible in the tooltip and the table.
  */
 
 const SERIES = seriesColor(1);
 
 /**
- * Objętość na osi: kilogramy z separatorem tysięcy, ZAWSZE w tej samej
- * jednostce. Skracanie tylko dużych wartości do ton dawało oś, na której
- * „1,6 t" sąsiaduje z „800" — dwie jednostki na jednej skali.
+ * Volume on the axis: kilograms with a thousands separator, ALWAYS the
+ * same unit. Shortening only large values to tons gave an axis where
+ * "1.6 t" sat next to "800" — two units on one scale.
  */
 function formatVolumeTick(value: number): string {
   return value.toLocaleString("pl-PL");
 }
 
 /* ------------------------------------------------------------------ *
- * 1. Progresja ciężaru -- główny wykres ćwiczenia
+ * 1. Weight progression — main exercise chart
  * ------------------------------------------------------------------ */
 
 export function WeightProgressChart({ points }: { points: readonly WeightPoint[] }) {
@@ -70,7 +72,7 @@ export function WeightProgressChart({ points }: { points: readonly WeightPoint[]
             if (point === undefined) {
               return null;
             }
-            // Format wymagany wprost przez DESIGN §10: „102.5 kg × 5 @RPE 8".
+            // Format mandated by DESIGN §10: "102.5 kg × 5 @RPE 8".
             const rpe = point.rpe === null ? "" : ` @RPE ${point.rpe}`;
             return (
               <TooltipBox
@@ -90,15 +92,15 @@ export function WeightProgressChart({ points }: { points: readonly WeightPoint[]
           dot={(props: { cx?: number; cy?: number; payload?: WeightPoint; index?: number }) => {
             const { cx, cy, payload, index } = props;
             if (cx === undefined || cy === undefined || payload === undefined) {
-              return <g key={`pusty-${String(index)}`} />;
+              return <g key={`empty-${String(index)}`} />;
             }
             return (
               <circle
                 key={payload.workoutId}
                 cx={cx}
                 cy={cy}
-                // Rozmiar punktu niesie liczbę powtórzeń -- 100 kg x 3 i
-                // 100 kg x 10 leżą na tej samej wysokości osi, a to inny wysiłek.
+                // Point size carries rep count — 100 kg × 3 and 100 kg × 10
+                // sit at the same axis height, yet they are different efforts.
                 r={pointRadiusForReps(payload.reps, extent.min, extent.max)}
                 fill={SERIES}
               />
@@ -111,7 +113,7 @@ export function WeightProgressChart({ points }: { points: readonly WeightPoint[]
 }
 
 /* ------------------------------------------------------------------ *
- * 2. e1RM w czasie
+ * 2. e1RM over time
  * ------------------------------------------------------------------ */
 
 export function E1rmChart({ points }: { points: readonly E1rmPoint[] }) {
@@ -151,7 +153,7 @@ export function E1rmChart({ points }: { points: readonly E1rmPoint[] }) {
 }
 
 /* ------------------------------------------------------------------ *
- * 3. Objętość na sesję
+ * 3. Session volume
  * ------------------------------------------------------------------ */
 
 export function SessionVolumeChart({ points }: { points: readonly VolumePoint[] }) {

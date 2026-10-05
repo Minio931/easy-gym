@@ -9,9 +9,9 @@ import java.time.Clock;
 public class AppConfig {
 
     /**
-     * Wstrzykiwany zegar zamiast Instant.now() rozsianego po serwisach --
-     * dzięki temu testy (np. wygasanie i LWW w sync) mogą sterować czasem
-     * bez usypiania wątku.
+     * Injected clock instead of Instant.now() scattered across services --
+     * this way tests (e.g. expiry and LWW in sync) can control time without
+     * sleeping the thread.
      */
     @Bean
     public Clock clock() {

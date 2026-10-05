@@ -10,16 +10,17 @@ import type {
 } from "@/types/api";
 
 /**
- * Wszystkie operacje na ćwiczeniach i seriach zwracają CAŁY trening
- * (`WorkoutDetailResponse`) — objętości, licznik serii i `personalRecordsBrokenIn`
- * przeliczone przez serwer. Front podmienia migawkę zamiast doklejać stan.
+ * All exercise and set operations return the WHOLE workout
+ * (`WorkoutDetailResponse`) — volumes, set counter and
+ * `personalRecordsBrokenIn` recomputed by the server. The frontend swaps the
+ * snapshot instead of patching state.
  */
 
 function formulaQuery(formula?: OneRepMaxFormula): string {
   return formula === undefined ? "" : `?formula=${formula}`;
 }
 
-/** `null` = serwer odpowiedział 204, czyli nie ma otwartego treningu. */
+/** `null` = the server responded 204, i.e. there is no open workout. */
 export async function getActiveWorkout(
   formula?: OneRepMaxFormula,
   signal?: AbortSignal,
@@ -32,8 +33,8 @@ export async function getActiveWorkout(
 }
 
 /**
- * Lista historii. `limit`/`offset` zamiast kursora, bo backend tak oddaje i przy
- * dwóch użytkownikach paginacja po offsecie nie ma jak się rozjechać.
+ * History list. `limit`/`offset` instead of a cursor, because the backend
+ * returns it that way and with two users offset pagination cannot drift.
  */
 export function listWorkouts(
   options: { limit?: number; offset?: number; from?: string; to?: string; signal?: AbortSignal } = {},
@@ -113,7 +114,7 @@ export function removeWorkoutExercise(
   );
 }
 
-/** Upsert po `setId` — ponowienie tego samego żądania jest bezpieczne. */
+/** Upsert by `setId` — resending the same request is safe. */
 export function saveSet(
   workoutId: string,
   workoutExerciseId: string,
@@ -126,7 +127,7 @@ export function saveSet(
   );
 }
 
-/** Soft delete (tombstone) — seria znika z odczytów, ale dojedzie przez sync. */
+/** Soft delete (tombstone) — the set disappears from reads but will travel through sync. */
 export function removeSet(
   workoutId: string,
   workoutExerciseId: string,

@@ -11,9 +11,9 @@ import { MoreIcon, PlusIcon } from "@/components/ui/icons";
 import type { PersonalRecordBrokenResponse, SetResponse, WorkoutExerciseResponse } from "@/types/api";
 
 /**
- * Karta ćwiczenia w treningu (DESIGN §7.2). Lista serii to wiersze rozdzielone
- * włosem, nie osiem zagnieżdżonych kart — zagnieżdżone karty na 390 px zjadają
- * 32 px szerokości i nie wnoszą nic.
+ * Exercise card inside a workout (DESIGN §7.2). The set list is rows
+ * separated by hairlines, not eight nested cards — nested cards at 390 px
+ * eat 32 px of width and add nothing.
  */
 export function ExerciseCard({
   exercise,

@@ -1,20 +1,21 @@
 import type { WorkoutDetailResponse } from "@/types/api";
 
 /**
- * Migawka aktywnego treningu w `localStorage`. Wymóg PROMPT §3.5: zamknięcie
- * przeglądarki w połowie sesji nie może skasować treningu, a `/api/workouts/active`
- * potrzebuje sieci, której na siłowni bywa brak.
+ * Snapshot of the active workout in `localStorage`. PROMPT §3.5 requirement:
+ * closing the browser mid-session must not erase the workout, and
+ * `/api/workouts/active` needs a network, which the gym sometimes lacks.
  *
- * Utrwalamy WYŁĄCZNIE to, co user zatwierdził. Niezatwierdzony szkic serii
- * (w tym wiersz wstępnie wypełniony po ✓) świadomie ginie przy zamknięciu
- * karty — wskrzeszony po dwóch dniach udawałby serię, której nikt nie zrobił.
+ * We persist ONLY what the user confirmed. An unconfirmed set draft
+ * (including the row pre-filled after ✓) deliberately dies when the tab
+ * closes — resurrected two days later it would masquerade as a set no one
+ * performed.
  *
- * Etap 5 NIE zastąpił tego Dexie, tylko dołożył Dexie obok. Podział ról:
- * ta migawka jest synchronicznym cache'em ekranu (pełny trening w pierwszej
- * klatce po wejściu, bez czekania na asynchroniczny odczyt z IndexedDB),
- * a zapisem trwałym i źródłem dla synchronizacji jest `lib/db/`. Obie kopie
- * pisze `commit()` z tego samego `state.workout`, więc nie mają jak się
- * rozjechać, i obie giną przy wylogowaniu.
+ * Stage 5 did NOT replace this with Dexie, it added Dexie alongside. Roles:
+ * this snapshot is the synchronous screen cache (full workout in the first
+ * frame on entry, without waiting for the async read from IndexedDB), and
+ * the durable store and sync source is `lib/db/`. Both copies are written by
+ * `commit()` from the same `state.workout`, so they cannot diverge, and
+ * both are wiped on logout.
  */
 
 const STORAGE_KEY = "easy-gym.active-workout";
@@ -22,7 +23,7 @@ const VERSION = 1;
 
 export interface WorkoutSnapshot {
   version: number;
-  /** Migawka należy do konta — inne konto na tym samym urządzeniu jej nie zobaczy. */
+  /** The snapshot belongs to the account — another account on the same device will not see it. */
   userId: string;
   savedAt: string;
   workout: WorkoutDetailResponse;
@@ -72,8 +73,8 @@ export function writeSnapshot(userId: string, workout: WorkoutDetailResponse | n
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch {
-    // Pełny albo zablokowany storage (tryb prywatny) nie może wywrócić
-    // treningu — sesja dalej żyje w pamięci, traci tylko odporność na reload.
+    // Full or blocked storage (private mode) must not break the workout —
+    // the session stays in memory, it only loses reload resilience.
   }
 }
 

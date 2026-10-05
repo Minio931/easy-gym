@@ -1,22 +1,22 @@
 import { ApiError, OfflineError } from "@/lib/api/errors";
 
 /**
- * Szeregowa kolejka zapisów. Jedno zadanie naraz, ściśle FIFO — dwie edycje
- * tej samej serii muszą dojechać w kolejności, w jakiej user je zrobił,
- * inaczej ostatnie słowo ma wyścig, a nie użytkownik.
+ * Serial write queue. One task at a time, strictly FIFO — two edits of the
+ * same set must arrive in the order the user made them, otherwise the race,
+ * not the user, gets the last word.
  *
- * Nieudany zapis ponawiamy po cichu (3 próby, backoff 1/3/9 s) i dopiero
- * potem pokazujemy pigułkę błędu — zgodnie ze specyfikacją §4. Ponawiamy
- * wyłącznie błędy przejściowe: brak sieci, 5xx, 408, 429. `400` czy `404` nie
- * naprawią się od powtórzenia, a zapętlone retry blokowałyby kolejkę.
+ * A failed write is retried silently (3 attempts, backoff 1/3/9 s) and only
+ * then do we show the error pill — per spec §4. We retry only transient
+ * errors: no network, 5xx, 408, 429. `400` or `404` won't be fixed by
+ * repetition, and a retry loop would block the queue.
  *
- * W etapie 5 ta kolejka dostanie trwałość (Dexie) — kształt zadania
- * (`id` + `label` + `run`) jest już pod to przygotowany.
+ * In stage 5 this queue will get persistence (Dexie) — the task shape
+ * (`id` + `label` + `run`) is already prepared for it.
  */
 
 export interface Mutation {
   id: string;
-  /** Opis dla listy nieudanych zmian, po polsku. */
+  /** Label for the failed-changes list, in Polish. */
   label: string;
   run: () => Promise<void>;
 }
@@ -58,7 +58,7 @@ export class MutationQueue {
 
   constructor(private readonly onStatusChange: (status: QueueStatus) => void) {}
 
-  /** Ile zadań czeka POZA aktualnie wykonywanym. */
+  /** How many tasks are waiting APART from the currently running one. */
   remaining(): number {
     return this.queue.length;
   }

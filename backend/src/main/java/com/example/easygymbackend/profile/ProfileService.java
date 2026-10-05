@@ -19,9 +19,9 @@ public class ProfileService {
     }
 
     /**
-     * Konta zakłada AdminUserService, który NIE tworzy wiersza w profiles --
-     * dociągamy go tutaj przy pierwszym odczycie, żeby nie trzeba było
-     * migracji ani ręcznego seeda przy każdym nowym koncie.
+     * Accounts are created by AdminUserService, which does NOT create a row
+     * in profiles -- we materialize it here on the first read, so there is
+     * no need for a migration or manual seed with every new account.
      */
     @Transactional
     public ProfileResponse getOrCreate(AuthenticatedUser user) {

@@ -10,12 +10,13 @@ import { saveRoutine, useRoutinesState } from "@/lib/routines/store";
 import type { WorkoutDetailResponse } from "@/types/api";
 
 /**
- * „Zapisz ten trening jako szablon" — najkrótsza droga do planu, bo bierze
- * układ, który właśnie się sprawdził, zamiast kazać go składać od zera.
+ * "Save this workout as a template" — the shortest path to a plan,
+ * because it takes a layout that just worked instead of forcing one to
+ * compose it from scratch.
  *
- * Cele serii i powtórzeń liczy `draftFromWorkout` z serii ROBOCZYCH tej
- * sesji, więc szablon startuje z liczbami, które ktoś naprawdę wykonał,
- * a nie z okrągłych domyślnych.
+ * The set and rep targets are computed by `draftFromWorkout` from this
+ * session's WORKING sets, so the template starts with numbers someone
+ * really performed, not round defaults.
  */
 export function SaveAsRoutine({ workout }: { workout: WorkoutDetailResponse }) {
   const { saving } = useRoutinesState();

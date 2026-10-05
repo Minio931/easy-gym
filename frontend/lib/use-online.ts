@@ -3,12 +3,12 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Stan sieci przez useSyncExternalStore, nie useState+useEffect: `navigator`
- * nie istnieje w renderze serwerowym, a czytanie go w efekcie łamie regułę
- * `react-hooks/set-state-in-effect` (frontend/CLAUDE.md).
+ * Network state via useSyncExternalStore, not useState+useEffect: `navigator`
+ * does not exist in server render, and reading it in an effect breaks the
+ * `react-hooks/set-state-in-effect` rule (frontend/CLAUDE.md).
  *
- * Migawka serwerowa to `true` — offline jest stanem, który UI ma pokazać
- * dopiero, gdy naprawdę o nim wie, a nie mignąć przy każdej hydracji.
+ * The server snapshot is `true` — offline is a state the UI should show only
+ * once it really knows about it, not flash on every hydration.
  */
 function subscribe(listener: () => void): () => void {
   window.addEventListener("online", listener);

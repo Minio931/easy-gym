@@ -12,9 +12,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * id = users.id (relacja 1:1 przez współdzielony PK). Rekord nie powstaje
- * przy zakładaniu konta (AdminUserService go nie tworzy) -- ProfileService
- * dociąga go leniwie przy pierwszym GET /api/profile.
+ * id = users.id (1:1 relation via a shared PK). The record is not created
+ * when the account is created (AdminUserService does not create it) --
+ * ProfileService lazily materializes it on the first GET /api/profile.
  */
 @Entity
 @Table(name = "profiles")

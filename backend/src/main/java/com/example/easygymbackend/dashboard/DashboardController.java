@@ -25,9 +25,9 @@ public class DashboardController {
     }
 
     /**
-     * Zakres domyślny: ostatnie 12 pełnych tygodni ISO + bieżący, liczone od
-     * poniedziałku w Europe/Warsaw -- żeby słupki na wykresie zaczynały się
-     * dokładnie na granicy tygodnia, a nie "12 × 7 dni wstecz od teraz".
+     * Default range: the last 12 full ISO weeks + the current one, counted from
+     * Monday in Europe/Warsaw -- so that chart bars start exactly on the week
+     * boundary, not "12 × 7 days back from now".
      */
     @GetMapping
     public DashboardResponse dashboard(

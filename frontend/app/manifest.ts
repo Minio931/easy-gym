@@ -1,12 +1,14 @@
 import type { MetadataRoute } from "next";
 
 /**
- * Manifest PWA. Next generuje z tego `/manifest.webmanifest` i sam wstawia
- * `<link rel="manifest">` — własny plik w `public/` byłby drugą kopią prawdy.
+ * PWA manifest. Next generates `/manifest.webmanifest` from this and
+ * injects `<link rel="manifest">` on its own — a hand-written file in
+ * `public/` would be a second copy of the truth.
  *
- * `start_url` celowo wskazuje `/pulpit`, nie `/`: apka uruchomiona z ikony ma
- * pokazać pulpit, a `/` jest wyłącznie przekierowaniem i migałoby przy każdym
- * starcie. Guard tras i tak przeniesie na `/logowanie`, gdy nie ma sesji.
+ * `start_url` points to `/pulpit`, not `/`: an app launched from the icon
+ * should land on the dashboard, and `/` is a mere redirect that would
+ * flash on every launch. The route guard will still send users to
+ * `/logowanie` when there is no session.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -18,12 +20,13 @@ export default function manifest(): MetadataRoute.Manifest {
     dir: "ltr",
     start_url: "/pulpit",
     scope: "/",
-    // `standalone` zdejmuje pasek adresu -- na siłowni liczy się każdy
-    // pionowy piksel, a apka i tak nie ma dokąd nawigować poza siebie.
+    // `standalone` removes the address bar — in the gym every vertical
+    // pixel counts, and the app has nowhere to navigate outside itself anyway.
     display: "standalone",
     orientation: "portrait",
-    // Kolory motywu ciemnego: ekran startowy Androida i pasek stanu nie
-    // czytają CSS, więc biorą wartości stąd. Ciemny jest domyślny w DESIGN.md.
+    // Dark-theme colors: the Android splash screen and status bar do not
+    // read CSS, so they take values from here. Dark is the default per
+    // DESIGN.md.
     background_color: "#0E0F11",
     theme_color: "#0E0F11",
     categories: ["health", "fitness", "lifestyle"],

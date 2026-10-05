@@ -2,13 +2,13 @@
 
 import { formatTimeOfDay } from "@/lib/format";
 
-/** Trening starszy niż 12 h prawie na pewno został zapomniany, a nie trwa. */
+/** A workout older than 12 h was almost certainly forgotten, not ongoing. */
 const STALE_AFTER_SECONDS = 12 * 3600;
 
 /**
- * Pasek kontekstu sesji. Renderuje się TYLKO wtedy, gdy jest co powiedzieć —
- * pusty pasek zjadałby 44 px pionowego miejsca na ekranie, który i tak jest za
- * krótki na trzy karty ćwiczeń.
+ * Session context bar. Renders ONLY when there is something to say — an
+ * empty bar would eat 44 px of vertical room on a screen that is already
+ * too short for three exercise cards.
  */
 export function SessionContextBar({
   isDeload,

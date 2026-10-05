@@ -60,8 +60,8 @@ public final class BodyWeightAggregator {
     }
 
     /**
-     * Krocząca średnia 7-dniowa per dzień pomiaru -- osobna seria na wykresie
-     * obok grubej linii średnich tygodniowych (sekcja 5 promptu).
+     * 7-day rolling average per measurement day -- a separate series on the
+     * chart alongside the thick line of weekly averages (section 5 of the prompt).
      */
     public static Map<LocalDate, BigDecimal> sevenDayRollingAverage(List<BodyWeightEntry> entries) {
         Map<LocalDate, BigDecimal> byDate = entries.stream()

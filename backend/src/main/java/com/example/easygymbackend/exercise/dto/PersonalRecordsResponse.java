@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Aktualny stan rekordów dla jednego ćwiczenia. `null` = brak danych (np.
- * same serie rozgrzewkowe), nie zero. Klucze byRepRange to nazwy RepRangeBucket.
+ * Current record state for a single exercise. `null` = no data (e.g. only
+ * warmup sets), not zero. Keys of byRepRange are RepRangeBucket names.
  */
 public record PersonalRecordsResponse(
         Entry maxWeight,

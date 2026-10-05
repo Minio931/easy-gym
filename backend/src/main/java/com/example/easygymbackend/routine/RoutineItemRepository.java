@@ -15,7 +15,7 @@ public interface RoutineItemRepository extends JpaRepository<RoutineItem, UUID> 
 
     List<RoutineItem> findByRoutineIdInAndDeletedAtIsNullOrderByOrderIndexAsc(Collection<UUID> routineIds);
 
-    /** Zakres usera przez rodzica -- routine_items nie ma własnej kolumny user_id. */
+    /** User scope through the parent -- routine_items has no user_id column of its own. */
     @Query("""
             select ri from RoutineItem ri
             where ri.updatedAt > :since

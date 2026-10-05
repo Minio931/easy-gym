@@ -6,11 +6,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * `serverTime` to znacznik POCZĄTKU transakcji -- klient zapisuje go jako
- * `since` do następnej synchronizacji. Rekordy odrzucone (starsza wersja,
- * konflikt dnia w wadze) wracają w `changes` w wersji serwerowej, nawet jeśli
- * ich updatedAt jest starsze niż `since` -- dzięki temu klient zbiega się do
- * stanu serwera bez dodatkowej rundy.
+ * `serverTime` is the START-of-transaction stamp -- the client saves it as
+ * `since` for the next sync. Rejected records (older version, body-weight
+ * day conflict) come back in `changes` in the server's version, even when
+ * their updatedAt is older than `since` -- this way the client converges to
+ * the server state without an extra round.
  */
 public record SyncResponse(
         Instant serverTime,

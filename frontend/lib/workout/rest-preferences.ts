@@ -3,21 +3,22 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Czas przerwy per ćwiczenie i przełącznik dźwięku. Lokalnie, bo backend nie
- * ma endpointu preferencji (jest `/api/profile`, ale tylko z `displayName`),
- * a „ile odpoczywam na przysiadzie" to ustawienie urządzenia, nie dane treningowe.
+ * Per-exercise rest time and the sound toggle. Local, because the backend
+ * has no preferences endpoint (there is `/api/profile`, but only with
+ * `displayName`), and "how long I rest on the squat" is a device setting,
+ * not training data.
  */
 
 const STORAGE_KEY = "easy-gym.rest-preferences";
 
-/** Rozgrzewki nie odpoczywa się dwóch minut (spec §5). */
+/** A warmup set does not get a two-minute rest (spec §5). */
 export const WARMUP_REST_SECONDS = 60;
 
 export const REST_PRESETS = [60, 90, 120, 180, 300] as const;
 
 export interface RestPreferences {
-  /** `exerciseId` → sekundy. Klucz katalogowy, nie `workoutExerciseId` —
-   * ustawienie ma przeżyć następny trening. */
+  /** `exerciseId` → seconds. Catalog key, not `workoutExerciseId` —
+   * the setting must survive into the next workout. */
   perExercise: Record<string, number>;
   soundEnabled: boolean;
 }
@@ -71,7 +72,7 @@ function write(next: RestPreferences): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* brak miejsca w storage nie może zablokować treningu */
+    /* no storage room must not block the workout */
   }
   for (const listener of listeners) {
     listener();
@@ -88,9 +89,9 @@ export function setRestSoundEnabled(enabled: boolean): void {
 }
 
 /**
- * Efektywny czas przerwy. Seria rozgrzewkowa nigdy nie czeka dłużej niż
- * {@link WARMUP_REST_SECONDS} — nawet jeśli dla ćwiczenia ustawiono 5 minut,
- * bo te 5 minut dotyczy serii roboczych.
+ * Effective rest time. A warmup set never waits longer than
+ * {@link WARMUP_REST_SECONDS} — even if the exercise is set to 5 minutes,
+ * because those 5 minutes apply to working sets.
  */
 export function restSecondsFor(
   preferences: RestPreferences,

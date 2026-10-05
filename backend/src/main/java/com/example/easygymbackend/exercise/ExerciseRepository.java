@@ -12,7 +12,7 @@ import java.util.UUID;
 
 public interface ExerciseRepository extends JpaRepository<Exercise, UUID> {
 
-    /** Widoczne dla usera = jego własne + globalne z seeda (user_id IS NULL). */
+    /** Visible to the user = their own + global ones from the seed (user_id IS NULL). */
     @Query("""
             select e from Exercise e
             where e.deletedAt is null
@@ -22,9 +22,9 @@ public interface ExerciseRepository extends JpaRepository<Exercise, UUID> {
     List<Exercise> findVisible(@Param("userId") UUID userId);
 
     /**
-     * Fuzzy search po stronie Postgresa (pg_trgm, indeks GIN z V3) -- podobieństwo
-     * łapie literówki ("wyciskanei"), ILIKE łapie fragmenty krótsze niż próg
-     * trigramowy ("wyc"). Sortowanie promuje dopasowania od początku nazwy.
+     * Fuzzy search on the Postgres side (pg_trgm, GIN index from V3) -- similarity
+     * catches typos ("wyciskanei"), ILIKE catches fragments shorter than the
+     * trigram threshold ("wyc"). Sorting promotes prefix matches on the name.
      */
     @Query(value = """
             SELECT * FROM exercises e
@@ -47,7 +47,7 @@ public interface ExerciseRepository extends JpaRepository<Exercise, UUID> {
             """)
     List<UUID> findVisibleIds(@Param("userId") UUID userId, @Param("ids") Collection<UUID> ids);
 
-    /** Pull dla sync: własne zmiany + zmiany w katalogu globalnym. */
+    /** Pull for sync: the user's own changes + changes in the global catalog. */
     @Query("""
             select e from Exercise e
             where (e.userId = :userId or e.userId is null)

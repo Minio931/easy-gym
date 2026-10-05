@@ -13,15 +13,16 @@ import type {
 } from "@/types/api";
 
 /**
- * Lokalne łatki na migawkę treningu. Służą **wyłącznie** do tego, żeby UI
- * pokazał stan docelowy w tej samej klatce, w której user dotknął ekranu —
- * prawdą jest odpowiedź serwera, która zaraz podmieni całą migawkę
- * (`WorkoutDetailResponse` wraca z każdej operacji).
+ * Local patches onto the workout snapshot. They serve **only** to let the
+ * UI show the target state in the same frame in which the user touched the
+ * screen — the truth is the server response, which immediately replaces
+ * the whole snapshot (`WorkoutDetailResponse` returns from every operation).
  *
- * Czego tu świadomie NIE ma: `personalRecordsBrokenIn`. Rekord zależy od całej
- * historii ćwiczenia, której przeglądarka w tym momencie nie ma; zgadywanie
- * dałoby migającą plakietkę „PR", która po sekundzie znika. Plakietka
- * zapala się z odpowiedzi serwera (spec §3: przy rozjeździe wygrywa serwer).
+ * What is deliberately NOT here: `personalRecordsBrokenIn`. A record
+ * depends on the full exercise history, which the browser does not have at
+ * this moment; guessing would produce a flashing "PR" badge that
+ * disappears a second later. The badge lights up from the server response
+ * (spec §3: on a mismatch the server wins).
  */
 
 function toMetricsSet(set: SetResponse): ExerciseSet {
@@ -91,7 +92,7 @@ export function buildSetResponse(
   };
 }
 
-/** Upsert serii po `id` + przenumerowanie `setIndex` od zera. */
+/** Set upsert by `id` + renumbering `setIndex` from zero. */
 export function withSet(
   workout: WorkoutDetailResponse,
   workoutExerciseId: string,
@@ -127,8 +128,9 @@ export function withoutSet(
   });
 }
 
-/** Numery serii lecą od zera bez dziur — inaczej po usunięciu drugiej z trzech
- * zostaje „1, 3", a `setIndex` w bazie przestaje odpowiadać temu, co widać. */
+/** Set numbers run from zero without gaps — otherwise after deleting the
+ * second of three, "1, 3" remains, and `setIndex` in the database stops
+ * matching what is visible. */
 function renumber(sets: readonly SetResponse[]): SetResponse[] {
   return sets.map((set, index) => (set.setIndex === index ? set : { ...set, setIndex: index }));
 }
@@ -159,9 +161,10 @@ export function buildWorkoutExercise(
 }
 
 /**
- * Podmiana ćwiczenia na inne w tym samym miejscu listy — bez usuwania karty
- * i dodawania nowej na końcu. Serie zerujemy: ciężary i powtórzenia zapisane
- * pod starym ćwiczeniem nie mają sensu pod nowym (inna historia, inne PR-y).
+ * Swap one exercise for another in the same list slot — without removing
+ * the card and adding a new one at the end. We reset the sets: weights and
+ * reps saved under the old exercise make no sense under the new one
+ * (different history, different PRs).
  */
 export function withSwappedExercise(
   exercise: WorkoutExerciseResponse,
@@ -200,7 +203,7 @@ export function withoutExercise(
   });
 }
 
-/** Pusty trening tworzony lokalnie — ekran renderuje się, zanim serwer odpowie. */
+/** An empty workout created locally — the screen renders before the server responds. */
 export function buildLocalWorkout(
   id: string,
   startedAt: string,

@@ -1,24 +1,24 @@
 /**
- * Szkic wiersza serii — to, co user ma w polach, zanim dotknie ✓. Żyje poza
- * `WorkoutDetailResponse`, bo serwer o niewypełnionej serii nie musi nic
- * wiedzieć; do bazy trafia dopiero zatwierdzenie.
+ * A set row draft — what the user has in the fields before tapping ✓. Lives
+ * outside `WorkoutDetailResponse`, because the server does not need to know
+ * about an unfilled set; only the confirmation reaches the database.
  *
- * Na jedno ćwiczenie przypada najwyżej jeden szkic (klucz = `workoutExerciseId`).
+ * At most one draft per exercise (key = `workoutExerciseId`).
  */
 export interface SetDraft {
-  /** UUID nadany od razu — po zatwierdzeniu staje się `id` serii w bazie. */
+  /** UUID assigned up front — after confirmation becomes the set's `id` in the database. */
   id: string;
   workoutExerciseId: string;
-  /** Surowy tekst z inputa, nie liczba: pusty ≠ 0, a „102," to stan przejściowy. */
+  /** Raw text from the input, not a number: empty ≠ 0, and "102," is a transient state. */
   weight: string;
   reps: string;
   rpe: number | null;
   isWarmup: boolean;
   toFailure: boolean;
   assisted: boolean;
-  /** `true` gdy szkic edytuje serię już zapisaną (✓ robi wtedy upsert). */
+  /** `true` when the draft is editing an already-saved set (✓ then does an upsert). */
   editing: boolean;
-  /** User nacisnął ✓ przy pustym polu — dopiero wtedy pokazujemy komunikat. */
+  /** The user pressed ✓ on an empty field — only then do we show the message. */
   submitAttempted: boolean;
 }
 
@@ -38,12 +38,12 @@ export function emptyDraft(id: string, workoutExerciseId: string): SetDraft {
 }
 
 /**
- * Czy szkic jest nietknięty — user go jeszcze nie dotknął.
+ * Whether the draft is untouched — the user has not touched it yet.
  *
- * Tylko taki wolno podmienić podpowiedzią. Wpisany ciężar, ustawiony znacznik
- * albo edycja zapisanej serii to decyzja użytkownika i podpowiedź nie ma prawa
- * jej nadpisać, choćby przyszła sekundę później (historia ćwiczenia leci
- * asynchronicznie).
+ * Only such a draft may be swapped by a suggestion. A typed-in weight, a set
+ * marker or editing a saved set is a user decision, and the suggestion has
+ * no right to overwrite it, even if it arrives a second later (the exercise
+ * history is fetched asynchronously).
  */
 export function isUntouchedDraft(draft: SetDraft): boolean {
   return (
@@ -58,12 +58,12 @@ export function isUntouchedDraft(draft: SetDraft): boolean {
 }
 
 /**
- * Podpowiedź ciężaru z ostatniego treningu (PROMPT §3 — punkt odniesienia).
+ * Weight suggestion from the previous workout (PROMPT §3 — reference point).
  *
- * Wypełniamy WYŁĄCZNIE ciężar. Ciężar jest faktem: sztanga jest załadowana,
- * zanim seria się zacznie, więc podpowiedź oszczędza wpisywanie. Powtórzenia
- * są WYNIKIEM serii — wstawienie ich z góry sprawiłoby, że jedno nieuważne ✓
- * zapisuje liczbę, której nikt nie wykonał.
+ * We fill in ONLY the weight. Weight is a fact: the bar is loaded before
+ * the set starts, so the suggestion saves typing. Reps are the RESULT of
+ * the set — pre-filling them would mean one inattentive ✓ saves a number
+ * nobody performed.
  */
 export function withSuggestedWeight(draft: SetDraft, weightKg: number): SetDraft {
   if (!isUntouchedDraft(draft)) {

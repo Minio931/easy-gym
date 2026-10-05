@@ -10,7 +10,7 @@ import type { ApiErrorBody, TokenPairResponse } from "@/types/api";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-/** Zapas na zegar klienta i czas lotu requestu -- odświeżamy trochę przed wygaśnięciem. */
+/** Margin for client clock and request flight time — we refresh a bit before expiry. */
 const EXPIRY_SKEW_MS = 30_000;
 
 const REFRESH_LOCK = "easy-gym.auth.refresh";
@@ -18,12 +18,12 @@ const REFRESH_LOCK = "easy-gym.auth.refresh";
 interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
-  /** Domyślnie true. Endpointy auth wołają z false, żeby nie zapętlić refreshu. */
+  /** Default true. Auth endpoints call with false to avoid looping the refresh. */
   authenticated?: boolean;
   signal?: AbortSignal;
 }
 
-/** Surowy request bez logiki tokenów. Nie używać poza tym modułem. */
+/** Raw request without token logic. Do not use outside this module. */
 async function rawRequest<T>(path: string, options: RequestOptions, accessToken?: string): Promise<T> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) {
@@ -43,13 +43,13 @@ async function rawRequest<T>(path: string, options: RequestOptions, accessToken?
     });
   } catch (cause) {
     if (options.signal?.aborted === true) {
-      // Żądanie przerwane przez wołającego (odmontowany komponent, nowa fraza
-      // w wyszukiwarce) NIE jest brakiem sieci. Zamiana go na OfflineError
-      // pokazywałaby „jesteś offline" za każdym razem, gdy user coś dopisze.
+      // A request aborted by the caller (unmounted component, new search
+      // phrase) is NOT a no-network. Converting it to OfflineError would
+      // show "you are offline" every time the user types another character.
       throw cause;
     }
-    // fetch odrzucony bez odpowiedzi = sieć, nie serwer. W tej apce to stan
-    // normalny (siłownia w suterenie), nie awaria.
+    // fetch rejected without a response = network, not server. In this app
+    // that is a normal state (basement gym), not a failure.
     throw new OfflineError(cause);
   }
 
@@ -58,7 +58,7 @@ async function rawRequest<T>(path: string, options: RequestOptions, accessToken?
   }
 
   if (response.status === 204) {
-    // Brak treści; wołający typuje taki endpoint jako void.
+    // No body; the caller types such an endpoint as void.
     return undefined as unknown as T;
   }
   return (await response.json()) as T;
@@ -74,14 +74,14 @@ async function readErrorMessage(response: Response): Promise<string> {
 }
 
 /* ------------------------------------------------------------------ *
- * Odświeżanie tokenu
+ * Token refresh
  *
- * Backend ROTUJE refresh token przy każdym /api/auth/refresh -- stary
- * natychmiast przestaje działać. Dwa równoległe odświeżenia = drugie dostaje
- * 401 i wylogowuje użytkownika w trakcie serii. Dlatego dwie bariery:
- *   1. jeden in-flight refresh w obrębie zakładki (`inflightRefresh`),
- *   2. Web Locks między zakładkami -- kto wejdzie drugi, zastanie w
- *      localStorage już nową parę i jej użyje zamiast odświeżać ponownie.
+ * The backend ROTATES the refresh token on every /api/auth/refresh — the
+ * old one immediately stops working. Two parallel refreshes = the second
+ * gets a 401 and logs the user out mid-set. Hence two barriers:
+ *   1. one in-flight refresh within a tab (`inflightRefresh`),
+ *   2. Web Locks across tabs — whoever enters second finds the new pair
+ *      already in localStorage and uses it instead of refreshing again.
  * ------------------------------------------------------------------ */
 
 let inflightRefresh: Promise<StoredSession | null> | null = null;
@@ -99,8 +99,8 @@ function refreshSession(staleAccessToken: string): Promise<StoredSession | null>
 
 function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   if (typeof navigator !== "undefined" && "locks" in navigator) {
-    // LockGrantedCallback<T> zwraca T dosłownie, więc dla callbacku
-    // asynchronicznego request() daje Promise<Promise<T>> -- .then je spłaszcza.
+    // LockGrantedCallback<T> returns T literally, so for an async callback
+    // request() yields Promise<Promise<T>> — `.then` flattens it.
     return navigator.locks.request<Promise<T>>(REFRESH_LOCK, task).then((result) => result);
   }
   return task();
@@ -111,7 +111,7 @@ async function performRefresh(staleAccessToken: string): Promise<StoredSession |
   if (current === null) {
     return null;
   }
-  // Inna zakładka odświeżyła, zanim weszliśmy w lock -- para jest już świeża.
+  // Another tab refreshed before we entered the lock — the pair is fresh.
   if (current.accessToken !== staleAccessToken) {
     return current;
   }
@@ -127,7 +127,7 @@ async function performRefresh(staleAccessToken: string): Promise<StoredSession |
     return next;
   } catch (error) {
     if (error instanceof OfflineError) {
-      // Brak sieci NIE jest powodem do wylogowania -- refresh token żyje 30 dni.
+      // No network is NOT a reason to log out — the refresh token lives 30 days.
       throw error;
     }
     writeSession(null);
@@ -138,22 +138,22 @@ async function performRefresh(staleAccessToken: string): Promise<StoredSession |
 async function validAccessToken(): Promise<string> {
   const session = readSession();
   if (session === null) {
-    throw new ApiError(401, "Brak sesji");
+    throw new ApiError(401, "No session");
   }
   if (session.accessTokenExpiresAt - EXPIRY_SKEW_MS > Date.now()) {
     return session.accessToken;
   }
   const refreshed = await refreshSession(session.accessToken);
   if (refreshed === null) {
-    throw new ApiError(401, "Sesja wygasła");
+    throw new ApiError(401, "Session expired");
   }
   return refreshed.accessToken;
 }
 
 /**
- * Jedyne wejście do API w całej apce. Sam pilnuje access tokenu: odświeża
- * proaktywnie przed wygaśnięciem i reaktywnie raz, jeśli serwer mimo to
- * odpowie 401 (np. restart backendu ze zmienionym sekretem).
+ * Single entry point to the API in the whole app. Manages the access token
+ * itself: refreshes proactively before expiry and reactively once if the
+ * server still responds 401 (e.g. backend restart with a changed secret).
  */
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   if (options.authenticated === false) {
@@ -169,7 +169,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     }
     const refreshed = await refreshSession(accessToken);
     if (refreshed === null) {
-      throw new ApiError(401, "Sesja wygasła");
+      throw new ApiError(401, "Session expired");
     }
     return rawRequest<T>(path, options, refreshed.accessToken);
   }

@@ -14,14 +14,14 @@ import { todayIsoDate } from "@/lib/bodyweight/input";
 import type { ExerciseResponse } from "@/types/api";
 
 /**
- * Eksport do Excela (PROMPT §7). Plik składa przeglądarka z danych, które już
- * są w Dexie — po pierwszej synchronizacji leży tam komplet historii, więc
- * eksport nie potrzebuje nowego endpointu i działa bez zasięgu.
+ * Excel export (PROMPT §7). The browser assembles the file from data
+ * already in Dexie — after the first sync the full history lives there,
+ * so the export needs no new endpoint and works offline.
  *
- * Arkusz „Serie” jest płaskim źródłem pod tabelę przestawną (nazwany zakres
- * `Serie_Dane`). Świadomie NIE wklejamy wykresów jako obrazków: obrazek nie
- * reaguje na filtr ani na pivot, więc po pierwszym kliknięciu w Excelu
- * pokazywałby co innego niż tabela obok.
+ * The "Serie" sheet is a flat source for a pivot table (named range
+ * `Serie_Dane`). We deliberately DO NOT paste charts as images: an image
+ * does not react to a filter or a pivot, so after the first click in
+ * Excel it would show something different from the adjacent table.
  */
 
 type Status = "idle" | "working" | "done" | "error";
@@ -39,12 +39,12 @@ export function ExportScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Rozgrzewamy chunk ExcelJS, póki jest zasięg. Biblioteka wchodzi
-    // dynamicznym importem (waży więcej niż reszta apki), a service worker
-    // cache'uje `/_next/static/` DOPIERO po pierwszym pobraniu — bez tego
-    // eksport bez zasięgu wywalał się na samym imporcie, mimo że dane leżą
-    // w Dexie. Złapane dopiero na buildzie produkcyjnym, bo w `next dev`
-    // service workera nie ma w ogóle.
+    // Warm the ExcelJS chunk while we still have signal. The library is
+    // dynamic-imported (heavier than the rest of the app), and the
+    // service worker caches `/_next/static/` ONLY after the first
+    // download — without this, an offline export died on import, even
+    // though the data lives in Dexie. Only caught on the production
+    // build, because in `next dev` there is no service worker at all.
     void import("exceljs").catch(() => undefined);
   }, []);
 

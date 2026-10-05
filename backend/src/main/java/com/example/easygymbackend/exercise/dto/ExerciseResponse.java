@@ -6,9 +6,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Kształt odpowiedzi = kolumny tabeli w camelCase (front trzyma to 1:1 w
- * Dexie). `global` jest wyliczone (userId == null) i służy frontowi do
- * wyszarzenia edycji/usuwania ćwiczeń z seeda.
+ * Response shape = table columns in camelCase (the front end keeps this 1:1
+ * in Dexie). `global` is derived (userId == null) and used by the front end
+ * to gray out editing/deletion of exercises from the seed.
  */
 public record ExerciseResponse(
         UUID id,

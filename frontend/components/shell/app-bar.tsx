@@ -6,22 +6,22 @@ import { SyncPill } from "@/components/shell/sync-pill";
 import { SettingsIcon } from "@/components/ui/icons";
 
 /**
- * Górny pasek: tytuł, slot na dodatki ekranu (na `/trening` czas sesji i menu
- * sesji), pigułka stanu synchronizacji i wejście w ustawienia.
+ * Top bar: title, slot for screen extras (on `/trening` the session time
+ * and session menu), sync-status pill and entry to settings.
  *
- * Wszystko po prawej to akcje RZADKIE — w trakcie serii nikt tu nie sięga,
- * więc mogą być małe i daleko od kciuka (spec §1, podział kciukowy).
+ * Everything on the right is RARE actions — nobody reaches here mid-set,
+ * so they can be small and far from the thumb (spec §1, thumb zoning).
  */
 export function AppBar({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <header className="app-bar z-20 border-b border-hairline bg-bg">
       <div className="mx-auto flex h-appbar w-full max-w-[560px] items-center gap-2 px-4">
-        {/* `min-w-0 shrink` (nie `shrink-0`), bo inaczej `truncate` nie ma czego
-            skracać: element, który nie może się zwęzić, nigdy nie utnie tekstu.
-            Przy 320 px z pigułką synchronizacji na ekranie pasek wychodził poza
-            szerokość okna i cała strona dostawała poziomy scroll. Tytuł jest tu
-            najbardziej redundantną informacją — dolna belka i tak pokazuje,
-            na którym ekranie jesteśmy — więc to on ustępuje pierwszy. */}
+        {/* `min-w-0 shrink` (not `shrink-0`), otherwise `truncate` has
+            nothing to shorten: an element that cannot narrow never clips
+            text. At 320 px with the sync pill on screen the bar overflowed
+            the window width and the whole page got horizontal scroll. The
+            title is the most redundant information here — the bottom nav
+            already shows which screen we are on — so it yields first. */}
         <h1 className="screen-title min-w-0 shrink truncate">{title}</h1>
         {children}
         <span className="flex-1" />

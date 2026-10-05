@@ -39,19 +39,19 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Chroniony osobnym sekretem (X-Bootstrap-Secret) w AdminUserService,
-                        // nie przez Spring Security / JWT -- patrz komentarz w tej klasie.
+                        // Protected by a separate secret (X-Bootstrap-Secret) in AdminUserService,
+                        // not through Spring Security / JWT -- see the comment in that class.
                         .requestMatchers("/api/admin/**").permitAll()
-                        // Healthcheck dockera/platformy -- bez tokenu, bo odpytuje go
-                        // orchestrator, a nie zalogowany user. Szczegóły (details) są
-                        // wyłączone w application.yaml, więc nie wycieka stan bazy.
+                        // Docker/platform healthcheck -- without a token, because it is queried
+                        // by the orchestrator, not a logged-in user. Details are disabled in
+                        // application.yaml, so no database state leaks.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.getWriter().write("{\"error\":\"Wymagane uwierzytelnienie\"}");
+                            response.getWriter().write("{\"error\":\"Authentication required\"}");
                         }))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

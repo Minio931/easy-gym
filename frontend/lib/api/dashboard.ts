@@ -2,14 +2,15 @@ import { apiFetch } from "@/lib/api/client";
 import type { DashboardResponse } from "@/types/api";
 
 /**
- * Pulpit. Wszystkie agregaty liczy baza (`GROUP BY`/`SUM`, funkcja okna na
- * rekordach) — przeglądarka nie ściąga tysięcy serii, żeby je zsumować
- * (PROMPT §9). Front dostaje gotowe tygodnie i tylko je rysuje.
+ * Dashboard. All aggregates are computed by the database (`GROUP BY`/`SUM`,
+ * window function over records) — the browser does not pull thousands of sets
+ * to sum them up (PROMPT §9). The frontend receives ready-made weeks and
+ * merely draws them.
  *
- * `includeDeload` przełącza to, czy porównanie trendu objętości pomija tygodnie
- * deloadowe. Domyślnie pomija — tydzień po deloadzie porównuje się do ostatniego
- * tygodnia nie-deload PRZED nim, bo inaczej każdy powrót po lekkim tygodniu
- * wyglądałby na skok formy.
+ * `includeDeload` toggles whether the volume trend comparison skips deload
+ * weeks. Default: skip — a post-deload week is compared to the last non-deload
+ * week BEFORE it, otherwise every return after a light week would look like
+ * a jump in form.
  */
 export function getDashboard(
   options: { weeks?: number; includeDeload?: boolean; signal?: AbortSignal } = {},

@@ -6,10 +6,10 @@ import { Toggle } from "@/components/ui/toggle";
 import type { WorkoutDetailResponse } from "@/types/api";
 
 /**
- * Menu sesji (⋮ w górnym pasku). Tu siedzą akcje rzadkie i nieodwracalne:
- * notatka, deload, zakończenie i porzucenie treningu. `Zakończ trening`
- * dubluje się tu z przyciskiem na końcu listy — świadomie, bo tamten leży
- * poza zasięgiem kciuka i trzeba do niego doscrollować.
+ * Session menu (⋮ in the top bar). Rare and irreversible actions live
+ * here: note, deload, finish, and discard the workout. `Zakończ trening`
+ * doubles with the button at the end of the list — deliberately, because
+ * that one is out of thumb reach and requires scrolling.
  */
 export function SessionMenuSheet({
   workout,

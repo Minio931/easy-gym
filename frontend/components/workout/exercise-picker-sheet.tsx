@@ -24,14 +24,15 @@ const EQUIPMENT_LABELS: Record<string, string> = {
 };
 
 /**
- * Arkusz wyboru ćwiczenia. Tap w wiersz = ćwiczenie w treningu, bez
- * potwierdzania i bez kroku „wybierz i zatwierdź" — to jest akcja wykonywana
- * między seriami, a nie konfiguracja.
+ * Exercise picker sheet. Tap a row = exercise added to the workout, no
+ * confirmation and no "pick and submit" step — this is an action done
+ * between sets, not configuration.
  *
- * Szukanie leci do `GET /api/exercises?query=`, bo fuzzy (pg_trgm) jest po
- * stronie bazy. Katalog bez frazy pobieramy raz przy otwarciu: daje jednocześnie
- * nazwy do „Ostatnio używanych" (localStorage trzyma same `id`), listę
- * wszystkich ćwiczeń i zestaw grup mięśniowych do formularza własnego ćwiczenia.
+ * The search hits `GET /api/exercises?query=`, because fuzzy (pg_trgm)
+ * runs on the database side. We fetch the full catalog once on open: it
+ * provides names for "Recently used" (localStorage keeps only `id`s), the
+ * full exercise list, and the set of muscle groups for the custom-
+ * exercise form.
  */
 export function ExercisePickerSheet({
   onPick,
@@ -51,7 +52,7 @@ export function ExercisePickerSheet({
     void findExercises("", controller.signal)
       .then(setCatalog)
       .catch(() => {
-        /* offline: zostają „Ostatnio używane" z pamięci przeglądarki */
+        /* offline: "Recently used" from browser memory remain */
       });
     return () => {
       controller.abort();
@@ -188,11 +189,11 @@ function SearchResults({
       </div>
     );
   }
-  // Fuzzy search (pg_trgm) potrafi zwrócić coś podobnego zamiast niczego --
-  // „Wyciskanie francuskie" na frazę „Wyciskanie wojskowe". Bez tego wyjścia
-  // trafienie obok blokowało dodanie własnego ćwiczenia: user widział listę,
-  // której nie chciał, i nie miał czym jej ominąć. Przycisk jest stonowany,
-  // żeby nie konkurował z wynikami, kiedy wyszukiwarka trafiła.
+  // Fuzzy search (pg_trgm) can return something similar instead of
+  // nothing — "French press" to a query "military press". Without this
+  // escape hatch, a near-miss blocked adding a custom exercise: the user
+  // saw a list they did not want and had no way around it. The button is
+  // muted so it does not compete with results when the search landed.
   return (
     <>
       <ExerciseGroup label="Wyniki" exercises={results} onPick={onPick} />
@@ -255,10 +256,10 @@ function CustomExerciseForm({
   onCancel: () => void;
   onCreated: (exercise: ExerciseResponse) => void;
 }) {
-  // Nazwa jest edytowalna, bo fraza z wyszukiwarki bywa skrótem („wycisk"),
-  // po którym coś się jednak znalazło. Zapisanie ćwiczenia pod taką nazwą
-  // zaśmiecałoby katalog na stałe -- w przeciwieństwie do serii, tego się
-  // potem nie poprawia jednym tapnięciem.
+  // The name is editable because the search phrase is sometimes a short
+  // form ("press") that still found something. Saving an exercise under
+  // such a name would clutter the catalog permanently — unlike a set,
+  // this is not fixed later with a single tap.
   const [name, setName] = useState(initialName);
   const [muscleGroup, setMuscleGroup] = useState(muscleGroups[0] ?? "inne");
   const [error, setError] = useState<string | null>(null);
@@ -270,8 +271,8 @@ function CustomExerciseForm({
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
-        // `equipment: "other"` domyślnie — user, który właśnie nie znalazł
-        // swojego ćwiczenia, nie chce teraz wypełniać metryczki sprzętu.
+        // `equipment: "other"` by default — a user who just failed to find
+        // their exercise does not want to fill in equipment metadata now.
         void createExercise({ id: uuid(), name: trimmedName, muscleGroup, equipment: "other" })
           .then(onCreated)
           .catch(() => {

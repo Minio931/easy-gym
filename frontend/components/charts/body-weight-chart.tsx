@@ -23,21 +23,22 @@ import type { RawWeightPoint, WeeklyWeightPoint } from "@/lib/bodyweight/points"
 import { formatWeight } from "@/lib/format";
 
 /**
- * Wykres wagi ciała, dokładnie wg DESIGN §10:
- * surowe pomiary jako jasne punkty 8 px w `--ink-3`, średnie tygodniowe jako
- * linia 2 px NA WIERZCHU, a tydzień niepełny (< 2 pomiary) jako punkt pusty
- * z obwódką `--warning`.
+ * Body-weight chart, exactly per DESIGN §10:
+ * raw measurements as bright 8 px points in `--ink-3`, weekly averages as
+ * a 2 px line ON TOP, and an incomplete week (< 2 measurements) as an
+ * empty point outlined in `--warning`.
  *
- * Dwie serie na jednej osi Y są tu poprawne — to ta sama wielkość w tych
- * samych kilogramach. Zasada „jedna oś Y" zabrania dwóch SKAL, nie dwóch serii.
+ * Two series on one Y axis are correct here — it is the same quantity in
+ * the same kilograms. The "one Y axis" rule forbids two SCALES, not two
+ * series.
  *
- * Kolejność elementów w JSX to kolejność malowania: `Scatter` przed `Line`,
- * więc linia średnich leży na chmurze pomiarów, a nie pod nią.
+ * JSX order is paint order: `Scatter` before `Line`, so the average line
+ * sits on top of the measurement cloud, not under it.
  */
 
 const SERIES = seriesColor(1);
-const RAW_RADIUS = 4; // 8 px średnicy
-const HIT_RADIUS = 16; // 32 px średnicy -- realny cel dotykowy, kółko zostaje małe
+const RAW_RADIUS = 4; // 8 px diameter
+const HIT_RADIUS = 16; // 32 px diameter — real touch target, the dot stays small
 
 export function BodyWeightChart({
   raw,
@@ -49,9 +50,9 @@ export function BodyWeightChart({
   raw: readonly RawWeightPoint[];
   weekly: readonly WeeklyWeightPoint[];
   domain: [number, number] | null;
-  /** Dzień aktualnie wybrany w formularzu wpisu — obrysowany na wykresie. */
+  /** The day currently selected in the entry form — outlined on the chart. */
   selectedDate?: string | null;
-  /** Kliknięcie/dotknięcie surowego pomiaru -- ustawia ten dzień w formularzu wpisu. */
+  /** Click/tap on a raw measurement — sets that day in the entry form. */
   onSelectDay?: (isoDate: string) => void;
 }) {
   return (
@@ -65,14 +66,14 @@ export function BodyWeightChart({
           domain={["dataMin", "dataMax"]}
           tickFormatter={formatDayMonth}
           minTickGap={28}
-          // Obie serie mają własne `data`, więc oś musi wiedzieć, że te same
-          // wartości `t` mogą się powtórzyć między seriami.
+          // Both series have their own `data`, so the axis must know the
+          // same `t` values can repeat across series.
           allowDuplicatedCategory={false}
         />
-        {/* Bez `unit` na podziałce: waga ciała ma część dziesiętną, więc
-            „84.6 kg" nie mieści się w szerokości osi i Recharts łamie etykietę
-            na dwie linie. Jednostkę niosą nagłówek kafla i tooltip — a węższa
-            oś to szerszy wykres. */}
+        {/* No `unit` on ticks: body weight has a decimal part, so
+            "84.6 kg" does not fit the axis width and Recharts breaks the
+            label into two lines. The unit is carried by the tile header
+            and the tooltip — and a narrower axis is a wider chart. */}
         <YAxis
           {...AXIS_PROPS}
           width={44}
@@ -105,13 +106,14 @@ export function BodyWeightChart({
           }}
         />
 
-        {/* Surowe pomiary: jasne, stonowane — są tłem dla trendu, nie treścią.
-            Klikalne (jeśli `onSelectDay` podany) -- to jedyny sposób zaznaczyć
-            konkretny dzień w środku tygodnia, bez przeklikiwania natywnego
-            `<input type="date">` dzień po dniu. Widoczne kółko zostaje 8 px
-            (RAW_RADIUS), ale hit-area jest większa i niewidzialna -- tak małego
-            celu nie da się trafić palcem, a powiększenie widocznego punktu
-            zamieniłoby chmurę pomiarów w nieczytelną plamę. */}
+        {/* Raw measurements: bright, muted — they are background for the
+            trend, not the content. Clickable (if `onSelectDay` is given) —
+            the only way to pick a specific day mid-week without
+            click-stepping the native `<input type="date">` day by day. The
+            visible dot stays 8 px (RAW_RADIUS), but the hit area is bigger
+            and invisible — such a small target cannot be hit by finger,
+            and enlarging the visible point would turn the measurement
+            cloud into an illegible smudge. */}
         <Scatter
           data={[...raw]}
           dataKey="weightKg"
@@ -158,11 +160,11 @@ export function BodyWeightChart({
           dot={(props: { cx?: number; cy?: number; payload?: WeeklyWeightPoint; index?: number }) => {
             const { cx, cy, payload, index } = props;
             if (cx === undefined || cy === undefined || payload === undefined) {
-              return <g key={`pusty-${String(index)}`} />;
+              return <g key={`empty-${String(index)}`} />;
             }
-            // Niepełny tydzień: punkt PUSTY z obwódką --warning. Średnia z
-            // jednego ważenia to nie średnia, a wypełniony punkt udawałby, że
-            // jest tak samo wiarygodna jak sąsiednie (DESIGN §10).
+            // Incomplete week: an EMPTY point outlined in --warning. A mean
+            // from a single weigh-in is not a mean, and a filled dot would
+            // pretend it is as trustworthy as its neighbors (DESIGN §10).
             return payload.incomplete ? (
               <circle
                 key={`${String(payload.year)}-${String(payload.week)}`}

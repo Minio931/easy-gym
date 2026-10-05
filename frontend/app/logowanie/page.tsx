@@ -7,9 +7,9 @@ import { messageForUser } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/auth-context";
 
 /**
- * Jedyny ekran auth, jaki ta apka ma. Bez „Zarejestruj się" i bez „Nie
- * pamiętam hasła" -- dwóch znanych użytkowników, konta zakładane endpointem
- * admina z sekretem (PROMPT.md §0).
+ * The only auth screen this app has. No "Sign up" and no "Forgot password"
+ * — two known users, accounts created via the admin endpoint with a
+ * shared secret (PROMPT.md §0).
  */
 export default function LoginPage() {
   const { status, signIn } = useAuth();

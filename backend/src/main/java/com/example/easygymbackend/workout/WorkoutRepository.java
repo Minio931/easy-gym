@@ -17,7 +17,7 @@ public interface WorkoutRepository extends JpaRepository<Workout, UUID> {
 
     Optional<Workout> findByIdAndUserId(UUID id, UUID userId);
 
-    /** Aktywny trening = ostatni bez ended_at. Ekran "wróć do treningu" po zamknięciu apki. */
+    /** Active workout = the latest one without ended_at. "Resume workout" screen after closing the app. */
     Optional<Workout> findFirstByUserIdAndDeletedAtIsNullAndEndedAtIsNullOrderByStartedAtDesc(UUID userId);
 
     @Query("""
@@ -56,9 +56,9 @@ public interface WorkoutRepository extends JpaRepository<Workout, UUID> {
     List<UUID> findOwnedIds(@Param("userId") UUID userId, @Param("ids") Collection<UUID> ids);
 
     /**
-     * Objętość per (trening, grupa mięśniowa) -- wejście do dashboardu.
-     * SUM/GROUP BY po stronie bazy, zgodnie z sekcją 9 promptu ("nie ściągaj
-     * wszystkich serii do serwisu, żeby liczyć w pamięci").
+     * Volume per (workout, muscle group) -- input to the dashboard.
+     * SUM/GROUP BY on the database side, per section 9 of the prompt ("do not
+     * pull all sets into the service to compute in memory").
      */
     @Query("""
             select new com.example.easygymbackend.dashboard.MuscleGroupVolumeRow(
@@ -81,9 +81,9 @@ public interface WorkoutRepository extends JpaRepository<Workout, UUID> {
             @Param("to") Instant to);
 
     /**
-     * Sesje (workout + serie) dla jednego ćwiczenia -- wejście do pakietu
-     * metrics (e1RM, PR). Zwraca serie surowo, bo PR liczy się po stronie
-     * Javy z formuły wybranej przez usera, nigdy z wartości w bazie.
+     * Sessions (workout + sets) for one exercise -- input to the metrics
+     * package (e1RM, PR). Returns sets raw, because PRs are computed on the
+     * Java side using the user's chosen formula, never from values in the DB.
      */
     @Query("""
             select w, s from Workout w

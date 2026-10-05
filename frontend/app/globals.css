@@ -1,22 +1,22 @@
-/* easy-gym — tokeny systemu projektowego (Tailwind v4, konfiguracja w CSS).
- * JEDYNE źródło prawdy o kolorach/typografii w kodzie. Specyfikacja: ../DESIGN.md
+/* easy-gym — design-system tokens (Tailwind v4, configured in CSS).
+ * SINGLE source of truth for colors/typography in code. Spec: ../DESIGN.md
  *
- * Motyw ciemny jest DOMYŚLNY -- komplet tokenów siedzi w :root. Wariant jasny
- * nadpisuje je w @media (prefers-color-scheme: light) oraz w [data-theme="light"],
- * żeby ręczny przełącznik wygrywał w obie strony. Żaden kolor nie ma swojej
- * jedynej definicji wewnątrz bloku motywu.
+ * The dark theme is DEFAULT — the full token set lives in :root. The light
+ * variant overrides them under @media (prefers-color-scheme: light) and
+ * [data-theme="light"], so the manual toggle wins in both directions. No
+ * color has its sole definition inside a theme block.
  */
 
 @import "tailwindcss";
 
 
 /* ---------------------------------------------------------------- *
- * 1. Wartości surowe -- motyw ciemny (domyślny)
+ * 1. Raw values — dark theme (default)
  * ---------------------------------------------------------------- */
 :root {
   color-scheme: dark;
 
-  /* Powierzchnie i atrament */
+  /* Surfaces and ink */
   --bg: #0E0F11;
   --surface: #16181B;
   --surface-2: #1F2227;
@@ -26,7 +26,7 @@
   --ink-2: #B9BCC0;
   --ink-3: #80858C;
 
-  /* Akcje i stan */
+  /* Actions and state */
   --cta: #F3F2EE;
   --cta-ink: #0E0F11;
   --accent: #46D5E0;
@@ -34,14 +34,14 @@
   --pr: #F0B429;
   --pr-wash: rgba(240, 180, 41, 0.12);
 
-  /* Status -- stały, nigdy nie tematyzowany, nigdy jako kolor serii */
+  /* Status — fixed, never themed, never used as a series color */
   --good: #0CA30C;
   --warning: #FAB219;
   --serious: #EC835A;
   --critical: #D03B3B;
 
-  /* Serie wykresów -- kolejność slotów jest mechanizmem bezpieczeństwa CVD.
-   * Nie przestawiać, nie zapętlać na 9. serii (patrz DESIGN.md §3.4). */
+  /* Chart series — slot order is a colorblindness safety mechanism.
+   * Do not reorder, do not wrap at the 9th series (see DESIGN.md §3.4). */
   --series-1: #3987E5;
   --series-2: #D95926;
   --series-3: #199E70;
@@ -51,11 +51,11 @@
   --series-7: #9085E9;
   --series-8: #E66767;
 
-  /* Chrom wykresu */
+  /* Chart chrome */
   --chart-grid: rgba(255, 255, 255, 0.07);
   --chart-axis: #80858C;
 
-  /* Talerze IWF -- wyłącznie kalkulator obciążenia */
+  /* IWF plates — load calculator only */
   --plate-25: #D42B24;
   --plate-20: #1C68B3;
   --plate-15: #E8B517;
@@ -66,7 +66,7 @@
 }
 
 /* ---------------------------------------------------------------- *
- * 2. Wariant jasny -- kroki dobrane osobno, nie odwrócenie ciemnych
+ * 2. Light variant — steps chosen separately, not an inverse of dark
  * ---------------------------------------------------------------- */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
@@ -127,8 +127,8 @@
 }
 
 /* ---------------------------------------------------------------- *
- * 3. Most do Tailwinda (@theme inline -- utilities wskazują na var(),
- *    dzięki czemu przełączenie motywu działa bez rekompilacji klas)
+ * 3. Bridge to Tailwind (@theme inline — utilities point at var(),
+ *    so switching the theme works without recompiling classes)
  * ---------------------------------------------------------------- */
 @theme inline {
   --color-bg: var(--bg);
@@ -150,16 +150,16 @@
   --color-serious: var(--serious);
   --color-critical: var(--critical);
 
-  /* --font-archivo / --font-public-sans wstrzykuje next/font w app/layout.tsx
-   * (self-hosting, zero requestu do Google przy starcie). Fallback zostaje,
-   * żeby apka wyglądała sensownie zanim font się podepnie. */
+  /* --font-archivo / --font-public-sans are injected by next/font in
+   * app/layout.tsx (self-hosting, zero requests to Google at startup).
+   * The fallback stays so the app looks sensible before the font loads. */
   --font-display: var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans: var(--font-public-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --radius-card: 14px;
   --radius-control: 10px;
 
-  /* Wysokości celów dotykowych -- h-touch / h-control zamiast magicznych liczb */
+  /* Touch target heights — h-touch / h-control instead of magic numbers */
   --spacing-touch: 44px;
   --spacing-control: 48px;
   --spacing-appbar: 56px;
@@ -167,7 +167,7 @@
 }
 
 /* ---------------------------------------------------------------- *
- * 4. Baza
+ * 4. Base
  * ---------------------------------------------------------------- */
 @layer base {
   html,
@@ -182,19 +182,19 @@
     font-size: 16px;
     line-height: 1.5;
     -webkit-tap-highlight-color: transparent;
-    /* Ekran treningu nigdy nie przewija się w poziomie ani nie gumuje w pionie. */
+    /* The workout screen must never scroll horizontally or bounce vertically. */
     overscroll-behavior-y: none;
   }
 
-  /* Focus widoczny zawsze -- apka bywa obsługiwana z klawiatury przy
-   * wpisywaniu zaległych treningów na desktopie. */
+  /* Focus always visible — the app is sometimes used with a keyboard when
+   * typing in old workouts on desktop. */
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
-  /* 16px na inputach to twarde minimum: mniejszy stopień włącza na iOS
-   * auto-zoom przy focusie, co w trakcie serii jest katastrofą. */
+  /* 16px on inputs is a hard minimum: a smaller size triggers iOS
+   * auto-zoom on focus, which is a disaster mid-set. */
   input,
   select,
   textarea {
@@ -213,8 +213,8 @@
 }
 
 /* ---------------------------------------------------------------- *
- * 5. Typografia numeryczna -- sygnatura apki.
- *    Archivo zwężone + tabular-nums, ustawiane raz, nie w każdym komponencie.
+ * 5. Numeric typography — the app's signature.
+ *    Narrowed Archivo + tabular-nums, set once, not in every component.
  * ---------------------------------------------------------------- */
 @layer components {
   .num {
@@ -267,7 +267,7 @@
     color: var(--ink-3);
   }
 
-  /* Bezpieczne strefy -- pasek górny i dolna nawigacja (DESIGN.md §5) */
+  /* Safe areas — top bar and bottom nav (DESIGN.md §5) */
   .app-bar {
     position: sticky;
     top: env(safe-area-inset-top, 0px);
@@ -283,9 +283,9 @@
 }
 
 /* ---------------------------------------------------------------- *
- * 6. Ruch i drobiazgi ekranu treningu
- *    (200 ms na wjazdy paneli, transform/opacity -- DESIGN.md §8;
- *    prefers-reduced-motion wyłącza je globalną regułą w @layer base)
+ * 6. Motion and workout-screen bits
+ *    (200 ms panel slide-ins, transform/opacity — DESIGN.md §8;
+ *    prefers-reduced-motion disables them via a global rule in @layer base)
  * ---------------------------------------------------------------- */
 @layer components {
   @keyframes slide-up-in {
@@ -297,13 +297,14 @@
     animation: slide-up-in 200ms ease-out;
   }
 
-  /* Rzędy pigułek (RPE, znaczniki serii) przewijają się SAME, bez wypychania
-   * layoutu -- ekran nie może przewijać się w poziomie przy 320 px.
+  /* Pill rows (RPE, set markers) scroll by THEMSELVES without pushing the
+   * layout — the screen must not scroll horizontally at 320 px.
    *
-   * Prawa krawędź jest wygaszona maską: rząd uciętej pigułki („Usuń seri...")
-   * czyta się jako zepsuty, a ten sam rząd z gasnącym brzegiem -- jako
-   * przewijany. Maska działa tylko wtedy, gdy JEST co przewijać, bo przy
-   * krótszej treści ostatnia pigułka i tak nie sięga krawędzi. */
+   * The right edge is faded by a mask: a row with a clipped pill
+   * ("Usuń seri...") reads as broken, while the same row with a fading
+   * edge reads as scrollable. The mask only shows when there IS something
+   * to scroll, because with shorter content the last pill does not reach
+   * the edge. */
   .chip-row {
     display: flex;
     gap: 8px;
@@ -317,30 +318,30 @@
     display: none;
   }
 
-  /* Rząd, w którym KAŻDA pigułka musi być osiągalna bez przewijania --
-   * znaczniki serii kończą się akcją destrukcyjną („Usuń serię"), a gest
-   * przewinięcia nie może być warunkiem dotarcia do niej (DESIGN §9). */
+  /* A row where EVERY pill must be reachable without scrolling —
+   * set markers end with a destructive action ("Usuń serię"), and a
+   * scroll gesture must not be the prerequisite to reach it (DESIGN §9). */
   .chip-row-wrap {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
 
-  /* Liczba w aktywnym wierszu serii. Jednostka cqi zamiast media query, bo
-   * decyduje szerokość TACY, nie okna.
+  /* The number in the active set row. cqi units instead of a media query,
+   * because what matters is the TRAY width, not the window.
    *
-   * Prosta, nie samo `Ncqi`, bo koszty stałe w tacy -- „kg", „×", „powt.",
-   * odstępy, padding -- nie skalują się razem z liczbą. Kalibracja pod
-   * NAJDŁUŻSZĄ realną wartość („102.5" × „12"): 32 px przy 390 px ekranu,
-   * 19 px przy 320 px, pełne 40 px (num-hero) dopiero tam, gdzie taca ma na to
-   * miejsce (≥ 430 px i desktop).
+   * A straight line, not just `Ncqi`, because fixed costs in the tray —
+   * "kg", "×", "powt.", gaps, padding — do not scale with the number.
+   * Calibrated to the LONGEST real value ("102.5" × "12"): 32 px at
+   * 390 px screens, 19 px at 320 px, full 40 px (num-hero) only where
+   * the tray has room (≥ 430 px and desktop).
    *
-   * Dlaczego nie 40 px na sztywno, jak w artboardzie: przy 390 px „102.5"
-   * z jednostkami nie mieści się w tacy, a input wyrównany do prawej pokazałby
-   * wtedy „02.5" -- czyli zły ciężar, nie ucięty tekst.
+   * Why not a fixed 40 px like the artboard: at 390 px "102.5" with units
+   * does not fit in the tray, and a right-aligned input would then show
+   * "02.5" — i.e. the wrong weight, not clipped text.
    *
-   * Dolna granica 17 px nigdy nie schodzi poniżej 16 px, czyli progu
-   * auto-zoomu na iOS. */
+   * The lower bound of 17 px never drops below 16 px, the iOS auto-zoom
+   * threshold. */
   .num-input {
     font-size: clamp(17px, calc(21cqi - 12px), 40px);
     line-height: 1.1;

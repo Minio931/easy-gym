@@ -30,7 +30,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Rząd pigułek -- ten sam wzorzec co przełącznik zakresu na wykresach. */
+/** Pill row — same pattern as the chart range switcher. */
 function PillGroup<T extends string>({
   options,
   value,
@@ -72,9 +72,9 @@ export default function SettingsPage() {
   const { settings, update } = useSettings();
   const router = useRouter();
 
-  // Podgląd na żywo: 100 kg × 5 w wybranej formule. Formuła nigdy nie jest
-  // zapisywana przy danych -- e1RM liczy się na żywo, więc jej zmiana
-  // przelicza całą historię, zamiast ją zafałszować.
+  // Live preview: 100 kg × 5 in the chosen formula. The formula is never
+  // persisted alongside the data — e1RM is computed on the fly, so
+  // changing it recomputes the whole history instead of falsifying it.
   const preview = estimate1RM(100, 5, settings.oneRepMaxFormula);
 
   return (

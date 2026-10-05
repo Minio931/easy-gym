@@ -5,16 +5,18 @@ import { cacheExercises, searchLocalExercises } from "@/lib/db/exercise-reposito
 import type { ExerciseResponse } from "@/types/api";
 
 /**
- * Wyszukiwarka ćwiczeń dla ekranu: serwer, a bez zasięgu lokalny katalog.
+ * Exercise search for the screen: server first, falling back to the local
+ * catalog when offline.
  *
- * Każda udana odpowiedź z API ląduje przy okazji w Dexie. Pierwsze wejście w
- * wyszukiwarkę pobiera cały katalog (pusty `query`), więc po jednym połączeniu
- * z siecią komplet 60 ćwiczeń z seeda jest na urządzeniu — i wyszukiwarka
- * działa w suterenie bez zasięgu, zamiast pokazywać puste okno.
+ * Every successful API response is also cached in Dexie along the way. The
+ * first visit to the search opens with an empty `query`, which fetches the
+ * whole catalog, so after a single network connection the full set of 60
+ * seeded exercises is on the device — and the search works in a basement
+ * without signal, instead of showing an empty window.
  *
- * Wpadka, przed którą to chroni: samo wpięcie Dexie pod zapisy dawało apkę,
- * w której trening da się prowadzić offline, ale nie da się do niego DODAĆ
- * ćwiczenia — czyli offline bezużyteczne dokładnie tam, gdzie miało działać.
+ * The pitfall this guards against: wiring Dexie into writes alone gave an
+ * app in which the workout could be run offline, but no exercise could be
+ * ADDED to it — offline useless exactly where it was supposed to work.
  */
 export async function findExercises(
   query: string,
@@ -28,9 +30,9 @@ export async function findExercises(
     }
     return remote;
   } catch (error) {
-    // Tylko brak sieci schodzi na zapas lokalny. Błąd 4xx/5xx ma dojść do
-    // ekranu jako błąd — udawanie, że „po prostu nic nie znaleziono", ukryłoby
-    // zepsuty endpoint.
+    // Only no-network falls back to the local reserve. A 4xx/5xx error must
+    // reach the screen as an error — pretending that "nothing was found"
+    // would hide a broken endpoint.
     if (!(error instanceof OfflineError)) {
       throw error;
     }

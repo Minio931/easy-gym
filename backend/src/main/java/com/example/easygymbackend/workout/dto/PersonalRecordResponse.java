@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * Jeden pobity rekord. `category`: WEIGHT / E1RM / SESSION_VOLUME / REP_RANGE.
- * Przy REP_RANGE wypełnione jest `repRange` (ONE, TWO_TO_THREE, ...).
+ * One broken record. `category`: WEIGHT / E1RM / SESSION_VOLUME / REP_RANGE.
+ * For REP_RANGE `repRange` is populated (ONE, TWO_TO_THREE, ...).
  */
 public record PersonalRecordResponse(
         UUID exerciseId,

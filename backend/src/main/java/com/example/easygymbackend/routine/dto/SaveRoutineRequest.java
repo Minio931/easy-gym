@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * PUT podmienia CAŁĄ listę pozycji: te, których nie ma w request, dostają
- * deleted_at (tombstone), a nie DELETE -- usunięcie pozycji szablonu też
- * musi dojechać do drugiego urządzenia.
+ * PUT replaces the ENTIRE item list: those missing from the request get
+ * deleted_at (tombstone), not a DELETE -- removing a routine item must also
+ * reach the other device.
  */
 public record SaveRoutineRequest(
         UUID id,

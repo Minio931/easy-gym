@@ -8,9 +8,9 @@ interface PillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * Pigułka znacznika/filtra. 44 px wysokości — to jest cel dotykowy w trakcie
- * serii, nie ozdoba nagłówka. Stan „włączona" niesie wypełnienie ORAZ
- * `aria-pressed`, nigdy sam kolor (DESIGN §9).
+ * Marker/filter pill. 44 px high — this is a touch target during a set,
+ * not a header ornament. The "on" state is carried by fill AND
+ * `aria-pressed`, never by color alone (DESIGN §9).
  */
 export function Pill({ active = false, className = "", children, ...props }: PillProps) {
   return (

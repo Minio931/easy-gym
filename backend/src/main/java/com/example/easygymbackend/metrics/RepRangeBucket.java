@@ -1,6 +1,6 @@
 package com.example.easygymbackend.metrics;
 
-/** Zakresy powtórzeń pod PR per zakres, dokładnie jak w sekcji 4 promptu. */
+/** Rep ranges for PR per range, exactly as in section 4 of the prompt. */
 public enum RepRangeBucket {
     ONE,
     TWO_TO_THREE,

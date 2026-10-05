@@ -1,27 +1,27 @@
 import type { SyncRecord } from "@/types/sync";
 
 /**
- * Reguły rozstrzygania konfliktu — czyste funkcje, bez Dexie i bez sieci,
- * bo to jedyna część synchronizacji, w której da się pomylić w sposób cichy.
+ * Conflict resolution rules — pure functions, no Dexie, no network, because
+ * this is the one part of sync where a mistake can go silent.
  *
- * Reguła jest ta sama po obu stronach (backend/API.md, „Reguły rozstrzygania"):
- * **last-write-wins po `updatedAt`, ściśle `>`, remis wygrywa serwer.**
- * Gdyby klient stosował `>=` tam, gdzie serwer stosuje `>`, przy równych
- * znacznikach obie strony uznałyby się za zwycięzcę i rekord różniłby się
- * między urządzeniami bez żadnego sygnału, że coś jest nie tak.
+ * The rule is the same on both sides (backend/API.md, "Resolution rules"):
+ * **last-write-wins by `updatedAt`, strictly `>`, ties go to the server.**
+ * If the client used `>=` where the server uses `>`, with equal timestamps
+ * both sides would consider themselves the winner and the record would differ
+ * between devices with no signal that anything was wrong.
  */
 
 /**
- * Czy wersja z serwera ma nadpisać lokalną?
+ * Should the server version overwrite the local one?
  *
- * `local === undefined` to nowy rekord — bierzemy. Dla lokalnego wiersza
- * czystego (`dirty = 0`) też bierzemy zawsze: skoro nie mamy niewysłanych
- * zmian, serwer z definicji wie lepiej, a jego rekord może być nowszy również
- * wtedy, gdy znaczniki są równe (ten sam zapis, który sami wysłaliśmy).
+ * `local === undefined` is a new record — take it. For a clean local row
+ * (`dirty = 0`) we also always take it: if we have no unsent changes, the
+ * server knows better by definition, and its record may be newer even when
+ * the timestamps are equal (the same write we sent ourselves).
  *
- * Spór jest tylko wtedy, gdy lokalny wiersz jest brudny: wygrywa on wyłącznie
- * wtedy, gdy jest **ściśle nowszy**. Przy remisie ustępuje serwerowi — inaczej
- * zostałby brudny na zawsze i wracał w każdej kolejnej paczce.
+ * There is a conflict only when the local row is dirty: it wins only if it
+ * is **strictly newer**. On a tie it yields to the server — otherwise it
+ * would stay dirty forever and come back in every subsequent batch.
  */
 export function shouldAcceptIncoming(
   local: { updatedAt: string; dirty: 0 | 1 } | undefined,
@@ -33,30 +33,30 @@ export function shouldAcceptIncoming(
   return !isStrictlyNewer(local.updatedAt, incoming.updatedAt);
 }
 
-/** `a > b` na znacznikach ISO-8601. */
+/** `a > b` on ISO-8601 timestamps. */
 export function isStrictlyNewer(a: string, b: string): boolean {
   return Date.parse(a) > Date.parse(b);
 }
 
 /**
- * Margines bezpieczeństwa dla `since` (backend/API.md, reguła 8).
+ * Safety margin for `since` (backend/API.md, rule 8).
  *
- * `serverTime` to znacznik POCZĄTKU transakcji, ale drugie urządzenie może
- * mieć własną transakcję w locie, która zatwierdzi się o milisekundę później
- * z wcześniejszym `updatedAt`. Bez cofnięcia `since` taki zapis nie trafiłby
- * do żadnego kolejnego zaciągu i zniknąłby z tego urządzenia na zawsze.
+ * `serverTime` marks the START of the transaction, but another device may
+ * have its own transaction in flight that commits a millisecond later with
+ * an earlier `updatedAt`. Without rolling `since` back, such a write would
+ * not land in any subsequent pull and would disappear from this device
+ * forever.
  *
- * Kosztem jest kilka rekordów przysyłanych ponownie przy każdej synchronizacji
- * — to samo `id` i to samo `updatedAt`, więc `shouldAcceptIncoming` przepuszcza
- * je bez żadnego skutku.
+ * The cost is a few records resent on every sync — same `id` and same
+ * `updatedAt`, so `shouldAcceptIncoming` lets them through with no effect.
  */
 export const SINCE_MARGIN_MS = 5 * 60 * 1000;
 
 export function nextSince(serverTime: string, marginMs: number = SINCE_MARGIN_MS): string {
   const parsed = Date.parse(serverTime);
   if (Number.isNaN(parsed)) {
-    // Zepsuty znacznik z serwera nie może cicho zablokować synchronizacji:
-    // `null` oznacza pełny zaciąg następnym razem — drożej, ale poprawnie.
+    // A broken timestamp from the server must not silently block sync:
+    // `null` means a full pull next time — more expensive, but correct.
     return new Date(0).toISOString();
   }
   return new Date(parsed - marginMs).toISOString();

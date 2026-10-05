@@ -26,17 +26,19 @@ const REP_RANGE_LABELS: Record<RepRangeKey, string> = {
 
 /**
  * Podsumowanie treningu (DESIGN §7.5). Liczby bierzemy z serwera — to jedyny
- * ekran, na którym przeglądarka i tak nie policzyłaby `personalRecordsBrokenIn`
- * bez ściągnięcia całej historii każdego ćwiczenia.
+ * a screen on which the browser could not compute
+ * `personalRecordsBrokenIn` without pulling the full history of every
+ * exercise.
  *
- * Gdy nic nie padło, sekcji rekordów NIE MA WCALE — „Brak PR" po ciężkim
- * treningu to komunikat, którego nikt nie chce przeczytać.
+ * When nothing fell, the records section is NOT SHOWN AT ALL — "No PR"
+ * after a heavy workout is a message no one wants to read.
  */
 export function WorkoutSummary({ workoutId }: { workoutId: string }) {
   const router = useRouter();
-  // Skąd tu weszliśmy, tam wracamy. Po zakończeniu treningu (`wroc` puste)
-  // to pulpit i `replace`, żeby cofnięcie nie wskrzesiło martwej sesji;
-  // z historii wracamy na listę, bo tam użytkownik faktycznie był.
+  // Return to where we came from. After finishing a workout (`wroc`
+  // empty) that is the dashboard with `replace`, so back does not
+  // resurrect a dead session; from history we return to the list,
+  // because that is where the user actually was.
   const backTo = useSearchParams().get("wroc") === "historia" ? "/historia" : "/pulpit";
   const { settings } = useSettings();
   const [workout, setWorkout] = useState<WorkoutDetailResponse | null>(null);
@@ -75,7 +77,7 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
   }
 
   // `durationSeconds` liczy serwer; wariant zapasowy tylko na wypadek starszej
-  // odpowiedzi bez tego pola. Bez `Date.now()` — render musi być czysty.
+  // responses without this field. No `Date.now()` — render must be pure.
   const durationSeconds =
     workout.durationSeconds ??
     (workout.endedAt === null
@@ -153,8 +155,8 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
   );
 }
 
-/** `replace`, nie `push`: cofnięcie z pulpitu nie może wrócić do podsumowania
- * zamkniętej sesji — z tego ekranu nie ma dokąd wracać. */
+/** `replace`, not `push`: back from the dashboard must not return to the
+ * summary of a closed session — this screen has nowhere to go back to. */
 function CloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button

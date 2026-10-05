@@ -8,14 +8,14 @@ import {
 } from "@/lib/db/schema";
 
 /**
- * Cykl życia lokalnej bazy. Jedna instancja na konto, otwierana leniwie przy
- * pierwszym użyciu i pamiętana — Dexie trzyma otwarte połączenie z IndexedDB,
- * więc tworzenie nowego obiektu przy każdym zapisie byłoby czystą stratą.
+ * Local database lifecycle. One instance per account, opened lazily on first
+ * use and remembered — Dexie keeps the IndexedDB connection open, so
+ * creating a new object on every write would be pure waste.
  *
- * Render serwerowy nie ma `indexedDB`, a `logowanie` nie ma jeszcze `userId`.
- * W obu przypadkach `getDatabase()` zwraca `null`, a wołający ma po prostu
- * pominąć zapis lokalny — apka bez IndexedDB (tryb prywatny w części
- * przeglądarek) ma dalej działać online, tylko bez odporności na brak sieci.
+ * The server render has no `indexedDB`, and `logowanie` has no `userId` yet.
+ * In both cases `getDatabase()` returns `null` and the caller simply skips
+ * the local write — an app without IndexedDB (private mode in some browsers)
+ * must keep working online, just without offline resilience.
  */
 
 let opened: { userId: string; db: EasyGymDatabase } | null = null;
@@ -31,24 +31,24 @@ export function getDatabaseFor(userId: string): EasyGymDatabase | null {
   if (opened !== null && opened.userId === userId) {
     return opened.db;
   }
-  // Zmiana konta na tym samym urządzeniu: poprzednie połączenie zamykamy,
-  // inaczej zostaje otwarte i blokuje `Dexie.delete()` przy wylogowaniu.
+  // Account change on the same device: close the previous connection,
+  // otherwise it stays open and blocks `Dexie.delete()` at logout.
   opened?.db.close();
   const db = new EasyGymDatabase(databaseName(userId));
   opened = { userId, db };
   return db;
 }
 
-/** Baza zalogowanego konta albo `null`, gdy nie ma sesji / nie ma IndexedDB. */
+/** Database of the signed-in account, or `null` when there is no session / no IndexedDB. */
 export function getDatabase(): EasyGymDatabase | null {
   const userId = readSession()?.userId;
   return userId === undefined ? null : getDatabaseFor(userId);
 }
 
 /**
- * Wylogowanie kasuje bazę w całości. Nie czyścimy tabel po kolei — pominięcie
- * jednej zostawiłoby cudze dane na urządzeniu, a to dokładnie ten błąd, przed
- * którym chroni podział „jedna baza na konto".
+ * Logout drops the database entirely. We do not clear tables one by one —
+ * missing one would leave someone else's data on the device, which is
+ * exactly the bug the "one database per account" split guards against.
  */
 export async function dropDatabase(userId: string): Promise<void> {
   if (!isAvailable() || userId === "") {
@@ -61,14 +61,14 @@ export async function dropDatabase(userId: string): Promise<void> {
   try {
     await Dexie.delete(databaseName(userId));
   } catch {
-    // Otwarta druga zakładka potrafi zablokować usunięcie. Nie ma po czym
-    // eskalować: sesja i tak jest już wyczyszczona, a baza zostanie skasowana
-    // przy kolejnym wylogowaniu albo starcie.
+    // An open second tab can block the deletion. There is nothing to
+    // escalate: the session is already cleared, and the database will be
+    // dropped on the next logout or startup.
   }
 }
 
 /* ------------------------------------------------------------------ *
- * Księgowość synchronizacji
+ * Sync bookkeeping
  * ------------------------------------------------------------------ */
 
 export async function readSince(db: EasyGymDatabase): Promise<string | null> {

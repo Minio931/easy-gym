@@ -1,6 +1,6 @@
 /**
- * Błąd HTTP z API. `status` jest tu ważniejszy od komunikatu -- 401 uruchamia
- * ścieżkę refresh/wylogowanie, reszta idzie do UI jako tekst.
+ * HTTP error from the API. `status` matters more than the message here —
+ * 401 triggers the refresh/logout path, the rest goes to the UI as text.
  */
 export class ApiError extends Error {
   readonly status: number;
@@ -13,23 +13,23 @@ export class ApiError extends Error {
 }
 
 /**
- * Brak sieci (fetch odrzucony przed odpowiedzią). Osobna klasa, bo w tej apce
- * offline NIE jest awarią -- UI pokazuje inny stan niż przy błędzie serwera
- * (DESIGN.md §7.4).
+ * No network (fetch rejected before a response). A separate class, because
+ * in this app offline is NOT a failure — the UI shows a different state than
+ * for a server error (DESIGN.md §7.4).
  */
 export class OfflineError extends Error {
   constructor(cause?: unknown) {
-    super("Brak połączenia z serwerem");
+    super("No connection to the server");
     this.name = "OfflineError";
     this.cause = cause;
   }
 }
 
 /**
- * Żądanie przerwane przez `AbortController`. Musi być odsiane od prawdziwych
- * błędów: React w trybie ścisłym uruchamia efekt dwa razy (mount → cleanup →
- * mount), więc pierwszy fetch zawsze zostaje przerwany. Potraktowanie tego
- * jako awarii zostawia ekran w stanie błędu mimo udanego drugiego żądania.
+ * A request aborted by `AbortController`. Must be filtered out from real
+ * errors: React strict mode runs an effect twice (mount → cleanup → mount),
+ * so the first fetch always ends up aborted. Treating that as a failure
+ * leaves the screen in an error state despite the successful second request.
  */
 export function isAbortError(error: unknown): boolean {
   return (
@@ -40,7 +40,7 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
-/** Komunikat dla użytkownika, po polsku, bez wycieku szczegółów technicznych. */
+/** Message for the user, in Polish, without leaking technical details. */
 export function messageForUser(error: unknown): string {
   if (error instanceof OfflineError) {
     return "Brak połączenia. Dane zostaną wysłane, gdy wróci sieć.";

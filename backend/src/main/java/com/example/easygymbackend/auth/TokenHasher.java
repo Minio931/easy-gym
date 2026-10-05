@@ -6,9 +6,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * Refresh tokeny trzymamy w bazie jako hash, nigdy jako surową wartość --
- * ten sam powód co bcrypt dla haseł: wyciek bazy nie powinien od razu
- * dawać atakującemu działających tokenów.
+ * Refresh tokens are stored in the database as a hash, never as the raw value --
+ * same reason as bcrypt for passwords: a database leak should not immediately
+ * give the attacker working tokens.
  */
 final class TokenHasher {
 
@@ -21,7 +21,7 @@ final class TokenHasher {
             byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 niedostępny w JVM", e);
+            throw new IllegalStateException("SHA-256 not available in JVM", e);
         }
     }
 

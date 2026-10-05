@@ -42,7 +42,7 @@ public class ExerciseHistoryService {
             UUID userId, UUID exerciseId, Instant from, Instant to, int limit, OneRepMaxFormula formula) {
         Exercise exercise = exerciseRepository.findByIdAndDeletedAtIsNull(exerciseId)
                 .filter(found -> found.isGlobal() || found.getUserId().equals(userId))
-                .orElseThrow(() -> new NotFoundException("Ćwiczenie nie istnieje: " + exerciseId));
+                .orElseThrow(() -> new NotFoundException("Exercise does not exist: " + exerciseId));
 
         Map<UUID, WorkoutSession> sessions = new LinkedHashMap<>();
         for (Object[] row : workoutRepository.findSessionSetsForExercise(userId, exerciseId, from, to)) {
@@ -52,8 +52,8 @@ public class ExerciseHistoryService {
                     .sets().add(set);
         }
 
-        // Limit obcina NAJSTARSZE sesje -- wykres i PR mają pokazywać ostatnie N
-        // treningów, ale nadal chronologicznie (PR liczy się narastająco).
+        // The limit trims the OLDEST sessions -- the chart and PRs should show the
+        // last N workouts, but still chronologically (PR is computed cumulatively).
         List<WorkoutSession> chronological = new ArrayList<>(sessions.values());
         if (chronological.size() > limit) {
             chronological = chronological.subList(chronological.size() - limit, chronological.size());
@@ -90,7 +90,7 @@ public class ExerciseHistoryService {
                 PersonalRecordsResponse.from(PersonalRecordCalculator.compute(metricSessions, formula)));
     }
 
-    /** null (nie zero), jeśli żadna seria robocza nie daje sensownego e1RM. */
+    /** null (not zero) if no working set yields a meaningful e1RM. */
     private static BigDecimal bestE1rm(List<WorkoutSet> sets, OneRepMaxFormula formula) {
         return sets.stream()
                 .filter(set -> !set.isWarmup() && !set.isAssisted())

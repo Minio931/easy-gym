@@ -20,14 +20,14 @@ import type { ExerciseReference } from "@/lib/workout/store";
 const RPE_CHIPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /**
- * Aktywny (edytowany) wiersz serii — jedyny taki na ekranie. Rozwija się w
- * tacę: inputy, steppery, znaczniki. Wszystko, co się tu klika, leży w dolnych
- * dwóch trzecich ekranu, bo to są akcje wykonywane w trakcie serii.
+ * Active (edited) set row — the only one on screen. Expands into a tray:
+ * inputs, steppers, markers. Everything clickable here lies in the bottom
+ * two thirds of the screen, because these are mid-set actions.
  *
- * Inputy trzymają SUROWY tekst, nie liczbę: „102," w trakcie pisania to
- * poprawny stan przejściowy, a pusty input to brak wartości, nie zero.
- * Zaokrąglenie do 0.25 kg następuje przy opuszczeniu pola, nie przy każdym
- * naciśnięciu klawisza (inaczej nie da się wpisać „102.75").
+ * Inputs hold RAW text, not a number: "102," while typing is a valid
+ * transient state, and an empty input is no value, not zero. Rounding to
+ * 0.25 kg happens on field blur, not on each keypress (otherwise typing
+ * "102.75" is impossible).
  */
 export function ActiveSetRow({
   draft,
@@ -47,7 +47,7 @@ export function ActiveSetRow({
   const [rpeOpen, setRpeOpen] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
 
-  // Aktywny wiersz musi być widoczny NAD timerem, nie pod nim (spec §1).
+  // The active row must be visible ABOVE the timer, not under it (spec §1).
   useEffect(() => {
     rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [draft.id]);

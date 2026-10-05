@@ -5,9 +5,10 @@ import com.example.easygymbackend.common.InvalidRequestException;
 import java.util.Set;
 
 /**
- * Lustro CHECK-a chk_exercises_equipment z migracji V3. Walidacja tutaj jest
- * po to, żeby user dostał 400 z czytelnym komunikatem zamiast 409 z
- * DataIntegrityViolationException -- baza i tak jest ostatnią linią obrony.
+ * Mirror of the CHECK chk_exercises_equipment from migration V3. Validation
+ * here exists so the user gets 400 with a readable message instead of 409
+ * from a DataIntegrityViolationException -- the database is the last line
+ * of defense anyway.
  */
 public final class Equipment {
 
@@ -20,7 +21,7 @@ public final class Equipment {
     public static String validated(String equipment) {
         if (equipment == null || !ALLOWED.contains(equipment)) {
             throw new InvalidRequestException(
-                    "Nieznany typ sprzętu: " + equipment + " (dozwolone: " + String.join(", ", ALLOWED) + ")");
+                    "Unknown equipment type: " + equipment + " (allowed: " + String.join(", ", ALLOWED) + ")");
         }
         return equipment;
     }

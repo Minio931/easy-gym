@@ -25,18 +25,19 @@ import { useSettings } from "@/lib/settings";
 import type { ExerciseHistoryResponse, PersonalRecordsResponse, RepRangeKey } from "@/types/api";
 
 /**
- * Ekran pojedynczego ćwiczenia: rekordy + trzy wykresy (DESIGN §10, PROMPT §6).
+ * Single-exercise screen: records + three charts (DESIGN §10, PROMPT §6).
  *
- * Jeden przełącznik zakresu na cały ekran, mimo że pigułki — zgodnie z DESIGN
- * §7.6 — siedzą w każdym kaflu. Trzy niezależne zakresy dałyby trzy wykresy
- * pokazujące różne okresy obok siebie, czyli zestawienie, z którego nie da się
- * nic wywnioskować. Pigułki są tam, gdzie mówi system projektowy, ale wskazują
- * jeden stan.
+ * One range switch for the whole screen, even though the pills — per
+ * DESIGN §7.6 — sit in every tile. Three independent ranges would give
+ * three charts showing different periods side by side, a comparison from
+ * which nothing can be concluded. The pills are where the design system
+ * says, but they point to one state.
  *
- * Ile sesji ściągamy: `limit` 100. To jest ekran JEDNEGO ćwiczenia, więc mowa
- * o setkach serii, nie o całej historii konta — agregaty na skalę konta robi
- * backend (PROMPT §9), ale tutaj dane i tak są potrzebne w komplecie, żeby
- * przełącznik zakresu działał bez kolejnej rundy do serwera.
+ * How many sessions we fetch: `limit` 100. This is the ONE-EXERCISE
+ * screen, so we are talking hundreds of sets, not the whole account
+ * history — account-scale aggregates are done by the backend (PROMPT §9),
+ * but here the data is needed in full so the range switch works without
+ * another server round-trip.
  */
 
 const REP_RANGE_LABELS: Record<RepRangeKey, string> = {
@@ -60,10 +61,11 @@ function formatSessionDate(instant: string): string {
 
 export function ExerciseScreen({ exerciseId }: { exerciseId: string }) {
   const { settings } = useSettings();
-  // Moment wczytania trzymamy RAZEM z danymi, a nie jako osobne `new Date()`
-  // w `useMemo`. Inaczej „teraz" byłoby liczone poza zależnościami hooka:
-  // trzy wykresy mogłyby dostać trzy różne chwile i skrajny punkt zniknąłby
-  // z jednego z nich, a lint słusznie by na to nakrzyczał.
+  // The load timestamp lives TOGETHER with the data, not as a separate
+  // `new Date()` in a `useMemo`. Otherwise "now" would be computed
+  // outside the hook's deps: three charts could get three different
+  // moments and the edge point would disappear from one of them — and
+  // lint would rightly scream.
   const [loaded, setLoaded] = useState<{ history: ExerciseHistoryResponse; at: Date } | null>(null);
   const history = loaded?.history ?? null;
   const [error, setError] = useState<string | null>(null);

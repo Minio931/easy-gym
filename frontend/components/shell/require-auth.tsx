@@ -6,11 +6,11 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { Skeleton } from "@/components/ui/screen";
 
 /**
- * Guard tras. Świadomie tylko po stronie klienta: tokeny żyją w
- * localStorage (PWA offline-first), więc serwer Next.js i tak nie wie, kto
- * pyta -- a realną bramką jest backend, który odrzuca każde żądanie bez
- * ważnego JWT. Ten komponent pilnuje wyłącznie tego, żeby nie migał pusty
- * ekran apki przed przekierowaniem na logowanie.
+ * Route guard. Deliberately client-side only: tokens live in localStorage
+ * (PWA offline-first), so the Next.js server does not know who is asking
+ * anyway — and the real gate is the backend, which rejects every request
+ * without a valid JWT. This component only prevents a flash of empty app
+ * UI before the redirect to login.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { status } = useAuth();
