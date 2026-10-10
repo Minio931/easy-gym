@@ -2,7 +2,7 @@
 # JDK 26, bo tyle wymaga toolchain w build.gradle.kts. Gradle jest pobierany
 # przez wrappera (gradle/wrapper/gradle-wrapper.properties), więc wersja
 # builda w kontenerze jest ta sama co lokalnie.
-FROM eclipse-temurin:26-jdk-alpine AS build
+FROM eclipse-temurin:27-jdk-alpine AS build
 
 WORKDIR /build
 
@@ -23,7 +23,7 @@ COPY src src
 RUN ./gradlew --no-daemon bootJar
 
 # --- runtime -------------------------------------------------------------
-FROM eclipse-temurin:26-jre-alpine AS runtime
+FROM eclipse-temurin:27-jre-alpine AS runtime
 
 RUN addgroup -S easygym && adduser -S -G easygym easygym
 
