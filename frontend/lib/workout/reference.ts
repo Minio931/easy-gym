@@ -32,6 +32,33 @@ export function referenceText(
     : `ostatnio: ${formatWeight(previous.weightKg)} × ${previous.reps}`;
 }
 
+/**
+ * Heaviest working set from the previous session of this exercise — the
+ * "ostatnio: 102,5 kg × 5" line on the exercise header. Null while history
+ * is loading or when there is no previous session.
+ */
+export function lastHeaviestFromReference(
+  reference: ExerciseReference | undefined,
+): { weightKg: number; reps: number } | null {
+  if (reference === undefined || reference.status === "loading" || reference.sets.length === 0) {
+    return null;
+  }
+  return reference.sets.reduce((best, set) =>
+    set.weightKg > best.weightKg ? set : best,
+  );
+}
+
+/** Header line for the exercise card: `Ostatnio: 102.5 kg × 5` or `Pierwszy raz`. */
+export function lastHeaviestText(reference: ExerciseReference | undefined): string {
+  if (reference === undefined || reference.status === "loading") {
+    return "";
+  }
+  const heaviest = lastHeaviestFromReference(reference);
+  return heaviest === null
+    ? "Pierwszy raz"
+    : `Ostatnio: ${formatWeight(heaviest.weightKg)} kg × ${heaviest.reps}`;
+}
+
 /** `RPE 8 · do upadku · z asystą` — markers come back as TEXT, never as color alone. */
 export function markersText(set: {
   rpe: number | null;

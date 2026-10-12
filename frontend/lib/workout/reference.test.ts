@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isRecordSet, markersText, referenceSet, referenceText } from "@/lib/workout/reference";
+import {
+  isRecordSet,
+  lastHeaviestFromReference,
+  lastHeaviestText,
+  markersText,
+  referenceSet,
+  referenceText,
+} from "@/lib/workout/reference";
 import type { ExerciseReference } from "@/lib/workout/store";
 
 const ready = (sets: { weightKg: number; reps: number }[]): ExerciseReference => ({
@@ -40,6 +47,45 @@ describe("referenceText", () => {
   it("formatuje odniesienie bez zer na końcu", () => {
     expect(referenceText(ready([{ weightKg: 102.5, reps: 5 }]), 0)).toBe("ostatnio: 102.5 × 5");
     expect(referenceText(ready([{ weightKg: 100, reps: 5 }]), 0)).toBe("ostatnio: 100 × 5");
+  });
+});
+
+describe("lastHeaviestFromReference", () => {
+  it("wybiera serię z największym ciężarem", () => {
+    const reference = ready([
+      { weightKg: 100, reps: 5 },
+      { weightKg: 105, reps: 3 },
+      { weightKg: 90, reps: 8 },
+    ]);
+    expect(lastHeaviestFromReference(reference)).toEqual({ weightKg: 105, reps: 3 });
+  });
+
+  it("bez historii lub przy ładowaniu zwraca null", () => {
+    expect(lastHeaviestFromReference(ready([]))).toBeNull();
+    expect(lastHeaviestFromReference({ status: "loading", sets: [] })).toBeNull();
+    expect(lastHeaviestFromReference(undefined)).toBeNull();
+  });
+});
+
+describe("lastHeaviestText", () => {
+  it("w trakcie ładowania jest pusty", () => {
+    expect(lastHeaviestText({ status: "loading", sets: [] })).toBe("");
+    expect(lastHeaviestText(undefined)).toBe("");
+  });
+
+  it("bez historii mówi 'Pierwszy raz'", () => {
+    expect(lastHeaviestText(ready([]))).toBe("Pierwszy raz");
+  });
+
+  it("formatuje najcięższą serię", () => {
+    expect(
+      lastHeaviestText(
+        ready([
+          { weightKg: 100, reps: 5 },
+          { weightKg: 102.5, reps: 3 },
+        ]),
+      ),
+    ).toBe("Ostatnio: 102.5 kg × 3");
   });
 });
 

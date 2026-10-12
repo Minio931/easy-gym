@@ -2,7 +2,7 @@
 
 import { formatVolume, pluralPl } from "@/lib/format";
 import type { SetDraft } from "@/lib/workout/draft";
-import { isRecordSet } from "@/lib/workout/reference";
+import { isRecordSet, lastHeaviestText } from "@/lib/workout/reference";
 import type { ExerciseReference } from "@/lib/workout/store";
 import { ActiveSetRow } from "@/components/workout/active-set-row";
 import { PendingSetRow } from "@/components/workout/pending-set-row";
@@ -50,6 +50,7 @@ export function ExerciseCard({
   const lastSet = exercise.sets.at(-1);
   const draftHasValues = draft !== undefined && (draft.weight !== "" || draft.reps !== "");
   const draftIsNew = draft !== undefined && !draft.editing;
+  const lastHeaviest = lastHeaviestText(reference);
 
   return (
     <section
@@ -63,6 +64,9 @@ export function ExerciseCard({
               dwie różne karty wyglądały tak samo. */}
           <h2 className="screen-title line-clamp-2">{exercise.exerciseName}</h2>
           <p className="meta mt-0.5 truncate">{headerMeta(exercise, targetSets)}</p>
+          {lastHeaviest !== "" && (
+            <p className="meta mt-0.5 truncate tabular-nums">{lastHeaviest}</p>
+          )}
         </div>
         {targetSets !== undefined && (
           <span className="num num-md pt-1 text-ink-3 tabular-nums">

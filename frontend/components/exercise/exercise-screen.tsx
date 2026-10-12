@@ -191,12 +191,20 @@ export function ExerciseScreen({ exerciseId }: { exerciseId: string }) {
 }
 
 function ExerciseHeader({ history }: { history: ExerciseHistoryResponse }) {
+  const lastSession = history.sessions.at(-1);
+  const heaviest = lastSession?.heaviestSet ?? null;
   return (
     <header>
       <h2 className="screen-title">{history.name}</h2>
       <p className="meta mt-0.5">
         {history.muscleGroup} · {EQUIPMENT_LABELS[history.equipment]}
       </p>
+      {heaviest !== null && lastSession !== undefined && (
+        <p className="meta mt-0.5 tabular-nums">
+          Ostatnio: {formatWeight(heaviest.weightKg)} kg × {heaviest.reps} ·{" "}
+          {formatSessionDate(lastSession.startedAt)}
+        </p>
+      )}
     </header>
   );
 }
