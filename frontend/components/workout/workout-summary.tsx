@@ -9,10 +9,13 @@ import { getWorkout } from "@/lib/api/workouts";
 import { isAbortError } from "@/lib/api/errors";
 import { formatDuration, formatLongDate, formatVolume, formatWeight, setsLabel } from "@/lib/format";
 import { useSettings } from "@/lib/settings";
+import { markersText } from "@/lib/workout/reference";
 import type {
   PersonalRecordBrokenResponse,
   RepRangeKey,
+  SetResponse,
   WorkoutDetailResponse,
+  WorkoutExerciseResponse,
 } from "@/types/api";
 
 const REP_RANGE_LABELS: Record<RepRangeKey, string> = {
@@ -121,26 +124,13 @@ export function WorkoutSummary({ workoutId }: { workoutId: string }) {
 
       <section className="mt-8">
         <SectionLabel>Ćwiczenia</SectionLabel>
-        <ul className="rounded-card border border-hairline bg-surface">
-          {workout.exercises.map((exercise, index) => (
-            <li
-              key={exercise.id}
-              className={`flex items-center gap-3 px-4 py-3 ${index === 0 ? "" : "border-t border-hairline"}`}
-            >
-              {/* Nazwa ćwiczenia prowadzi do jego ekranu z wykresami — to jest
-                  główne wejście w historię pojedynczego ruchu (etap 6). */}
-              <Link
-                href={`/cwiczenie/${exercise.exerciseId}`}
-                className="min-w-0 flex-1 py-1"
-              >
-                <span className="block truncate text-ink underline underline-offset-4 decoration-hairline">
-                  {exercise.exerciseName}
-                </span>
-                <span className="meta">{setsLabel(exercise.sets.length)}</span>
-              </Link>
-              <span className="num num-md shrink-0 text-ink-2">
-                {formatVolume(exercise.displayVolumeKg)} <span className="meta">kg</span>
-              </span>
+        <ul className="flex flex-col gap-2">
+          {workout.exercises.map((exercise) => (
+            <li key={exercise.id}>
+              <ExerciseBlock
+                exercise={exercise}
+                records={workout.personalRecordsBrokenIn}
+              />
             </li>
           ))}
         </ul>
@@ -166,6 +156,94 @@ function CloseButton({ onClick }: { onClick: () => void }) {
     >
       Zamknij podsumowanie
     </button>
+  );
+}
+
+function ExerciseBlock({
+  exercise,
+  records,
+}: {
+  exercise: WorkoutExerciseResponse;
+  records: readonly PersonalRecordBrokenResponse[];
+}) {
+  const recordSetIds = new Set(
+    records.map((record) => record.setId).filter((id): id is string => id !== null),
+  );
+  const workingCount = exercise.sets.filter((set) => !set.isWarmup).length;
+  return (
+    <section className="rounded-card border border-hairline bg-surface">
+      <header className="flex items-start gap-3 px-4 pt-3 pb-2">
+        {/* Nazwa ćwiczenia prowadzi do jego ekranu z wykresami — to jest
+            główne wejście w historię pojedynczego ruchu (etap 6). */}
+        <Link href={`/cwiczenie/${exercise.exerciseId}`} className="min-w-0 flex-1">
+          <span className="block truncate text-ink underline underline-offset-4 decoration-hairline">
+            {exercise.exerciseName}
+          </span>
+          <span className="meta block truncate">
+            {exercise.muscleGroup} · {setsLabel(workingCount)}
+          </span>
+        </Link>
+        <span className="num num-md shrink-0 text-ink-2">
+          {formatVolume(exercise.displayVolumeKg)} <span className="meta">kg</span>
+        </span>
+      </header>
+      {exercise.sets.length === 0 ? (
+        <p className="meta border-t border-hairline px-4 py-3">Bez serii.</p>
+      ) : (
+        <ul>
+          {exercise.sets.map((set, index) => (
+            <li key={set.id} className="border-t border-hairline">
+              <SummarySetRow
+                set={set}
+                index={index}
+                isRecord={recordSetIds.has(set.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SummarySetRow({
+  set,
+  index,
+  isRecord,
+}: {
+  set: SetResponse;
+  index: number;
+  isRecord: boolean;
+}) {
+  const markers = markersText(set);
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-2"
+      style={{ backgroundColor: isRecord ? "var(--pr-wash)" : undefined }}
+    >
+      <span className="w-6 shrink-0 text-center">
+        {set.isWarmup ? (
+          <span className="inline-block rounded-full bg-surface-3 px-[7px] py-0.5 text-[12px] leading-4 font-semibold text-ink-2">
+            R
+          </span>
+        ) : (
+          <span className="meta">{index + 1}</span>
+        )}
+      </span>
+      <span className="num num-md flex-1 truncate tabular-nums">
+        {formatWeight(set.weightKg)} <span className="meta">kg</span> × {set.reps}{" "}
+        <span className="meta">powt.</span>
+      </span>
+      {isRecord && (
+        <span
+          className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-[0.06em]"
+          style={{ color: "var(--pr)", borderColor: "var(--pr)", backgroundColor: "var(--pr-wash)" }}
+        >
+          PR
+        </span>
+      )}
+      {markers !== "" && <span className="meta shrink-0 truncate">{markers}</span>}
+    </div>
   );
 }
 
